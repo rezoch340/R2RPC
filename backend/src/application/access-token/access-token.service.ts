@@ -4,8 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { DbService } from '../../infrastructure/db/db.service';
+import { RedisService } from '../../infrastructure/redis/redis.service';
 import { groups } from '../groups/groups.schema';
 import { GroupsService } from '../groups/groups.service';
 import { accessTokenGroups, accessTokens } from './access-token.schema';
@@ -15,6 +16,7 @@ export class AccessTokenService {
   constructor(
     private readonly dbService: DbService,
     private readonly groups: GroupsService,
+    private readonly redis: RedisService,
   ) {}
 
   private get db() {
@@ -111,7 +113,8 @@ export class AccessTokenService {
   }
 
   /**
-   * 撤销 token:更新 status='revoked'
+   * 撤销 token:更新 status='revoked',并同步删 redis 正缓存
+   * (guard 侧对已验证过的 token 会缓存 60s,若不主动删,撤销后仍可再用满 60s)
    */
   async revoke(id: number) {
     const result = await this.db
@@ -124,7 +127,18 @@ export class AccessTokenService {
       throw new NotFoundException('Token 不存在');
     }
 
-    return result[0];
+    const row = result[0];
+    if (row?.token) {
+      // key 格式需与 AccessTokenGuard 完全一致(sha256 摘要明文 token)
+      const key = `invoke:token:${createHash('sha256').update(row.token).digest('hex')}`;
+      try {
+        await this.redis.client.del(key);
+      } catch {
+        // fail-open: 缓存删失败不阻断撤销,最长 60s 后自然过期
+      }
+    }
+
+    return row;
   }
 
   /**

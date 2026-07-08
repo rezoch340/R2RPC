@@ -109,12 +109,16 @@ async function waitReady() {
   assert(invNoAuth.status === 401, 'invoke without Authorization header -> 401');
 
   // 撤销:token 撤销后 status != active,再拿它调用 -> 403
+  // 先用一次 invoke 预热 guard 的 redis 正缓存(60s TTL),再撤销,证明撤销会同步删缓存,
+  // 而不是仅仅数据库层面变了状态(此前 revoke 未清缓存,已用过的 token 撤销后仍可再用满 60s)
   const revokeResp = await http('POST', '/access-tokens', { name: 'revoke-me', groups: ['cn-nodes'] }, admin);
   assert(revokeResp.status < 300 && !!revokeResp.json.token, 'admin create revoke-me token');
+  const warmInv = await http('POST', '/rpc/invoke/cn-nodes/echo', { payload: {} }, revokeResp.json.token);
+  assert(warmInv.json.is_ok === true, 'invoke with revoke-me token before revoke -> is_ok true (warms positive cache)');
   const revokeAction = await http('POST', `/access-tokens/${revokeResp.json.id}/revoke`, null, admin);
   assert(revokeAction.status < 300, 'admin revoke revoke-me token');
   const invRevoked = await http('POST', '/rpc/invoke/cn-nodes/echo', { payload: {} }, revokeResp.json.token);
-  assert(invRevoked.status === 403, 'invoke with revoked token -> 403');
+  assert(invRevoked.status === 403, 'invoke with revoked token (cache warmed) -> 403 (proves cache invalidated, not just DB)');
 
   // 超时:有效 cn-nodes token 调一个没人应答的 action
   const t0 = Date.now();

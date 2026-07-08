@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsDateString, IsOptional, IsString } from 'class-validator';
+import {
+  ArrayNotEmpty,
+  IsArray,
+  IsDateString,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreateAccessTokenDto {
   @ApiProperty()
@@ -8,6 +14,7 @@ export class CreateAccessTokenDto {
 
   @ApiProperty()
   @IsArray()
+  @ArrayNotEmpty()
   @IsString({ each: true })
   groups: string[];
 
