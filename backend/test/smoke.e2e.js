@@ -109,6 +109,43 @@ async function waitReady() {
   const m = await http('GET', '/metrics/overview', null, admin);
   assert(m.json.totals && typeof m.json.totals.total === 'number', 'metrics overview');
 
+  // ---------- RBAC:operator 角色只读,越权 403,未登录 401 ----------
+
+  // 无 token 访问受保护接口 -> 401
+  const noAuth = await http('GET', '/users', null, null);
+  assert(noAuth.status === 401, 'unauthenticated GET /users -> 401');
+
+  // 建 op1 用户(409 说明已建过,忽略),挂 operator 角色
+  const opCreate = await http('POST', '/users', { username: 'op1', password: 'oppass123' }, admin);
+  assert(opCreate.status < 300 || opCreate.status === 409, 'create op1 user (or already exists)');
+
+  const rolesList = await http('GET', '/rbac/roles', null, admin);
+  const operatorRole = (rolesList.json || []).find((r) => r.name === 'operator');
+  assert(!!operatorRole, 'operator role exists (seeded)');
+
+  const usersList = await http('GET', '/users', null, admin);
+  const op1 = (usersList.json || []).find((u) => u.username === 'op1');
+  assert(!!op1, 'op1 user exists');
+
+  const assignRes = await http('POST', `/rbac/users/${op1.id}/roles/${operatorRole.id}`, null, admin);
+  assert(assignRes.status < 300 || assignRes.status === 409, 'assign operator role to op1 (or already assigned)');
+
+  const opLogin = await http('POST', '/auth/login', { username: 'op1', password: 'oppass123' });
+  assert(opLogin.status < 300 && !!opLogin.json.token, 'op1 login');
+  const opToken = opLogin.json.token;
+
+  const opList = await http('GET', '/users', null, opToken);
+  assert(opList.status === 200, 'op1 GET /users -> 200 (operator has read/user)');
+
+  const opCreateDenied = await http('POST', '/users', { username: 'x2', password: 'xxxxxx' }, opToken);
+  assert(opCreateDenied.status === 403, 'op1 POST /users -> 403 (operator lacks create/user)');
+
+  const opMe = await http('GET', '/auth/me', null, opToken);
+  assert(
+    opMe.status === 200 && Array.isArray(opMe.json.permissions),
+    'op1 GET /auth/me -> 200 with permissions array (operator has read/me)',
+  );
+
   ws.close();
   await sleep(200);
   console.log(failed ? '\n=== SMOKE FAILED ===' : '\n=== SMOKE PASSED ===');
