@@ -9,9 +9,5 @@ export class ClientLoginDto {
 
   @ApiProperty()
   @IsString()
-  group: string;
-
-  @ApiProperty()
-  @IsString()
   secret: string;
 }

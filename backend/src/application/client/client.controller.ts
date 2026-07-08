@@ -16,7 +16,7 @@ export class ClientController {
   @Post('api/client/login')
   @ApiOperation({ summary: '手机设备登录,返回 token 与 wsUrl' })
   login(@Body() dto: ClientLoginDto) {
-    return this.client.login(dto.clientId, dto.group, dto.secret);
+    return this.client.login(dto.clientId, dto.secret);
   }
 
   // 管理端:创建设备账号

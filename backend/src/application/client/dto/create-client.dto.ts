@@ -1,14 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, MinLength } from 'class-validator';
+import { IsArray, IsString, MinLength } from 'class-validator';
 
 export class CreateClientDto {
   @ApiProperty()
   @IsString()
   clientId: string;
 
-  @ApiProperty()
-  @IsString()
-  group: string;
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  groups: string[];
 
   @ApiProperty()
   @IsString()
