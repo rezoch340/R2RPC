@@ -5,6 +5,8 @@ export const configSchema = z.object({
   app: z.object({
     port: z.number().int().positive().default(3000),
     globalPrefix: z.string().default(''),
+    // 手机端下发的 WebSocket 公网地址前缀;不填则用 ws://127.0.0.1:{port}
+    publicWsUrl: z.string().optional(),
   }),
   db: z.object({
     host: z.string(),
