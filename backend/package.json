@@ -18,7 +18,8 @@
     "db:migrate": "ts-node -r tsconfig-paths/register src/scripts/migrate.ts",
     "seed:admin": "ts-node -r tsconfig-paths/register src/scripts/seed-admin.ts",
     "test": "jest",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "smoke": "node test/smoke.e2e.js"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.4",
