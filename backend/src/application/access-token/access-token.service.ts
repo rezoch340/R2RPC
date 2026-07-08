@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { createHash, randomBytes } from 'node:crypto';
+import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
 import { groups } from '../groups/groups.schema';
@@ -92,7 +93,10 @@ export class AccessTokenService {
    */
   async list() {
     // ponytail: 简单 select + 内存 join;若列表超大,可建数据库 view
-    const tokens = await this.db.select().from(accessTokens);
+    const tokens = await this.db
+      .select()
+      .from(accessTokens)
+      .where(alive(accessTokens));
 
     // 为每个 token 查其组名
     const result = await Promise.all(
@@ -149,7 +153,7 @@ export class AccessTokenService {
     const [row] = await this.db
       .select()
       .from(accessTokens)
-      .where(eq(accessTokens.token, token))
+      .where(alive(accessTokens, eq(accessTokens.token, token)))
       .limit(1);
 
     if (!row) {
@@ -169,5 +173,30 @@ export class AccessTokenService {
       expiresAt: row.expiresAt,
       groupIds: groupRows.map((gr) => gr.groupId),
     };
+  }
+
+  /**
+   * 软删 token(与 revoke 正交:revoke 改 status,delete 走软删)。
+   * 同步删 redis 正缓存,确保已删 token 立即失效(findByToken 会因 alive() 过滤返回 null → guard 401)。
+   */
+  async delete(id: number) {
+    const rows = await softDelete(
+      this.db,
+      accessTokens,
+      eq(accessTokens.id, id),
+    );
+    if (rows.length === 0) {
+      throw new NotFoundException('Token 不存在');
+    }
+    const row = rows[0] as { token?: string };
+    if (row.token) {
+      const key = `invoke:token:${createHash('sha256').update(row.token).digest('hex')}`;
+      try {
+        await this.redis.client.del(key);
+      } catch {
+        // fail-open: 缓存删失败不阻断,最长 60s 自然过期
+      }
+    }
+    return { deleted: true };
   }
 }

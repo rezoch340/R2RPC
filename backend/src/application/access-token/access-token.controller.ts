@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -47,5 +48,13 @@ export class AccessTokenController {
   @ApiOperation({ summary: '撤销 access token' })
   revoke(@Param('id', ParseIntPipe) id: number) {
     return this.tokens.revoke(id);
+  }
+
+  // 删除 token(软删,与撤销正交)
+  @Delete(':id')
+  @RequirePermission('manage', 'access-token')
+  @ApiOperation({ summary: '删除 access token(软删,与撤销正交)' })
+  delete(@Param('id', ParseIntPipe) id: number) {
+    return this.tokens.delete(id);
   }
 }
