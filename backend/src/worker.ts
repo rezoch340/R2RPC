@@ -8,4 +8,4 @@ async function bootstrap() {
   app.enableShutdownHooks();
   Logger.log('worker 进程已启动(请求日志消费 + 死信补偿 + repair)', 'Worker');
 }
-bootstrap();
+void bootstrap();

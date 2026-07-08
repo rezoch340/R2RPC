@@ -33,7 +33,11 @@ export class SearchService implements OnModuleInit {
     const res = await fetch(`${this.base}/replace`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ index: TABLE, id: this.docId(String(doc.request_id)), doc }),
+      body: JSON.stringify({
+        index: TABLE,
+        id: this.docId(String(doc.request_id)),
+        doc,
+      }),
     });
     if (!res.ok) {
       throw new Error(`Manticore replace ${res.status}: ${await res.text()}`);
@@ -41,7 +45,9 @@ export class SearchService implements OnModuleInit {
   }
 
   // 按 requestId 懒加载原文;Manticore 不可用 / 未命中返回 null(调用方标记 payloadUnavailable)
-  async getByRequestId(requestId: string): Promise<Record<string, unknown> | null> {
+  async getByRequestId(
+    requestId: string,
+  ): Promise<Record<string, unknown> | null> {
     try {
       const res = await fetch(`${this.base}/search`, {
         method: 'POST',

@@ -1,6 +1,15 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { AbilityBuilder, createMongoAbility, MongoAbility } from '@casl/ability';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  AbilityBuilder,
+  createMongoAbility,
+  MongoAbility,
+} from '@casl/ability';
 import { and, eq } from 'drizzle-orm';
+import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
 import { users } from '../users/users.schema';
 import { permissions, rolePermissions, roles, userRoles } from './rbac.schema';
@@ -17,22 +26,37 @@ export class RbacService {
 
   // 查用户的全部有效权限:user_roles → role_permissions → permissions,按 action+subject 去重
   async getUserPermissions(userId: number): Promise<PermissionTuple[]> {
-    return this.db
-      .selectDistinct({ action: permissions.action, subject: permissions.subject })
-      .from(userRoles)
-      .innerJoin(rolePermissions, eq(userRoles.roleId, rolePermissions.roleId))
-      .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
-      .where(eq(userRoles.userId, userId));
+    return (
+      this.db
+        .selectDistinct({
+          action: permissions.action,
+          subject: permissions.subject,
+        })
+        .from(userRoles)
+        // join ON 经 alive 过滤软删角色 / 软删权限——关联行不 cascade,不过滤会"读到已删授权"
+        .innerJoin(roles, alive(roles, eq(userRoles.roleId, roles.id)))
+        .innerJoin(
+          rolePermissions,
+          eq(userRoles.roleId, rolePermissions.roleId),
+        )
+        .innerJoin(
+          permissions,
+          alive(permissions, eq(rolePermissions.permissionId, permissions.id)),
+        )
+        .where(eq(userRoles.userId, userId))
+    );
   }
 
-  // 是否 root 用户(root 不受权限表约束,直通)
-  async isRoot(userId: number): Promise<boolean> {
+  // 查用户身份(id + 是否 root),过滤软删——已删用户视为不存在,JwtStrategy 据此拒绝其 JWT
+  async findAuthUser(
+    userId: number,
+  ): Promise<{ id: number; isRoot: boolean } | null> {
     const [u] = await this.db
-      .select({ isRoot: users.isRoot })
+      .select({ id: users.id, isRoot: users.isRoot })
       .from(users)
-      .where(eq(users.id, userId))
+      .where(alive(users, eq(users.id, userId)))
       .limit(1);
-    return u?.isRoot ?? false;
+    return u ?? null;
   }
 
   // 用权限元组构建 CASL ability,供 PermissionGuard 做 can(action, subject) 判断
@@ -55,11 +79,11 @@ export class RbacService {
   }
 
   async listRoles() {
-    return this.db.select().from(roles);
+    return this.db.select().from(roles).where(alive(roles));
   }
 
   async deleteRole(id: number) {
-    const [row] = await this.db.delete(roles).where(eq(roles.id, id)).returning();
+    const [row] = await softDelete(this.db, roles, eq(roles.id, id));
     if (!row) throw new NotFoundException('角色不存在');
     return { deleted: true };
   }
@@ -67,7 +91,11 @@ export class RbacService {
   // ---------- 权限 CRUD ----------
 
   // description 可选(权限表新增的说明列),不传则为 null
-  async createPermission(action: string, subject: string, description?: string) {
+  async createPermission(
+    action: string,
+    subject: string,
+    description?: string,
+  ) {
     const [row] = await this.db
       .insert(permissions)
       .values({ action, subject, description })
@@ -78,11 +106,15 @@ export class RbacService {
   }
 
   async listPermissions() {
-    return this.db.select().from(permissions);
+    return this.db.select().from(permissions).where(alive(permissions));
   }
 
   async deletePermission(id: number) {
-    const [row] = await this.db.delete(permissions).where(eq(permissions.id, id)).returning();
+    const [row] = await softDelete(
+      this.db,
+      permissions,
+      eq(permissions.id, id),
+    );
     if (!row) throw new NotFoundException('权限不存在');
     return { deleted: true };
   }
@@ -104,7 +136,12 @@ export class RbacService {
   async detachPermission(roleId: number, permissionId: number) {
     const [row] = await this.db
       .delete(rolePermissions)
-      .where(and(eq(rolePermissions.roleId, roleId), eq(rolePermissions.permissionId, permissionId)))
+      .where(
+        and(
+          eq(rolePermissions.roleId, roleId),
+          eq(rolePermissions.permissionId, permissionId),
+        ),
+      )
       .returning();
     if (!row) throw new NotFoundException('角色未拥有该权限');
     return { detached: true };
@@ -136,7 +173,11 @@ export class RbacService {
   // ---------- 存在性校验(供上面的关联操作复用,不存在则 404) ----------
 
   private async assertRoleExists(id: number) {
-    const [row] = await this.db.select({ id: roles.id }).from(roles).where(eq(roles.id, id)).limit(1);
+    const [row] = await this.db
+      .select({ id: roles.id })
+      .from(roles)
+      .where(alive(roles, eq(roles.id, id)))
+      .limit(1);
     if (!row) throw new NotFoundException('角色不存在');
   }
 
@@ -144,13 +185,17 @@ export class RbacService {
     const [row] = await this.db
       .select({ id: permissions.id })
       .from(permissions)
-      .where(eq(permissions.id, id))
+      .where(alive(permissions, eq(permissions.id, id)))
       .limit(1);
     if (!row) throw new NotFoundException('权限不存在');
   }
 
   private async assertUserExists(id: number) {
-    const [row] = await this.db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
+    const [row] = await this.db
+      .select({ id: users.id })
+      .from(users)
+      .where(alive(users, eq(users.id, id)))
+      .limit(1);
     if (!row) throw new NotFoundException('用户不存在');
   }
 }

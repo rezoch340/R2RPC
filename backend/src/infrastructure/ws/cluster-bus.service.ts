@@ -7,7 +7,10 @@ import { RedisService } from '../redis/redis.service';
 export class ClusterBus implements OnModuleDestroy {
   private readonly logger = new Logger('ClusterBus');
   private readonly sub: Redis;
-  private readonly handlers = new Map<string, (msg: any) => void>();
+  private readonly handlers = new Map<
+    string,
+    (msg: any) => void | Promise<void>
+  >();
 
   constructor(private readonly redis: RedisService) {
     // 在构造函数里建(而非 onModuleInit):Nest 的 onModuleInit 按 providers 数组声明顺序调用,
@@ -21,14 +24,21 @@ export class ClusterBus implements OnModuleDestroy {
       const h = this.handlers.get(channel);
       if (!h) return;
       try {
-        h(JSON.parse(payload));
+        void Promise.resolve(h(JSON.parse(payload))).catch((e) =>
+          this.logger.warn(
+            `handler err on ${channel}: ${(e as Error).message}`,
+          ),
+        );
       } catch {
         this.logger.warn(`bad msg on ${channel}`);
       }
     });
   }
 
-  async subscribe(channel: string, handler: (msg: any) => void) {
+  async subscribe(
+    channel: string,
+    handler: (msg: any) => void | Promise<void>,
+  ) {
     this.handlers.set(channel, handler);
     await this.sub.subscribe(channel);
   }

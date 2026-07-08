@@ -62,10 +62,26 @@ export class RpcService {
       groupId = await this.groups.idByName(p.group);
     } catch (e) {
       this.logger.error(`分组解析失败(基础设施异常): ${(e as Error).message}`);
-      return this.fail(p, requestId, null, startedAt, 'error', 503, '基础设施异常,无法调度');
+      return this.fail(
+        p,
+        requestId,
+        null,
+        startedAt,
+        'error',
+        503,
+        '基础设施异常,无法调度',
+      );
     }
     if (!groupId) {
-      return this.fail(p, requestId, null, startedAt, 'no_group', 404, '组不存在');
+      return this.fail(
+        p,
+        requestId,
+        null,
+        startedAt,
+        'no_group',
+        404,
+        '组不存在',
+      );
     }
 
     // 选目标设备:指定 clientId 优先,否则组内轮询。基础设施(redis)异常也要留取证脊柱。
@@ -73,17 +89,41 @@ export class RpcService {
     try {
       if (clientId) {
         if (!(await this.presence.isOnline(clientId))) {
-          return this.fail(p, requestId, clientId, startedAt, 'offline', 503, '指定设备不在线');
+          return this.fail(
+            p,
+            requestId,
+            clientId,
+            startedAt,
+            'offline',
+            503,
+            '指定设备不在线',
+          );
         }
       } else {
         clientId = await this.presence.pickOnline(groupId);
         if (!clientId) {
-          return this.fail(p, requestId, null, startedAt, 'no_device', 503, 'group 内无在线设备');
+          return this.fail(
+            p,
+            requestId,
+            null,
+            startedAt,
+            'no_device',
+            503,
+            'group 内无在线设备',
+          );
         }
       }
     } catch (e) {
       this.logger.error(`设备选择失败(基础设施异常): ${(e as Error).message}`);
-      return this.fail(p, requestId, clientId, startedAt, 'error', 503, '基础设施异常,无法调度');
+      return this.fail(
+        p,
+        requestId,
+        clientId,
+        startedAt,
+        'error',
+        503,
+        '基础设施异常,无法调度',
+      );
     }
 
     const job = {
@@ -99,7 +139,11 @@ export class RpcService {
     // 不依赖 ioredis 的 FIFO 顺序,严格保证 waiter 落地早于 job 被设备处理、result 回流。
     // dispatch 失败/异常分支下面会 cancelWaiter 直接 reject 而不 await 它,这里挂个空 catch
     // 防止那种情况下产生 unhandled rejection 把进程带崩(redis 故障绝不能挂死进程)。
-    const resultP = this.registry.registerWaiter<DeviceResult>(requestId, clientId, timeoutMs);
+    const resultP = this.registry.registerWaiter<DeviceResult>(
+      requestId,
+      clientId,
+      timeoutMs,
+    );
     resultP.catch(() => {});
 
     let dispatched: boolean;
@@ -110,11 +154,27 @@ export class RpcService {
     } catch (e) {
       this.registry.cancelWaiter(requestId, 'dispatch_error');
       this.logger.error(`job 派发失败(基础设施异常): ${(e as Error).message}`);
-      return this.fail(p, requestId, clientId, startedAt, 'error', 503, '基础设施异常,无法调度');
+      return this.fail(
+        p,
+        requestId,
+        clientId,
+        startedAt,
+        'error',
+        503,
+        '基础设施异常,无法调度',
+      );
     }
     if (!dispatched) {
       this.registry.cancelWaiter(requestId, 'unavailable');
-      return this.fail(p, requestId, clientId, startedAt, 'unavailable', 503, '设备连接已断开');
+      return this.fail(
+        p,
+        requestId,
+        clientId,
+        startedAt,
+        'unavailable',
+        503,
+        '设备连接已断开',
+      );
     }
 
     try {
@@ -133,7 +193,15 @@ export class RpcService {
       void this.enqueueLog(p, resp, startedAt, result.payload);
       return resp;
     } catch {
-      return this.fail(p, requestId, clientId, startedAt, 'timeout', 504, `超时(${timeoutSeconds}s)`);
+      return this.fail(
+        p,
+        requestId,
+        clientId,
+        startedAt,
+        'timeout',
+        504,
+        `超时(${timeoutSeconds}s)`,
+      );
     }
   }
 
@@ -192,10 +260,14 @@ export class RpcService {
       ]);
     } catch (e) {
       // Redis/BullMQ 不可用:降级同步写 PG 脊柱,payload 缺失标 unavailable,保证至少有取证记录
-      this.logger.warn(`入队请求日志失败,降级同步写 PG 脊柱: ${(e as Error).message}`);
+      this.logger.warn(
+        `入队请求日志失败,降级同步写 PG 脊柱: ${(e as Error).message}`,
+      );
       await this.requestLogs
         .writeSpine(job, 'unavailable')
-        .catch((err) => this.logger.error(`降级写脊柱也失败: ${(err as Error).message}`));
+        .catch((err) =>
+          this.logger.error(`降级写脊柱也失败: ${(err as Error).message}`),
+        );
     }
   }
 }

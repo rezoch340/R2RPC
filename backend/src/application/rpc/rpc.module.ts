@@ -10,7 +10,13 @@ import { RpcService } from './rpc.service';
 @Module({
   // WsModule 提供 Presence/ConnectionRegistry;GroupsModule 解析组名→组id;QueueModule 入队;
   // RequestLogsModule 降级同步写 PG 脊柱;AccessTokenModule 提供 AccessTokenGuard(全局导出,这里显式 import 便于阅读)
-  imports: [WsModule, QueueModule, RequestLogsModule, GroupsModule, AccessTokenModule],
+  imports: [
+    WsModule,
+    QueueModule,
+    RequestLogsModule,
+    GroupsModule,
+    AccessTokenModule,
+  ],
   controllers: [RpcController],
   providers: [RpcService],
 })

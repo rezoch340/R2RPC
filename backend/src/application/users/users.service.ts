@@ -1,5 +1,10 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { eq } from 'drizzle-orm';
+import { alive, softDelete } from '../../common/db/soft-delete';
 import { hashPassword } from '../../common/utils/password';
 import { DbService } from '../../infrastructure/db/db.service';
 import { users } from './users.schema';
@@ -16,7 +21,7 @@ export class UsersService {
     const [row] = await this.db
       .select()
       .from(users)
-      .where(eq(users.username, username))
+      .where(alive(users, eq(users.username, username)))
       .limit(1);
     return row ?? null;
   }
@@ -29,7 +34,8 @@ export class UsersService {
         role: users.role,
         createdAt: users.createdAt,
       })
-      .from(users);
+      .from(users)
+      .where(alive(users));
   }
 
   async findById(id: number) {
@@ -41,7 +47,7 @@ export class UsersService {
         createdAt: users.createdAt,
       })
       .from(users)
-      .where(eq(users.id, id))
+      .where(alive(users, eq(users.id, id)))
       .limit(1);
     if (!row) throw new NotFoundException('用户不存在');
     return row;
@@ -68,7 +74,7 @@ export class UsersService {
   }
 
   async remove(id: number) {
-    await this.db.delete(users).where(eq(users.id, id));
+    await softDelete(this.db, users, eq(users.id, id));
     return { deleted: true };
   }
 }

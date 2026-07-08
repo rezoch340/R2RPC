@@ -15,7 +15,12 @@ export class PresenceService {
 
   // 上线:登记到所属每个组的在线集合 + 写 presence 快照(JSON groupIds)
   async online(clientId: string, groupIds: number[]) {
-    await this.r.set(`presence:${clientId}`, JSON.stringify(groupIds), 'EX', PRESENCE_TTL);
+    await this.r.set(
+      `presence:${clientId}`,
+      JSON.stringify(groupIds),
+      'EX',
+      PRESENCE_TTL,
+    );
     for (const gid of groupIds) {
       await this.r.sadd(`group:clients:${gid}`, clientId);
     }

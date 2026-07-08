@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { AccessTokenService } from '../../application/access-token/access-token.service';
 import { GroupsService } from '../../application/groups/groups.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
+import type { AuthedRequest } from '../types/authed-request';
 
 type CachedToken = {
   id: number;
@@ -32,9 +33,11 @@ export class AccessTokenGuard implements CanActivate {
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
-    const req = ctx.switchToHttp().getRequest();
-    const h = req.headers?.authorization;
-    const plain: string | undefined = h?.startsWith('Bearer ') ? h.slice(7) : undefined;
+    const req = ctx.switchToHttp().getRequest<AuthedRequest>();
+    const h = req.headers.authorization;
+    const plain: string | undefined = h?.startsWith('Bearer ')
+      ? h.slice(7)
+      : undefined;
     if (!plain) throw new UnauthorizedException('缺少 access token');
 
     // 明文 token 不入 redis key,用 sha256 摘要
@@ -49,11 +52,13 @@ export class AccessTokenGuard implements CanActivate {
     if (t.expiresAt && new Date(t.expiresAt) < new Date()) {
       throw new UnauthorizedException('token 已过期');
     }
-    if (t.status !== 'active') throw new ForbiddenException('token 已停用/撤销');
+    if (t.status !== 'active')
+      throw new ForbiddenException('token 已停用/撤销');
 
-    const groupName = req.params?.group ?? req.query?.group;
+    const groupName = req.params.group ?? req.query.group;
     const gid = groupName ? await this.groups.idByName(groupName) : null;
-    if (!gid || !t.groupIds.includes(gid)) throw new ForbiddenException('token 无该设备组权限');
+    if (!gid || !t.groupIds.includes(gid))
+      throw new ForbiddenException('token 无该设备组权限');
 
     req.accessToken = { id: t.id, name: t.name, groupIds: t.groupIds };
     return true;
@@ -61,12 +66,16 @@ export class AccessTokenGuard implements CanActivate {
 
   // 读缓存:命中正缓存返回 token 对象;命中负缓存(notFound)返回 null;
   // 未命中或 redis 异常一律返回 undefined,触发回落 DB(fail-open)
-  private async readCache(key: string): Promise<CachedToken | null | undefined> {
+  private async readCache(
+    key: string,
+  ): Promise<CachedToken | null | undefined> {
     try {
       const raw = await this.redis.client.get(key);
       if (!raw) return undefined;
-      const parsed = JSON.parse(raw);
-      if (parsed?.notFound) return null;
+      const parsed = JSON.parse(raw) as {
+        notFound?: boolean;
+      } & Partial<CachedToken>;
+      if (parsed.notFound) return null;
       return parsed as CachedToken;
     } catch {
       return undefined;
@@ -78,9 +87,19 @@ export class AccessTokenGuard implements CanActivate {
   private async writeCache(key: string, t: CachedToken | null): Promise<void> {
     try {
       if (t === null) {
-        await this.redis.client.set(key, JSON.stringify({ notFound: true }), 'EX', NEGATIVE_TTL_SEC);
+        await this.redis.client.set(
+          key,
+          JSON.stringify({ notFound: true }),
+          'EX',
+          NEGATIVE_TTL_SEC,
+        );
       } else {
-        await this.redis.client.set(key, JSON.stringify(t), 'EX', POSITIVE_TTL_SEC);
+        await this.redis.client.set(
+          key,
+          JSON.stringify(t),
+          'EX',
+          POSITIVE_TTL_SEC,
+        );
       }
     } catch {
       // fail-open:缓存写失败不影响鉴权

@@ -169,6 +169,30 @@ async function waitReady() {
     'op1 GET /auth/me -> 200 with permissions array (operator has read/me)',
   );
 
+  // ---------- Phase 4:软删除 ----------
+  // (a) access token 软删(DELETE)与 revoke 正交:删后立即失效,返 401(revoke 是 403)
+  const delTok = await http('POST', '/access-tokens', { name: 'probe-del', groups: ['cn-nodes'] }, admin);
+  assert(delTok.status < 300 && !!delTok.json.token, 'create probe-del token');
+  const preDel = await http('POST', '/rpc/invoke/cn-nodes/echo', { payload: {} }, delTok.json.token);
+  assert(preDel.json.is_ok === true, 'probe-del token works before delete (warms positive cache)');
+  const delAction = await http('DELETE', `/access-tokens/${delTok.json.id}`, null, admin);
+  assert(delAction.status < 300, 'admin DELETE probe-del token (soft-delete)');
+  const postDel = await http('POST', '/rpc/invoke/cn-nodes/echo', { payload: {} }, delTok.json.token);
+  assert(postDel.status === 401, 'invoke with soft-deleted token -> 401 (distinct from revoke 403; proves alive() filter + cache del)');
+
+  // (b) partial unique:软删后同名可重建(否则旧删除行占用 name -> 409)
+  const rn = 'probe-sd-role-' + Date.now();
+  const r1 = await http('POST', '/rbac/roles', { name: rn }, admin);
+  assert(r1.status < 300 && !!r1.json.id, 'create ' + rn);
+  const rDel = await http('DELETE', `/rbac/roles/${r1.json.id}`, null, admin);
+  assert(rDel.status < 300, 'soft-delete role');
+  const r2 = await http('POST', '/rbac/roles', { name: rn }, admin);
+  assert(
+    r2.status < 300 && !!r2.json.id && r2.json.id !== r1.json.id,
+    'recreate same-name role -> new id (partial unique lets soft-deleted name be reused)',
+  );
+  await http('DELETE', `/rbac/roles/${r2.json.id}`, null, admin); // 清理:软删掉重建的,免累积
+
   ws.close();
   await sleep(200);
   console.log(failed ? '\n=== SMOKE FAILED ===' : '\n=== SMOKE PASSED ===');

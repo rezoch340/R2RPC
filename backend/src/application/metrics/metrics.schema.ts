@@ -16,4 +16,5 @@ export const metrics = pgTable('metrics', {
   okCount: integer('ok_count').notNull().default(0),
   errCount: integer('err_count').notNull().default(0),
   description: varchar('description', { length: 255 }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });

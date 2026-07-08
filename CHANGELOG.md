@@ -26,6 +26,15 @@
 - 种子脚本(`seed-admin.ts`)权限全集补上 `manage/access-token`(共 14 条),幂等可重跑。
 - 端到端 smoke 的 invoke 断言全部改用 access token(不再传管理员 JWT,传了也会 401):同一设备跨组场景下验证「token 作用域命中」(cn-nodes 内 invoke 成功)、「越组 403」(设备本身也在 us-nodes,但 token 未开该组作用域,校验的是 token 而非设备)、「无效 token 401」、「无 Authorization 头 401」、「撤销后 403」,以及原有的超时分支——全绿,阶段3 收尾。
 
+### 已完成 · 阶段4 全局软删除 retrofit(5/5)
+- 非日志实体表(users/groups/clients/devices/metrics/roles/permissions/access_tokens)统一加 `deleted_at`;唯一约束改 `WHERE deleted_at IS NULL` 的 **partial unique index**(软删同名后可重建);排除 `request_logs` 与 4 张 M2M 关联表(继续硬删关联行)。迁移 `0005`。
+- 软删语义**在源头集中**在 `src/common/db/soft-delete.ts` 两个助手:`alive(table, ...conds)`(= `isNull(deletedAt) AND ...`)与 `softDelete(db, table, where)`(update deleted_at=now() + returning)。所有软删表读查询 `.where()` / join ON 一律经 `alive()`,删除一律经 `softDelete()`——禁止散写 `isNull`,可 grep 审计。(Drizzle 非 active-record,不做 TypeORM 式 per-entity Repository。)
+- 安全缺口一并堵:软删用户/角色的 `user_roles`/`role_permissions` 不 cascade,`getUserPermissions` 的 join ON 用 `alive(roles)`+`alive(permissions)` 排除已删授权;`JwtStrategy` 改用 `findAuthUser`(`alive(users)`)拒绝已删用户的旧 JWT。
+- access token 新增 `delete`(软删)操作 + `DELETE /access-tokens/:id` 端点,与 `revoke`(改 status)**正交**:删后同步删 redis 缓存立即失效,`findByToken` 经 `alive()` 返 null → guard **401**(区别 revoke 的 403)。
+- 端到端 smoke 新增软删断言:token 软删后 invoke → 401(证 alive 过滤 + 缓存删)、role 软删后同名重建拿新 id(证 partial unique)——全绿(34 断言),阶段4 收尾。
+- 顺带:**全项目 prettier + eslint 归零**(此前从没跑过,155 问题 → 0;请求对象/JSON.parse/socket 自定义属性补类型,`bootstrap()` 补 `void`,`ClusterBus` handler 放宽到 `void|Promise<void>`)。
+
 ### 设计
 - 三套授权域设计定稿:**后台 CASL RBAC** + **设备组一等实体(设备多组)** + **invoke 独立 access token**(按设备组作用域、可过期)。
+- 全局软删除定稿:非日志实体表 `deleted_at` + partial unique + `alive()`/`softDelete()` 源头集中;`revoked`(运行状态)与 `deleted_at`(软删)正交。
   见 `docs/superpowers/specs/2026-07-08-group-scoped-rbac-invoke-tokens-design.md`,分 3 阶段落地。

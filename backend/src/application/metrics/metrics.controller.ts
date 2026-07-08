@@ -11,7 +11,9 @@ export class MetricsController {
 
   @Get('overview')
   @RequirePermission('read', 'metrics')
-  @ApiOperation({ summary: '指标总览(总量 / 成功失败 / 平均延迟 / 分状态 / 分组)' })
+  @ApiOperation({
+    summary: '指标总览(总量 / 成功失败 / 平均延迟 / 分状态 / 分组)',
+  })
   overview() {
     return this.metrics.overview();
   }
