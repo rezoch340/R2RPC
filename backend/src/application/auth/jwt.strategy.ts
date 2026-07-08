@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '../../infrastructure/config/config.service';
+import { RbacService } from '../rbac/rbac.service';
 
 export interface JwtPayload {
   sub: number | string;
@@ -13,7 +14,10 @@ export interface JwtPayload {
 // JWT 校验策略:从 Authorization: Bearer 取 token,用 config.jwt.secret 验签
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(cfg: ConfigService) {
+  constructor(
+    cfg: ConfigService,
+    private readonly rbac: RbacService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -21,13 +25,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  // 返回值挂到 request.user
-  validate(payload: JwtPayload) {
-    return {
-      sub: payload.sub,
-      username: payload.username,
-      role: payload.role,
-      roles: payload.roles ?? [payload.role],
-    };
+  // 返回值挂到 request.user;附带加载权限列表 + isRoot,供 PermissionGuard 消费
+  async validate(payload: JwtPayload) {
+    const id = Number(payload.sub);
+    const [permissions, isRoot] = await Promise.all([
+      this.rbac.getUserPermissions(id),
+      this.rbac.isRoot(id),
+    ]);
+    return { id, sub: payload.sub, username: payload.username, permissions, isRoot };
   }
 }
