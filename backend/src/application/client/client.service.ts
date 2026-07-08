@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -31,23 +32,9 @@ export class ClientService {
   }
 
   // 管理端:创建手机设备账号(secret 存 scrypt 哈希)
-  // TODO: 组关系走 client_groups 表(后续 1.2 在登陆时关联)
+  // 设备账号建组待 Task 1.3 接入 client_groups(fail-closed,避免静默丢弃 group)
   async createAccount(input: { clientId: string; group: string; secret: string }) {
-    if (await this.findByClientId(input.clientId)) {
-      throw new ConflictException('clientId 已存在');
-    }
-    const [row] = await this.db
-      .insert(clients)
-      .values({
-        clientId: input.clientId,
-        secretHash: hashPassword(input.secret),
-      })
-      .returning({
-        id: clients.id,
-        clientId: clients.clientId,
-        createdAt: clients.createdAt,
-      });
-    return row;
+    throw new ServiceUnavailableException('设备账号建组待 Task 1.3 启用');
   }
 
   async list() {
@@ -61,26 +48,12 @@ export class ClientService {
   }
 
   // 手机端登录:校验凭据,签发 client JWT + 返回 wsUrl
-  // TODO: 组校验走 client_groups 表(后续 1.2 添加)
+  // 分组登录待 Task 1.3 接入 client_groups;在此之前不签发任意组 token(fail-closed)
   async login(clientId: string, group: string, secret: string) {
     const acc = await this.findByClientId(clientId);
     if (!acc || !verifyPassword(secret, acc.secretHash)) {
       throw new UnauthorizedException('设备登录凭据无效');
     }
-    const token = await this.jwt.signAsync({
-      sub: clientId,
-      clientId,
-      group,
-      role: 'client',
-      roles: ['client'],
-    });
-    const base =
-      this.cfg.app.publicWsUrl ?? `ws://127.0.0.1:${this.cfg.app.port}`;
-    return {
-      token,
-      wsUrl: `${base}/api/client/ws?token=${token}`,
-      clientId,
-      group,
-    };
+    throw new ServiceUnavailableException('设备分组登录待 Task 1.3(client_groups)启用');
   }
 }
