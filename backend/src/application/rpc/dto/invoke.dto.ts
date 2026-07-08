@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsOptional, Min } from 'class-validator';
+import { IsInt, IsObject, IsOptional, Min } from 'class-validator';
 
 // RPC 调用负载(扁平结构)
 export class InvokeDto {
@@ -9,6 +9,8 @@ export class InvokeDto {
   @Min(1)
   timeoutSeconds?: number;
 
-  @ApiProperty({ description: '调用负载' })
+  // @IsObject 既做校验也让全局 ValidationPipe(whitelist)放行,否则 payload 会被剥掉
+  @ApiProperty({ description: '调用负载(扁平对象)' })
+  @IsObject()
   payload: Record<string, unknown>;
 }
