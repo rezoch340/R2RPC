@@ -31,6 +31,7 @@ export class ClientService {
   }
 
   // 管理端:创建手机设备账号(secret 存 scrypt 哈希)
+  // TODO: 组关系走 client_groups 表(后续 1.2 在登陆时关联)
   async createAccount(input: { clientId: string; group: string; secret: string }) {
     if (await this.findByClientId(input.clientId)) {
       throw new ConflictException('clientId 已存在');
@@ -39,13 +40,11 @@ export class ClientService {
       .insert(clients)
       .values({
         clientId: input.clientId,
-        groupName: input.group,
         secretHash: hashPassword(input.secret),
       })
       .returning({
         id: clients.id,
         clientId: clients.clientId,
-        groupName: clients.groupName,
         createdAt: clients.createdAt,
       });
     return row;
@@ -56,22 +55,22 @@ export class ClientService {
       .select({
         id: clients.id,
         clientId: clients.clientId,
-        groupName: clients.groupName,
         createdAt: clients.createdAt,
       })
       .from(clients);
   }
 
   // 手机端登录:校验凭据,签发 client JWT + 返回 wsUrl
+  // TODO: 组校验走 client_groups 表(后续 1.2 添加)
   async login(clientId: string, group: string, secret: string) {
     const acc = await this.findByClientId(clientId);
-    if (!acc || acc.groupName !== group || !verifyPassword(secret, acc.secretHash)) {
+    if (!acc || !verifyPassword(secret, acc.secretHash)) {
       throw new UnauthorizedException('设备登录凭据无效');
     }
     const token = await this.jwt.signAsync({
       sub: clientId,
       clientId,
-      group: acc.groupName,
+      group,
       role: 'client',
       roles: ['client'],
     });
@@ -81,7 +80,7 @@ export class ClientService {
       token,
       wsUrl: `${base}/api/client/ws?token=${token}`,
       clientId,
-      group: acc.groupName,
+      group,
     };
   }
 }
