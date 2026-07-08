@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { GroupsService } from '../groups/groups.service';
 import { PresenceService } from '../../infrastructure/ws/presence.service';
 import { InvokeDto } from './dto/invoke.dto';
 import { RpcService } from './rpc.service';
@@ -11,6 +12,7 @@ export class RpcController {
   constructor(
     private readonly rpc: RpcService,
     private readonly presence: PresenceService,
+    private readonly groups: GroupsService,
   ) {}
 
   @Post('rpc/invoke/:group/:action')
@@ -43,6 +45,8 @@ export class RpcController {
     if (clientId) {
       return { clientId, online: await this.presence.isOnline(clientId) };
     }
-    return { group, online: await this.presence.listOnline(group) };
+    const groupId = await this.groups.idByName(group);
+    if (!groupId) return { group, online: [] };
+    return { group, online: await this.presence.listOnline(groupId) };
   }
 }

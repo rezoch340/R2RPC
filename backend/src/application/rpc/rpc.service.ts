@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { GroupsService } from '../groups/groups.service';
 import { QueueService } from '../../infrastructure/queue/queue.service';
 import { ConnectionRegistry } from '../../infrastructure/ws/connection.registry';
 import { PresenceService } from '../../infrastructure/ws/presence.service';
@@ -17,6 +18,7 @@ export interface InvokeParams {
 
 // 手机端回传的 result 形状
 interface DeviceResult {
+  clientId?: string;
   status?: string;
   is_ok?: boolean;
   httpCode?: number;
@@ -39,17 +41,31 @@ export interface InvokeResponse {
 export class RpcService {
   private readonly logger = new Logger('Rpc');
   constructor(
+    private readonly groups: GroupsService,
     private readonly presence: PresenceService,
     private readonly registry: ConnectionRegistry,
     private readonly queue: QueueService,
     private readonly requestLogs: RequestLogsService,
   ) {}
 
-  // RPC invoke 热路径:选设备 -> 下发 job -> 等 result / 超时 -> 入队日志 -> 返回 is_ok
+  // RPC invoke 热路径(可分布式):组名→组id -> 选设备 -> 注册 waiter -> 跨实例下发 job -> 等 result / 超时 -> 入队日志
   async invoke(p: InvokeParams): Promise<InvokeResponse> {
     const requestId = randomUUID();
     const timeoutSeconds = p.timeoutSeconds ?? 20;
+    const timeoutMs = timeoutSeconds * 1000;
     const startedAt = Date.now();
+
+    // 组名 -> 组 id(DB 查询;不存在直接 404,不算基础设施异常)
+    let groupId: number | null;
+    try {
+      groupId = await this.groups.idByName(p.group);
+    } catch (e) {
+      this.logger.error(`分组解析失败(基础设施异常): ${(e as Error).message}`);
+      return this.fail(p, requestId, null, startedAt, 'error', 503, '基础设施异常,无法调度');
+    }
+    if (!groupId) {
+      return this.fail(p, requestId, null, startedAt, 'no_group', 404, '组不存在');
+    }
 
     // 选目标设备:指定 clientId 优先,否则组内轮询。基础设施(redis)异常也要留取证脊柱。
     let clientId = p.clientId ?? null;
@@ -59,13 +75,12 @@ export class RpcService {
           return this.fail(p, requestId, clientId, startedAt, 'offline', 503, '指定设备不在线');
         }
       } else {
-        clientId = await this.presence.pickOnline(p.group);
+        clientId = await this.presence.pickOnline(groupId);
         if (!clientId) {
           return this.fail(p, requestId, null, startedAt, 'no_device', 503, 'group 内无在线设备');
         }
       }
     } catch (e) {
-      // redis 不可用等:enqueueLog 会降级同步写 PG 脊柱(payload_state=unavailable)
       this.logger.error(`设备选择失败(基础设施异常): ${(e as Error).message}`);
       return this.fail(p, requestId, clientId, startedAt, 'error', 503, '基础设施异常,无法调度');
     }
@@ -78,17 +93,31 @@ export class RpcService {
       payload: p.payload,
       timeoutSeconds,
     };
-    if (!this.registry.sendJob(clientId, job)) {
-      // 设备在线(redis)但 socket 不在本实例(多实例场景待接 pub/sub)
-      return this.fail(p, requestId, clientId, startedAt, 'unavailable', 503, '设备连接不在本实例');
+
+    // 先同步注册本地 waiter,再 await 写 redis 等待方标记,最后才 dispatch ——
+    // 不依赖 ioredis 的 FIFO 顺序,严格保证 waiter 落地早于 job 被设备处理、result 回流。
+    // dispatch 失败/异常分支下面会 cancelWaiter 直接 reject 而不 await 它,这里挂个空 catch
+    // 防止那种情况下产生 unhandled rejection 把进程带崩(redis 故障绝不能挂死进程)。
+    const resultP = this.registry.registerWaiter<DeviceResult>(requestId, clientId, timeoutMs);
+    resultP.catch(() => {});
+
+    let dispatched: boolean;
+    try {
+      // markWaiting 必须 await 完再 dispatch,不依赖 ioredis 的 FIFO 顺序
+      await this.registry.markWaiting(requestId, timeoutMs);
+      dispatched = await this.registry.dispatchJob(clientId, job);
+    } catch (e) {
+      this.registry.cancelWaiter(requestId, 'dispatch_error');
+      this.logger.error(`job 派发失败(基础设施异常): ${(e as Error).message}`);
+      return this.fail(p, requestId, clientId, startedAt, 'error', 503, '基础设施异常,无法调度');
+    }
+    if (!dispatched) {
+      this.registry.cancelWaiter(requestId, 'unavailable');
+      return this.fail(p, requestId, clientId, startedAt, 'unavailable', 503, '设备连接已断开');
     }
 
     try {
-      const result = await this.registry.waitForResult<DeviceResult>(
-        requestId,
-        clientId,
-        timeoutSeconds * 1000,
-      );
+      const result = await resultP;
       const isOk = result.is_ok ?? result.status === 'ok';
       const resp: InvokeResponse = {
         requestId,
