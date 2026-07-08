@@ -104,7 +104,11 @@ export class AccessTokenService {
         const groupNames = await this.db
           .select({ name: groups.name })
           .from(accessTokenGroups)
-          .innerJoin(groups, eq(accessTokenGroups.groupId, groups.id))
+          // 软删组不进展示的组名列表(读到已删)
+          .innerJoin(
+            groups,
+            alive(groups, eq(accessTokenGroups.groupId, groups.id)),
+          )
           .where(eq(accessTokenGroups.tokenId, t.id));
         return {
           ...t,
