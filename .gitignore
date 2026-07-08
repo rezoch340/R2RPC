@@ -42,3 +42,6 @@ yarn-debug.log*
 # ---- 本地运行配置(含密钥),只跟踪 example ----
 config.yaml
 !config.example.yaml
+
+# Claude Code 本地状态 / worktree
+.claude/
