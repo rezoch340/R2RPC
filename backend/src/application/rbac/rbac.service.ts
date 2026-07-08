@@ -1,5 +1,13 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { AbilityBuilder, createMongoAbility, MongoAbility } from '@casl/ability';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  AbilityBuilder,
+  createMongoAbility,
+  MongoAbility,
+} from '@casl/ability';
 import { and, eq } from 'drizzle-orm';
 import { DbService } from '../../infrastructure/db/db.service';
 import { users } from '../users/users.schema';
@@ -18,7 +26,10 @@ export class RbacService {
   // 查用户的全部有效权限:user_roles → role_permissions → permissions,按 action+subject 去重
   async getUserPermissions(userId: number): Promise<PermissionTuple[]> {
     return this.db
-      .selectDistinct({ action: permissions.action, subject: permissions.subject })
+      .selectDistinct({
+        action: permissions.action,
+        subject: permissions.subject,
+      })
       .from(userRoles)
       .innerJoin(rolePermissions, eq(userRoles.roleId, rolePermissions.roleId))
       .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
@@ -59,7 +70,10 @@ export class RbacService {
   }
 
   async deleteRole(id: number) {
-    const [row] = await this.db.delete(roles).where(eq(roles.id, id)).returning();
+    const [row] = await this.db
+      .delete(roles)
+      .where(eq(roles.id, id))
+      .returning();
     if (!row) throw new NotFoundException('角色不存在');
     return { deleted: true };
   }
@@ -67,7 +81,11 @@ export class RbacService {
   // ---------- 权限 CRUD ----------
 
   // description 可选(权限表新增的说明列),不传则为 null
-  async createPermission(action: string, subject: string, description?: string) {
+  async createPermission(
+    action: string,
+    subject: string,
+    description?: string,
+  ) {
     const [row] = await this.db
       .insert(permissions)
       .values({ action, subject, description })
@@ -82,7 +100,10 @@ export class RbacService {
   }
 
   async deletePermission(id: number) {
-    const [row] = await this.db.delete(permissions).where(eq(permissions.id, id)).returning();
+    const [row] = await this.db
+      .delete(permissions)
+      .where(eq(permissions.id, id))
+      .returning();
     if (!row) throw new NotFoundException('权限不存在');
     return { deleted: true };
   }
@@ -104,7 +125,12 @@ export class RbacService {
   async detachPermission(roleId: number, permissionId: number) {
     const [row] = await this.db
       .delete(rolePermissions)
-      .where(and(eq(rolePermissions.roleId, roleId), eq(rolePermissions.permissionId, permissionId)))
+      .where(
+        and(
+          eq(rolePermissions.roleId, roleId),
+          eq(rolePermissions.permissionId, permissionId),
+        ),
+      )
       .returning();
     if (!row) throw new NotFoundException('角色未拥有该权限');
     return { detached: true };
@@ -136,7 +162,11 @@ export class RbacService {
   // ---------- 存在性校验(供上面的关联操作复用,不存在则 404) ----------
 
   private async assertRoleExists(id: number) {
-    const [row] = await this.db.select({ id: roles.id }).from(roles).where(eq(roles.id, id)).limit(1);
+    const [row] = await this.db
+      .select({ id: roles.id })
+      .from(roles)
+      .where(eq(roles.id, id))
+      .limit(1);
     if (!row) throw new NotFoundException('角色不存在');
   }
 
@@ -150,7 +180,11 @@ export class RbacService {
   }
 
   private async assertUserExists(id: number) {
-    const [row] = await this.db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
+    const [row] = await this.db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
     if (!row) throw new NotFoundException('用户不存在');
   }
 }

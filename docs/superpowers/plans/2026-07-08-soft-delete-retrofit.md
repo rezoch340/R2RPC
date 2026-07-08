@@ -18,6 +18,7 @@
 - `revoked` ≠ 删除:`access_tokens.status`(active/disabled/**revoked**)是运行状态;`deleted_at` 才是软删,二者正交——被 revoke 的 token 仍可被软删。`revoke` 改 status、`delete` 走 `softDelete`,是两个独立操作/端点。
 - 唯一约束改 partial unique index,索引名规范为 `{table}_{col}_uq`;`.where()` 用 ``sql`${t.deletedAt} IS NULL` ``。
 - 迁移文件走 `pnpm db:generate` 生成(编号 0005),`pnpm db:migrate` 应用;禁止手改已存在的 0000–0004。
+- **每次 commit 前必须**:`pnpm format`(prettier --write)+ `pnpm lint`(eslint,**0 error**;warning 也尽量清)。全项目已在 chore(lint) 里清零,别把红回引回来。
 - 验证:`pnpm build` 通过 + `pnpm smoke` 全绿(含软删专项断言)。
 
 ---

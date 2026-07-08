@@ -37,7 +37,8 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }>(token ?? '');
       clientId = payload.clientId ?? payload.sub;
       groups = payload.groups ?? [];
-      if (!clientId || !Array.isArray(payload.groups)) throw new Error('missing claims');
+      if (!clientId || !Array.isArray(payload.groups))
+        throw new Error('missing claims');
     } catch {
       this.logger.warn('WS 鉴权失败,关闭连接');
       socket.close(4001, 'unauthorized');
@@ -56,8 +57,14 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
     socket.on('message', (data: RawData) => {
+      // RawData 可能是 Buffer / ArrayBuffer / Buffer[](分片帧),统一转文本
+      const raw = Array.isArray(data)
+        ? Buffer.concat(data).toString()
+        : Buffer.isBuffer(data)
+          ? data.toString()
+          : Buffer.from(data).toString();
       // 兜底:onMessage 内部已 try/catch,这里再包一层防止 Promise 悬空导致 unhandledRejection
-      void this.onMessage(socket, data.toString()).catch(() => undefined);
+      void this.onMessage(socket, raw).catch(() => undefined);
     });
     this.send(socket, { type: 'welcome', clientId, groups });
     this.logger.log(`手机端上线: ${clientId}@[${groups.join(',')}]`);
@@ -84,7 +91,11 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       let msg: { type?: string; requestId?: string; [k: string]: unknown };
       try {
-        msg = JSON.parse(raw);
+        msg = JSON.parse(raw) as {
+          type?: string;
+          requestId?: string;
+          [k: string]: unknown;
+        };
       } catch {
         return;
       }
@@ -102,7 +113,11 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
             socket._clientId ?? '',
             msg,
           );
-          this.send(socket, { type: 'resultAck', requestId: msg.requestId, outcome });
+          this.send(socket, {
+            type: 'resultAck',
+            requestId: msg.requestId,
+            outcome,
+          });
           break;
         }
         default:
@@ -117,7 +132,9 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private extractToken(req: IncomingMessage): string | null {
     try {
-      return new URL(req.url ?? '', 'http://localhost').searchParams.get('token');
+      return new URL(req.url ?? '', 'http://localhost').searchParams.get(
+        'token',
+      );
     } catch {
       return null;
     }

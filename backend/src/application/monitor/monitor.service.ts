@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { SearchService } from '../../infrastructure/search/search.service';
-import { ListFilter, RequestLogsService } from '../request-logs/request-logs.service';
+import {
+  ListFilter,
+  RequestLogsService,
+} from '../request-logs/request-logs.service';
 
-function safeParse(v: unknown) {
+function safeParse(v: unknown): unknown {
   if (typeof v !== 'string') return v ?? null;
   try {
-    return JSON.parse(v);
+    return JSON.parse(v) as unknown;
   } catch {
     return v;
   }
@@ -29,7 +32,12 @@ export class MonitorService {
     if (!spine) return null;
     const doc = await this.search.getByRequestId(requestId);
     if (!doc) {
-      return { ...spine, payloadUnavailable: true, requestPayload: null, responsePayload: null };
+      return {
+        ...spine,
+        payloadUnavailable: true,
+        requestPayload: null,
+        responsePayload: null,
+      };
     }
     return {
       ...spine,

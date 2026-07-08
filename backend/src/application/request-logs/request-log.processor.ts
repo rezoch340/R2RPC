@@ -1,4 +1,9 @@
-import { InjectQueue, OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
+import {
+  InjectQueue,
+  OnWorkerEvent,
+  Processor,
+  WorkerHost,
+} from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { QUEUE } from '../../infrastructure/queue/queue.constants';
@@ -33,7 +38,9 @@ export class RequestLogProcessor extends WorkerHost {
     const max = job.opts.attempts ?? 1;
     if (job.attemptsMade < max) return; // 还会重试
     this.logger.warn(`请求日志重试耗尽,转 dead-letter: ${job.data.requestId}`);
-    await this.logs.markState(job.data.requestId, 'failed').catch(() => undefined);
+    await this.logs
+      .markState(job.data.requestId, 'failed')
+      .catch(() => undefined);
     await this.dlq.add('failed-log', job.data, {
       attempts: 5,
       backoff: { type: 'exponential', delay: 30000 },

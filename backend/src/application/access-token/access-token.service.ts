@@ -106,7 +106,7 @@ export class AccessTokenService {
           ...t,
           groups: groupNames.map((g) => g.name),
         };
-      })
+      }),
     );
 
     return result;

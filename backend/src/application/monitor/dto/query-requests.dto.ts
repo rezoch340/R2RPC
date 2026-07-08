@@ -9,11 +9,23 @@ export class QueryRequestsDto {
   @ApiPropertyOptional() @IsOptional() @IsString() clientId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
   @ApiPropertyOptional({ description: 'ISO 起始时间' })
-  @IsOptional() @IsString() from?: string;
+  @IsOptional()
+  @IsString()
+  from?: string;
   @ApiPropertyOptional({ description: 'ISO 结束时间' })
-  @IsOptional() @IsString() to?: string;
+  @IsOptional()
+  @IsString()
+  to?: string;
   @ApiPropertyOptional({ default: 1 })
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
   @ApiPropertyOptional({ default: 20 })
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) pageSize?: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  pageSize?: number;
 }

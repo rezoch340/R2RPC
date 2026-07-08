@@ -6,7 +6,11 @@ import { users } from '../application/users/users.schema';
 import { groups } from '../application/groups/groups.schema';
 import { clients } from '../application/client/client.schema';
 import { clientGroups } from '../application/client/client-groups.schema';
-import { permissions, rolePermissions, roles } from '../application/rbac/rbac.schema';
+import {
+  permissions,
+  rolePermissions,
+  roles,
+} from '../application/rbac/rbac.schema';
 import { hashPassword } from '../common/utils/password';
 
 // 种子管理员账号 + demo 分组/设备 + RBAC 基础数据(幂等,可重复执行)。用法: pnpm seed:admin
@@ -46,10 +50,18 @@ async function main() {
 
   await db
     .insert(users)
-    .values({ username, passwordHash: hashPassword(password), role: 'admin', isRoot: true })
+    .values({
+      username,
+      passwordHash: hashPassword(password),
+      role: 'admin',
+      isRoot: true,
+    })
     .onConflictDoNothing();
   // 若管理员已存在(上面 onConflictDoNothing 跳过),补一次置 root,保证幂等重跑也生效
-  await db.update(users).set({ isRoot: true }).where(eq(users.username, username));
+  await db
+    .update(users)
+    .set({ isRoot: true })
+    .where(eq(users.username, username));
 
   console.log(`管理员已就绪: ${username}(初始密码: ${password}, isRoot: true)`);
 
@@ -64,7 +76,10 @@ async function main() {
   // demo 设备账号 dev-001(secret: secret123),关联 cn-nodes + us-nodes(演示多组设备)
   await db
     .insert(clients)
-    .values({ clientId: DEMO_CLIENT_ID, secretHash: hashPassword(DEMO_CLIENT_SECRET) })
+    .values({
+      clientId: DEMO_CLIENT_ID,
+      secretHash: hashPassword(DEMO_CLIENT_SECRET),
+    })
     .onConflictDoNothing();
   const [device] = await db
     .select({ id: clients.id })
@@ -88,7 +103,9 @@ async function main() {
   // 权限全集(幂等,唯一约束 action+subject)
   await db.insert(permissions).values(ALL_PERMISSIONS).onConflictDoNothing();
   const permRows = await db.select().from(permissions);
-  const permIdByKey = new Map(permRows.map((p) => [`${p.action}:${p.subject}`, p.id]));
+  const permIdByKey = new Map(
+    permRows.map((p) => [`${p.action}:${p.subject}`, p.id]),
+  );
 
   // operator 角色(幂等)
   await db

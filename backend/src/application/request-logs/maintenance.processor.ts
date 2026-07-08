@@ -22,7 +22,9 @@ export class MaintenanceProcessor extends WorkerHost {
       await this.logs.markState(r.requestId, 'unavailable');
     }
     if (stale.length) {
-      this.logger.warn(`repair:${stale.length} 条陈旧 pending 标记为 unavailable`);
+      this.logger.warn(
+        `repair:${stale.length} 条陈旧 pending 标记为 unavailable`,
+      );
     }
     return { marked: stale.length };
   }

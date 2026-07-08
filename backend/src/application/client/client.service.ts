@@ -54,7 +54,7 @@ export class ClientService {
           (await this.groups.idByName(name)) ??
           (await this.groups.create(name)).id
         );
-      })
+      }),
     );
 
     // Wrap client insert + all client_groups inserts in atomic transaction

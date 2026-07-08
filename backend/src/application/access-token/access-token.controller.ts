@@ -1,6 +1,15 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import type { AuthedRequest } from '../../common/types/authed-request';
 import { AccessTokenService } from './access-token.service';
 import { CreateAccessTokenDto } from './dto/create-access-token.dto';
 
@@ -14,7 +23,7 @@ export class AccessTokenController {
   @Post()
   @RequirePermission('manage', 'access-token')
   @ApiOperation({ summary: '生成 access token(返回明文)' })
-  create(@Body() dto: CreateAccessTokenDto, @Req() req: any) {
+  create(@Body() dto: CreateAccessTokenDto, @Req() req: AuthedRequest) {
     return this.tokens.create({
       name: dto.name,
       groups: dto.groups,

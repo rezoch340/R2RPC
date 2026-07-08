@@ -31,6 +31,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       this.rbac.getUserPermissions(id),
       this.rbac.isRoot(id),
     ]);
-    return { id, sub: payload.sub, username: payload.username, permissions, isRoot };
+    return {
+      id,
+      sub: payload.sub,
+      username: payload.username,
+      permissions,
+      isRoot,
+    };
   }
 }

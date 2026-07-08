@@ -113,7 +113,10 @@ export class RequestLogsService {
       .select({ requestId: requestLogs.requestId })
       .from(requestLogs)
       .where(
-        and(eq(requestLogs.payloadState, 'pending'), lt(requestLogs.createdAt, cutoff)),
+        and(
+          eq(requestLogs.payloadState, 'pending'),
+          lt(requestLogs.createdAt, cutoff),
+        ),
       )
       .limit(limit);
   }

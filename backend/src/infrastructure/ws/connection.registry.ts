@@ -5,6 +5,9 @@ import { RedisService } from '../redis/redis.service';
 import { ClusterBus } from './cluster-bus.service';
 import { INSTANCE_ID } from './instance-id';
 
+// 连接上挂的每连接会话 token(CAS 删除用),避免 (socket as any)
+type SessionSocket = WebSocket & { _sessionToken?: string };
+
 interface Waiter {
   clientId: string;
   resolve: (r: unknown) => void;
@@ -37,12 +40,24 @@ export class ConnectionRegistry implements OnModuleInit {
 
   onModuleInit() {
     // 订阅本实例两条通道:别的实例把 job 投过来 / 把 result 投过来
-    void this.bus.subscribe(`ws:send:${INSTANCE_ID}`, (m: { clientId: string; job: unknown }) =>
-      this.deliverLocalJob(m.clientId, m.job));
+    void this.bus.subscribe(
+      `ws:send:${INSTANCE_ID}`,
+      (m: { clientId: string; job: unknown }) => {
+        this.deliverLocalJob(m.clientId, m.job);
+      },
+    );
     void this.bus.subscribe(
       `rpc:result:${INSTANCE_ID}`,
-      async (m: { requestId: string; result: any; fromClientId: string }) => {
-        const ok = this.resolveLocalWaiter(m.requestId, m.result, m.fromClientId);
+      async (m: {
+        requestId: string;
+        result: unknown;
+        fromClientId: string;
+      }) => {
+        const ok = this.resolveLocalWaiter(
+          m.requestId,
+          m.result,
+          m.fromClientId,
+        );
         if (!ok) await this.r.del(`rpc:completed:${m.requestId}`); // 不匹配 → 释放被占的去重 slot,留给合法结果
       },
     );
@@ -52,7 +67,7 @@ export class ConnectionRegistry implements OnModuleInit {
   async register(clientId: string, socket: WebSocket) {
     // 每次连接生成唯一 token,存到 socket 上;client:session 值带实例前缀,供 CAS 判断
     const token = `${INSTANCE_ID}:${randomUUID()}`;
-    (socket as any)._sessionToken = token;
+    (socket as SessionSocket)._sessionToken = token;
     this.sockets.set(clientId, socket);
     await this.r.set(`client:session:${clientId}`, token, 'EX', SESSION_TTL);
   }
@@ -63,9 +78,14 @@ export class ConnectionRegistry implements OnModuleInit {
   // 若已被更新的注册覆盖,token 不匹配,不会误删新会话,也不该跑下线清理。
   async unregister(clientId: string, socket: WebSocket): Promise<boolean> {
     if (this.sockets.get(clientId) === socket) this.sockets.delete(clientId);
-    const token = (socket as any)._sessionToken;
+    const token = (socket as SessionSocket)._sessionToken;
     if (!token) return false;
-    const deleted = (await this.r.eval(CAS_DEL, 1, `client:session:${clientId}`, token)) as number;
+    const deleted = (await this.r.eval(
+      CAS_DEL,
+      1,
+      `client:session:${clientId}`,
+      token,
+    )) as number;
     return deleted === 1;
   }
   hasLocal(clientId: string) {
@@ -103,7 +123,7 @@ export class ConnectionRegistry implements OnModuleInit {
       }, timeoutMs);
       this.waiters.set(requestId, {
         clientId: expectedClientId,
-        resolve: resolve as (r: unknown) => void,
+        resolve: resolve,
         reject,
         timer,
       });
@@ -111,7 +131,12 @@ export class ConnectionRegistry implements OnModuleInit {
   }
   // 写 redis 等待方标记(必须在 dispatchJob 前 await 完,防止 result 早于 waiter 到达)
   async markWaiting(requestId: string, timeoutMs: number) {
-    await this.r.set(`rpc:waiter:${requestId}`, INSTANCE_ID, 'PX', timeoutMs + 5000);
+    await this.r.set(
+      `rpc:waiter:${requestId}`,
+      INSTANCE_ID,
+      'PX',
+      timeoutMs + 5000,
+    );
   }
   // dispatch 失败时清理本地 waiter(避免空等到超时)
   cancelWaiter(requestId: string, reason: string) {
@@ -132,19 +157,33 @@ export class ConnectionRegistry implements OnModuleInit {
   ): Promise<'ok' | 'late' | 'routed' | 'mismatch'> {
     const waiterInstance = await this.r.get(`rpc:waiter:${requestId}`);
     if (!waiterInstance) return 'late'; // 无人等,不占 slot
-    const first = await this.r.set(`rpc:completed:${requestId}`, '1', 'EX', COMPLETED_TTL, 'NX');
+    const first = await this.r.set(
+      `rpc:completed:${requestId}`,
+      '1',
+      'EX',
+      COMPLETED_TTL,
+      'NX',
+    );
     if (first !== 'OK') return 'late'; // 已被处理(原子 NX 判首个)
     if (waiterInstance === INSTANCE_ID) {
       if (this.resolveLocalWaiter(requestId, result, fromClientId)) return 'ok';
       await this.r.del(`rpc:completed:${requestId}`); // 不匹配 → 释放 slot,留给合法结果
       return 'mismatch';
     }
-    await this.bus.publish(`rpc:result:${waiterInstance}`, { requestId, result, fromClientId });
+    await this.bus.publish(`rpc:result:${waiterInstance}`, {
+      requestId,
+      result,
+      fromClientId,
+    });
     return 'routed';
   }
 
   // 解本地 waiter;校验鉴权身份(socket 上验过的 fromClientId)与预期一致,不用设备自报的 result.clientId
-  private resolveLocalWaiter(requestId: string, result: unknown, fromClientId: string): boolean {
+  private resolveLocalWaiter(
+    requestId: string,
+    result: unknown,
+    fromClientId: string,
+  ): boolean {
     const w = this.waiters.get(requestId);
     if (!w) return false;
     if (w.clientId && fromClientId !== w.clientId) return false; // 用鉴权身份判不匹配,不用设备自报字段

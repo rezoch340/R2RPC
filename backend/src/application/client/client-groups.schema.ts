@@ -6,8 +6,12 @@ import { groups } from '../groups/groups.schema';
 export const clientGroups = pgTable(
   'client_groups',
   {
-    clientId: integer('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
-    groupId: integer('group_id').notNull().references(() => groups.id, { onDelete: 'cascade' }),
+    clientId: integer('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    groupId: integer('group_id')
+      .notNull()
+      .references(() => groups.id, { onDelete: 'cascade' }),
     description: varchar('description', { length: 255 }),
   },
   (t) => [primaryKey({ columns: [t.clientId, t.groupId] })],

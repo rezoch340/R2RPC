@@ -7,13 +7,19 @@ import {
   Logger,
 } from '@nestjs/common';
 
+// express Response 的最小切面(只用到 status().json())
+interface HttpResponseLike {
+  status(code: number): HttpResponseLike;
+  json(body: unknown): unknown;
+}
+
 // 全局异常兜底:统一 JSON 错误结构
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger('Exception');
 
   catch(exception: unknown, host: ArgumentsHost) {
-    const res = host.switchToHttp().getResponse();
+    const res = host.switchToHttp().getResponse<HttpResponseLike>();
     const status =
       exception instanceof HttpException
         ? exception.getStatus()

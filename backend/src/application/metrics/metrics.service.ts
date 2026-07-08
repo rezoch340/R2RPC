@@ -29,7 +29,10 @@ export class MetricsService {
       .orderBy(desc(sql`count(*)`));
 
     const byGroup = await this.db
-      .select({ group: requestLogs.groupName, count: sql<number>`count(*)::int` })
+      .select({
+        group: requestLogs.groupName,
+        count: sql<number>`count(*)::int`,
+      })
       .from(requestLogs)
       .groupBy(requestLogs.groupName)
       .orderBy(desc(sql`count(*)`))
