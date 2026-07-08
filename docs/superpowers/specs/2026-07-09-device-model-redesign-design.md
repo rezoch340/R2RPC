@@ -62,6 +62,96 @@
 
 **迁移策略:** 后端无需保留的生产数据(尚未重构上线)→ **破坏式迁移**(drop `clients`/`client_groups`、rename、建新表、alter `devices`),demo 数据由 seed 重建。
 
+### 4.1 关系图(ER)
+
+> 目标模型(重构后)。`◇──<` 读作"一对多";两条一对多指向同一张关联表 = 多对多(M:N)。
+
+```mermaid
+erDiagram
+    users ||--o{ access_tokens : "创建 created_by"
+    users ||--o{ device_tokens : "创建 created_by"
+
+    access_tokens ||--o{ access_token_projects : "授权"
+    projects      ||--o{ access_token_projects : "被授权"
+
+    device_tokens ||--o{ device_token_projects : "授权"
+    projects      ||--o{ device_token_projects : "被授权"
+
+    device_tokens ||--o{ devices : "上线 device_token_id"
+
+    users {
+        serial id PK
+        varchar username
+        bool is_root
+    }
+    projects {
+        serial id PK
+        varchar name "alive 唯一"
+        varchar description
+        timestamp deleted_at
+    }
+    access_tokens {
+        serial id PK
+        varchar name
+        varchar token "明文,alive 唯一"
+        varchar status "active/revoked"
+        timestamp expires_at
+        int created_by FK
+        timestamp deleted_at
+    }
+    access_token_projects {
+        int token_id FK
+        int project_id FK
+    }
+    device_tokens {
+        serial id PK
+        varchar name
+        varchar token "明文,alive 唯一"
+        varchar status "active/revoked"
+        timestamp expires_at
+        int created_by FK
+        timestamp deleted_at
+    }
+    device_token_projects {
+        int token_id FK
+        int project_id FK
+    }
+    devices {
+        serial id PK
+        varchar client_id "SDK 自生成,alive 唯一"
+        int device_token_id FK
+        bool online
+        varchar status "online/offline/stale"
+        timestamp last_seen_at
+        varchar last_ip
+        varchar platform
+        jsonb extra
+        timestamp deleted_at
+    }
+```
+
+> ⚠️ **`devices` 与 `projects` 没有直接外键**:设备的 project **继承自它的 `device_token`**,用 `devices.device_token_id → device_token_projects` join 推出(所以砍掉了 `client_groups`)。这条"派生关系"见下面概念图的虚线。
+
+### 4.2 概念关系图(PROJECT 为枢纽)
+
+```mermaid
+flowchart LR
+    U["users<br/>后台管理员"]
+    AT["access token<br/>调用方 invoke 用"]
+    DT["device token<br/>设备注册用"]
+    P{{"PROJECT<br/>功能组"}}
+    DEV["devices<br/>自生成 clientId"]
+
+    U -->|created_by| AT
+    U -->|created_by| DT
+    AT ==>|"access_token_projects (M:N)"| P
+    DT ==>|"device_token_projects (M:N)"| P
+    DT ==>|"设备上线 device_token_id (1:N)"| DEV
+    DEV -.->|"project 继承自 token<br/>无独立表, join 推出"| P
+```
+
+**运行期(不在 ER 里):** 调用方持 access token 调 `invoke /:project/:action` → 校验 token 有该 project → `pickOnline(project)` 从 `project:clients:{pid}`(设备上线时按其 device token 的 project 灌入的 Redis 集合)里轮询选一台在线设备。
+
 ## 5. 设备自注册流程
 
 ```
