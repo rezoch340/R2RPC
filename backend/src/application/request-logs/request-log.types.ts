@@ -5,6 +5,8 @@ export interface RequestLogJob {
   action: string;
   clientId: string | null;
   requesterUserId: number | string | null;
+  // 3.4 起 invoke 调用方是 access token,记录 token id(用户态调用暂无,留 null)
+  accessTokenId: number | null;
   status: string;
   httpCode: number;
   latencyMs: number;
