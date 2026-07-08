@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { WsAdapter } from '@nestjs/platform-ws';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -8,6 +8,13 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 // API 进程入口:HTTP API + WebSocket Gateway + Swagger
 async function bootstrap() {
+  // 全局兜底:WS 网关等处若仍有漏网的悬空 Promise(如 redis 抖动),不能让进程直接崩掉
+  process.on('unhandledRejection', (reason) => {
+    new Logger('Process').error(
+      `未处理的 Promise 拒绝: ${reason instanceof Error ? reason.message : String(reason)}`,
+    );
+  });
+
   const app = await NestFactory.create(AppModule);
   const cfg = app.get(ConfigService);
 

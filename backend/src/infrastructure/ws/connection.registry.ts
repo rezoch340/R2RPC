@@ -41,8 +41,10 @@ export class ConnectionRegistry implements OnModuleInit {
       this.deliverLocalJob(m.clientId, m.job));
     void this.bus.subscribe(
       `rpc:result:${INSTANCE_ID}`,
-      (m: { requestId: string; result: any; fromClientId: string }) =>
-        this.resolveLocalWaiter(m.requestId, m.result, m.fromClientId),
+      async (m: { requestId: string; result: any; fromClientId: string }) => {
+        const ok = this.resolveLocalWaiter(m.requestId, m.result, m.fromClientId);
+        if (!ok) await this.r.del(`rpc:completed:${m.requestId}`); // 不匹配 → 释放被占的去重 slot,留给合法结果
+      },
     );
   }
 
