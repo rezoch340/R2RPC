@@ -57,8 +57,10 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const clientId = socket._clientId;
     const groups = socket._groups;
     if (clientId) {
-      await this.registry.unregister(clientId);
-      if (groups) await this.presence.offline(clientId, groups);
+      // wasOwner=false 说明本连接的会话已被更晚的注册(同一手机快速重连/换实例)覆盖,
+      // 这里只是一条延迟到达的旧 close,不能再跑下线清理,否则会把新连接标脏下线。
+      const wasOwner = await this.registry.unregister(clientId, socket);
+      if (wasOwner && groups) await this.presence.offline(clientId, groups);
       this.logger.log(`手机端下线: ${clientId}`);
     }
   }

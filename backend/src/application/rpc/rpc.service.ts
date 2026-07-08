@@ -94,14 +94,17 @@ export class RpcService {
       timeoutSeconds,
     };
 
-    // 先注册 waiter,再 dispatch —— 防止 result 早于 waiter 到达被漏接。
+    // 先同步注册本地 waiter,再 await 写 redis 等待方标记,最后才 dispatch ——
+    // 不依赖 ioredis 的 FIFO 顺序,严格保证 waiter 落地早于 job 被设备处理、result 回流。
     // dispatch 失败/异常分支下面会 cancelWaiter 直接 reject 而不 await 它,这里挂个空 catch
     // 防止那种情况下产生 unhandled rejection 把进程带崩(redis 故障绝不能挂死进程)。
-    const resultP = this.registry.waitForResult<DeviceResult>(requestId, clientId, timeoutMs);
+    const resultP = this.registry.registerWaiter<DeviceResult>(requestId, clientId, timeoutMs);
     resultP.catch(() => {});
 
     let dispatched: boolean;
     try {
+      // markWaiting 必须 await 完再 dispatch,不依赖 ioredis 的 FIFO 顺序
+      await this.registry.markWaiting(requestId, timeoutMs);
       dispatched = await this.registry.dispatchJob(clientId, job);
     } catch (e) {
       this.registry.cancelWaiter(requestId, 'dispatch_error');
