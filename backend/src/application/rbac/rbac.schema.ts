@@ -16,8 +16,10 @@ export const permissions = pgTable('permissions', {
 export const rolePermissions = pgTable('role_permissions', {
   roleId: integer('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
   permissionId: integer('permission_id').notNull().references(() => permissions.id, { onDelete: 'cascade' }),
+  description: varchar('description', { length: 255 }),
 }, (t) => [primaryKey({ columns: [t.roleId, t.permissionId] })]);
 export const userRoles = pgTable('user_roles', {
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   roleId: integer('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
+  description: varchar('description', { length: 255 }),
 }, (t) => [primaryKey({ columns: [t.userId, t.roleId] })]);
