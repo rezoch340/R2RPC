@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RbacService } from '../../application/rbac/rbac.service';
+import { AUTHENTICATED_ONLY_KEY } from '../decorators/authenticated-only.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { PERMISSION_KEY, RequiredPermission } from '../decorators/require-permission.decorator';
 
@@ -20,10 +21,18 @@ export class PermissionGuard implements CanActivate {
     ]);
     if (isPublic) return true;
 
+    const { user } = context.switchToHttp().getRequest();
+
+    // 只需已认证、不需要具体权限的接口(如 /auth/me),JwtAuthGuard 已确保有 user,有就放行
+    const authedOnly = this.reflector.getAllAndOverride<boolean>(AUTHENTICATED_ONLY_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (authedOnly) return !!user;
+
     const required = this.reflector.get<RequiredPermission>(PERMISSION_KEY, context.getHandler());
     if (!required) throw new ForbiddenException('未声明权限要求');
 
-    const { user } = context.switchToHttp().getRequest();
     if (user?.isRoot) return true;
 
     const ability = this.rbac.buildAbility(user?.permissions ?? []);

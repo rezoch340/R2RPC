@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { AuthenticatedOnly } from '../../common/decorators/authenticated-only.decorator';
 import { Public } from '../../common/decorators/public.decorator';
-import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 
@@ -19,7 +19,7 @@ export class AuthController {
 
   @Get('me')
   @ApiBearerAuth()
-  @RequirePermission('read', 'me')
+  @AuthenticatedOnly()
   @ApiOperation({ summary: '当前登录用户' })
   me(@Req() req: { user: unknown }) {
     return req.user;
