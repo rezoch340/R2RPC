@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { GroupsService } from '../groups/groups.service';
 import { PresenceService } from '../../infrastructure/ws/presence.service';
 import { InvokeDto } from './dto/invoke.dto';
@@ -16,6 +17,7 @@ export class RpcController {
   ) {}
 
   @Post('rpc/invoke/:group/:action')
+  @RequirePermission('invoke', 'rpc')
   @ApiOperation({
     summary: '调用 group 内在线设备执行 action(可选 ?clientId 指定设备)',
   })
@@ -37,6 +39,7 @@ export class RpcController {
   }
 
   @Get('rpc/clientQueue')
+  @RequirePermission('read', 'rpc')
   @ApiOperation({ summary: 'group 内在线设备(或指定 clientId 的在线状态)' })
   async clientQueue(
     @Query('group') group: string,

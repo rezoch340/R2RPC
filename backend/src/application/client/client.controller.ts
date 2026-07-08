@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { ClientService } from './client.service';
 import { ClientLoginDto } from './dto/client-login.dto';
 import { CreateClientDto } from './dto/create-client.dto';
@@ -20,7 +20,7 @@ export class ClientController {
   }
 
   // 管理端:创建设备账号
-  @Roles('admin')
+  @RequirePermission('create', 'client')
   @ApiBearerAuth()
   @Post('clients')
   @ApiOperation({ summary: '创建手机设备账号' })
@@ -28,7 +28,7 @@ export class ClientController {
     return this.client.createAccount(dto);
   }
 
-  @Roles('admin')
+  @RequirePermission('read', 'client')
   @ApiBearerAuth()
   @Get('clients')
   @ApiOperation({ summary: '设备账号列表' })

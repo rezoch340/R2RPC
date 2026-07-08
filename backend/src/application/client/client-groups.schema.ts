@@ -1,4 +1,4 @@
-import { integer, pgTable, primaryKey } from 'drizzle-orm/pg-core';
+import { integer, pgTable, primaryKey, varchar } from 'drizzle-orm/pg-core';
 import { clients } from './client.schema';
 import { groups } from '../groups/groups.schema';
 
@@ -8,6 +8,7 @@ export const clientGroups = pgTable(
   {
     clientId: integer('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
     groupId: integer('group_id').notNull().references(() => groups.id, { onDelete: 'cascade' }),
+    description: varchar('description', { length: 255 }),
   },
   (t) => [primaryKey({ columns: [t.clientId, t.groupId] })],
 );

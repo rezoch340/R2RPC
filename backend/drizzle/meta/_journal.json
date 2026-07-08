@@ -15,6 +15,20 @@
       "when": 1783527062386,
       "tag": "0001_violet_onslaught",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783533793313,
+      "tag": "0002_confused_vector",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783534673141,
+      "tag": "0003_giant_maria_hill",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
-import { RolesGuard } from './common/guards/roles.guard';
+import { PermissionGuard } from './common/guards/permission.guard';
 import { AuthModule } from './application/auth/auth.module';
 import { UsersModule } from './application/users/users.module';
 import { GroupsModule } from './application/groups/groups.module';
@@ -11,6 +11,7 @@ import { RpcModule } from './application/rpc/rpc.module';
 import { MonitorModule } from './application/monitor/monitor.module';
 import { MetricsModule } from './application/metrics/metrics.module';
 import { RequestLogsModule } from './application/request-logs/request-logs.module';
+import { RbacModule } from './application/rbac/rbac.module';
 import { ConfigModule } from './infrastructure/config/config.module';
 import { DbModule } from './infrastructure/db/db.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
@@ -26,6 +27,7 @@ import { WsModule } from './infrastructure/ws/ws.module';
     QueueModule,
     SearchModule,
     WsModule,
+    RbacModule,
     AuthModule,
     UsersModule,
     GroupsModule,
@@ -37,9 +39,9 @@ import { WsModule } from './infrastructure/ws/ws.module';
     RequestLogsModule,
   ],
   providers: [
-    // 全局鉴权:先 JWT(@Public 跳过),再 RBAC(@Roles 限制)
+    // 全局鉴权:先 JWT(@Public 跳过),再 Permission(@RequirePermission 校验,fail-closed)
     { provide: APP_GUARD, useClass: JwtAuthGuard },
-    { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: PermissionGuard },
   ],
 })
 export class AppModule {}
