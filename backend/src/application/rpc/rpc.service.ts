@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { QueueService } from '../../infrastructure/queue/queue.service';
 import { ConnectionRegistry } from '../../infrastructure/ws/connection.registry';
 import { PresenceService } from '../../infrastructure/ws/presence.service';
+import { RequestLogJob } from '../request-logs/request-log.types';
+import { RequestLogsService } from '../request-logs/request-logs.service';
 
 export interface InvokeParams {
   group: string;
@@ -40,6 +42,7 @@ export class RpcService {
     private readonly presence: PresenceService,
     private readonly registry: ConnectionRegistry,
     private readonly queue: QueueService,
+    private readonly requestLogs: RequestLogsService,
   ) {}
 
   // RPC invoke 热路径:选设备 -> 下发 job -> 等 result / 超时 -> 入队日志 -> 返回 is_ok
@@ -48,17 +51,23 @@ export class RpcService {
     const timeoutSeconds = p.timeoutSeconds ?? 20;
     const startedAt = Date.now();
 
-    // 选目标设备:指定 clientId 优先,否则组内轮询
+    // 选目标设备:指定 clientId 优先,否则组内轮询。基础设施(redis)异常也要留取证脊柱。
     let clientId = p.clientId ?? null;
-    if (clientId) {
-      if (!(await this.presence.isOnline(clientId))) {
-        return this.fail(p, requestId, clientId, startedAt, 'offline', 503, '指定设备不在线');
+    try {
+      if (clientId) {
+        if (!(await this.presence.isOnline(clientId))) {
+          return this.fail(p, requestId, clientId, startedAt, 'offline', 503, '指定设备不在线');
+        }
+      } else {
+        clientId = await this.presence.pickOnline(p.group);
+        if (!clientId) {
+          return this.fail(p, requestId, null, startedAt, 'no_device', 503, 'group 内无在线设备');
+        }
       }
-    } else {
-      clientId = await this.presence.pickOnline(p.group);
-      if (!clientId) {
-        return this.fail(p, requestId, null, startedAt, 'no_device', 503, 'group 内无在线设备');
-      }
+    } catch (e) {
+      // redis 不可用等:enqueueLog 会降级同步写 PG 脊柱(payload_state=unavailable)
+      this.logger.error(`设备选择失败(基础设施异常): ${(e as Error).message}`);
+      return this.fail(p, requestId, clientId, startedAt, 'error', 503, '基础设施异常,无法调度');
     }
 
     const job = {
@@ -127,26 +136,35 @@ export class RpcService {
     startedAt: number,
     responsePayload: unknown,
   ) {
+    const job: RequestLogJob = {
+      requestId: resp.requestId,
+      group: p.group,
+      action: p.action,
+      clientId: resp.clientId,
+      requesterUserId: p.requesterUserId ?? null,
+      status: resp.status,
+      httpCode: resp.httpCode,
+      latencyMs: resp.latencyMs,
+      error: resp.error ?? null,
+      requestPayload: p.payload,
+      responsePayload,
+      createdAt: new Date(startedAt).toISOString(),
+      finishedAt: new Date().toISOString(),
+    };
     try {
-      await this.queue.enqueueRequestLog({
-        requestId: resp.requestId,
-        group: p.group,
-        action: p.action,
-        clientId: resp.clientId,
-        requesterUserId: p.requesterUserId ?? null,
-        status: resp.status,
-        httpCode: resp.httpCode,
-        latencyMs: resp.latencyMs,
-        error: resp.error ?? null,
-        requestPayload: p.payload,
-        responsePayload,
-        createdAt: new Date(startedAt).toISOString(),
-        finishedAt: new Date().toISOString(),
-      });
+      // 入队加超时:BullMQ 在 redis 挂时会一直重试而不报错,超时即视为失败走降级
+      await Promise.race([
+        this.queue.enqueueRequestLog(job),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('enqueue timeout')), 3000),
+        ),
+      ]);
     } catch (e) {
-      this.logger.warn(
-        `入队请求日志失败,应降级同步写 PG 脊柱(task7 补): ${(e as Error).message}`,
-      );
+      // Redis/BullMQ 不可用:降级同步写 PG 脊柱,payload 缺失标 unavailable,保证至少有取证记录
+      this.logger.warn(`入队请求日志失败,降级同步写 PG 脊柱: ${(e as Error).message}`);
+      await this.requestLogs
+        .writeSpine(job, 'unavailable')
+        .catch((err) => this.logger.error(`降级写脊柱也失败: ${(err as Error).message}`));
     }
   }
 }
