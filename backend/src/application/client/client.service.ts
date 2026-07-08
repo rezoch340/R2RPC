@@ -43,24 +43,43 @@ export class ClientService {
     if (await this.findByClientId(input.clientId)) {
       throw new ConflictException('设备账号已存在');
     }
-    const [row] = await this.db
-      .insert(clients)
-      .values({
-        clientId: input.clientId,
-        secretHash: hashPassword(input.secret),
-      })
-      .returning({
-        id: clients.id,
-        clientId: clients.clientId,
-        createdAt: clients.createdAt,
-      });
 
-    for (const name of input.groups) {
-      const groupId =
-        (await this.groups.idByName(name)) ??
-        (await this.groups.create(name)).id;
-      await this.db.insert(clientGroups).values({ clientId: row.id, groupId });
-    }
+    // Dedupe group names to avoid composite PK violations
+    const groupNames = [...new Set(input.groups)];
+
+    // Resolve group IDs before transaction (create groups if needed)
+    const groupIds = await Promise.all(
+      groupNames.map(async (name) => {
+        return (
+          (await this.groups.idByName(name)) ??
+          (await this.groups.create(name)).id
+        );
+      })
+    );
+
+    // Wrap client insert + all client_groups inserts in atomic transaction
+    const row = await this.db.transaction(async (tx) => {
+      const insertResult = await tx
+        .insert(clients)
+        .values({
+          clientId: input.clientId,
+          secretHash: hashPassword(input.secret),
+        })
+        .returning({
+          id: clients.id,
+          clientId: clients.clientId,
+          createdAt: clients.createdAt,
+        });
+
+      const [client] = insertResult;
+
+      for (const groupId of groupIds) {
+        await tx.insert(clientGroups).values({ clientId: client.id, groupId });
+      }
+
+      return client;
+    });
+
     return row;
   }
 
