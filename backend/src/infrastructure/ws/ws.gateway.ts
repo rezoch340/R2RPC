@@ -10,8 +10,8 @@ import type { RawData, WebSocket } from 'ws';
 import { ConnectionRegistry } from './connection.registry';
 import { PresenceService } from './presence.service';
 
-// socket 上挂的会话上下文
-type ClientSocket = WebSocket & { _clientId?: string; _group?: string };
+// socket 上挂的会话上下文(设备可属多组)
+type ClientSocket = WebSocket & { _clientId?: string; _groups?: number[] };
 
 // 手机端常驻连接网关(路径 /api/client/ws)。按 type 字段裸解析,不用 @SubscribeMessage。
 @WebSocketGateway({ path: '/api/client/ws' })
@@ -27,16 +27,17 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleConnection(socket: ClientSocket, req: IncomingMessage) {
     const token = this.extractToken(req);
     let clientId: string;
-    let group: string;
+    let groups: number[];
     try {
+      // groups 来自 token(登录时已由 client_groups 解析,可信);校验通不过就不能信任其 groups
       const payload = await this.jwt.verifyAsync<{
         sub: string;
         clientId?: string;
-        group?: string;
+        groups?: number[];
       }>(token ?? '');
       clientId = payload.clientId ?? payload.sub;
-      group = payload.group ?? '';
-      if (!clientId || !group) throw new Error('missing claims');
+      groups = payload.groups ?? [];
+      if (!clientId || !Array.isArray(payload.groups)) throw new Error('missing claims');
     } catch {
       this.logger.warn('WS 鉴权失败,关闭连接');
       socket.close(4001, 'unauthorized');
@@ -44,20 +45,20 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     socket._clientId = clientId;
-    socket._group = group;
-    this.registry.register(clientId, socket);
-    await this.presence.online(clientId, group);
+    socket._groups = groups;
+    await this.registry.register(clientId, socket);
+    await this.presence.online(clientId, groups);
     socket.on('message', (data: RawData) => this.onMessage(socket, data.toString()));
-    this.send(socket, { type: 'welcome', clientId, group });
-    this.logger.log(`手机端上线: ${clientId}@${group}`);
+    this.send(socket, { type: 'welcome', clientId, groups });
+    this.logger.log(`手机端上线: ${clientId}@[${groups.join(',')}]`);
   }
 
   async handleDisconnect(socket: ClientSocket) {
     const clientId = socket._clientId;
-    const group = socket._group;
+    const groups = socket._groups;
     if (clientId) {
-      this.registry.unregister(clientId);
-      if (group) await this.presence.offline(clientId, group);
+      await this.registry.unregister(clientId);
+      if (groups) await this.presence.offline(clientId, groups);
       this.logger.log(`手机端下线: ${clientId}`);
     }
   }
@@ -71,11 +72,14 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
     switch (msg.type) {
       case 'heartbeat':
-        if (socket._clientId) await this.presence.refresh(socket._clientId);
+        if (socket._clientId) {
+          await this.presence.refresh(socket._clientId);
+          await this.registry.refreshSession(socket._clientId);
+        }
         this.send(socket, { type: 'heartbeatAck' });
         break;
       case 'result': {
-        const outcome = this.registry.resolveResult(
+        const outcome = await this.registry.handleResult(
           msg.requestId ?? '',
           socket._clientId ?? '',
           msg,

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '../config/config.service';
+import { ClusterBus } from './cluster-bus.service';
 import { ConnectionRegistry } from './connection.registry';
 import { PresenceService } from './presence.service';
 import { WsGateway } from './ws.gateway';
@@ -13,7 +14,7 @@ import { WsGateway } from './ws.gateway';
       useFactory: (cfg: ConfigService) => ({ secret: cfg.jwt.secret }),
     }),
   ],
-  providers: [WsGateway, PresenceService, ConnectionRegistry],
+  providers: [WsGateway, PresenceService, ConnectionRegistry, ClusterBus],
   exports: [PresenceService, ConnectionRegistry],
 })
 export class WsModule {}
