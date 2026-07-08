@@ -1,7 +1,7 @@
 # 设备接入模型重构(device-model redesign)设计文档
 
 > **性质:** epic 级设计北极星。定架构与决策,不含实现细节(SQL/端点级细节在各子项 spec 里)。
-> **状态:** 设计已与用户对齐,待用户审阅本文档后逐子项 spec → plan → 实现。
+> **状态:** 设计已与用户对齐(2026-07-09 更新:device token 天然绑定 project、砍 client_groups)。待用户终审后逐子项 spec → plan → 实现。
 > **生成:** 2026-07-09。
 
 ## 1. 背景 & 动机
@@ -15,23 +15,24 @@
 | # | 决策 | 选择 | 理由 |
 |---|------|------|------|
 | 架构 | 三个独立概念 | PROJECT / device token / access token | 见 §3 |
-| 一 | 旧 client-login(clientId+secret 预建账户) | **删除,全量替换** | 设备全走 device-token 自注册,最干净,契合通用 SDK |
+| 一 | 旧 client-login(clientId+secret 预建账户) | **删除,全量替换** | 设备全走 device-token 自注册,最干净 |
 | 二 | `groups` 改名 | **连库带码全改 `groups→projects`** | 概念正名,彻底 |
+| 三 | 设备能力如何定 | **device token 建时勾 project,设备不自报,上线即加入 token 的全部 project** | token 与 project 天然绑定,协议最简,并因此砍掉 `client_groups` 表 |
 
 ## 3. 目标架构:三个独立概念
 
 ```
 ① PROJECT(功能组)  ← 现 groups 改名。设备与两类 token 都挂到它上
       ├── access token ──(access_token_projects)── 调用方 invoke 授权:能调哪些 PROJECT
-      └── device token ──(device_token_projects)── 设备注册授权:能进哪些 PROJECT
+      └── device token ──(device_token_projects)── 设备注册授权:设备上来即进这些 PROJECT
 
-② device token(新)   专给【设备注册上线】。明文进 SDK 配置。CRUD + 显示"上了多少设备"。勾 PROJECT。
+② device token(新)   专给【设备注册上线】。明文进 SDK 配置。CRUD + 显示"上了多少设备"。建时勾 PROJECT。
 ③ access token(现有,不动)  专给【调用方 invoke】。勾 PROJECT。
 ```
 
-- **设备(worker)** 用 **device token** 自注册上线。
+- **设备(worker)** 用 **device token** 自注册上线,**继承该 token 的 project**(不自报能力)。
 - **调用方(caller)** 用 **access token** 发起 invoke。
-- 两类凭证**分表、分权、分用途**,互不越权(device token 泄露不能拿去 invoke,反之亦然)。
+- 两类凭证**分表、分权、分用途**,互不越权。
 
 ## 4. 目标数据模型
 
@@ -41,25 +42,25 @@
 | `access_token_groups` → **`access_token_projects`** | 改名 | 调用方 token ↔ project(M2M) |
 | `access_tokens` | 不动 | invoke 调用方凭证 |
 | **`device_tokens`** | 🆕 | 设备注册凭证。列见下 |
-| **`device_token_projects`** | 🆕 | device token ↔ project(M2M) |
+| **`device_token_projects`** | 🆕 | device token ↔ project(M2M)。**设备的 project 归属由它决定** |
 | `clients` | **删** | 预建账户模型作废 |
-| `client_groups` → **`device_projects`** | 改名 **+ FK 改指 `devices`** | 设备 ↔ project;首连按 token∩能力回填 |
+| `client_groups` | **删** | 设备 project 归属改为「继承 device token」,无需独立设备↔project 表 |
 | `devices` | 扩列 | **唯一设备记录**(见下) |
 
-**关键连带结论**(由决策一/二逻辑导出):
+**关键连带结论**(由决策一/二/三逻辑导出):
 - `clients` 删 → `devices` 成为**唯一设备记录**;
-- 原 `client_groups.clientId → clients.id` → 改名 `device_projects` 且 **FK 改指 `devices`**;
-- 设备 project 归属不再人肉预建,而是**首连时 = device_token 授权 project ∩ 设备自报能力**。
+- **`client_groups` 直接删除**:设备的 project 不再单独存表,而是**继承它上线所用 device token 的 project**(device_token 建时勾定,天然绑定)。`devices.device_token_id → device_tokens → device_token_projects` 即可推出设备在哪些 project;
+- 运行期 presence 在设备上线时,按该 token 的 projects 灌入 `project:clients:{pid}`(供 `pickOnline`)。
 
-**`device_tokens` 列**(镜像 `access_tokens` 结构,便于复用模式):
+**`device_tokens` 列**(镜像 `access_tokens` 结构,复用模式):
 `id, name, token(明文可回看), status(active/revoked), expires_at?, description, created_by, created_at, deleted_at`;partial unique on `token where deleted_at is null`。
 
 **`devices` 目标列**:
-`id, client_id(SDK 自生成,唯一 alive), device_token_id(→ device_tokens,记由哪个 token 上来), online(bool), status(online/offline/stale 派生或落库,见子项4确认), last_seen_at, last_ip, platform, extra(jsonb/text), description, deleted_at`。
+`id, client_id(SDK 自生成,唯一 alive), device_token_id(→ device_tokens,记由哪个 token 上来), online(bool), status(online/offline/stale,口径见子项4), last_seen_at, last_ip, platform, extra(jsonb/text), description, deleted_at`。
 
-**"该 token 上了多少设备"** = `count(devices where device_token_id = ? and online)`(或 total,子项2 确认口径)。
+**"该 token 上了多少设备"** = `count(devices where device_token_id = ? and online)`(或 total,子项2 定口径)。
 
-**迁移策略(待确认):** 假定后端尚无生产数据 → 破坏式迁移(drop `clients`、rename、建新表、alter `devices`),demo 数据由 seed 重建。若有需保数据,再议数据迁移脚本。
+**迁移策略:** 后端无需保留的生产数据(尚未重构上线)→ **破坏式迁移**(drop `clients`/`client_groups`、rename、建新表、alter `devices`),demo 数据由 seed 重建。
 
 ## 5. 设备自注册流程
 
@@ -68,43 +69,40 @@
 
 设备(通用 SDK)上线:
   1. 自生成 clientId(读设备稳定值,如 android_id 派生)
-  2. 连 WS /api/client/ws?token=<device-token>&clientId=<自生成>
-  3. 服务端校验 device token(存在/未过期/active)→ 取授权 PROJECT 集 T;失败 close(4001)
-  4. 设备发首帧 register {platform, capabilities:[project...], extra?}
-  5. 服务端:实际加入 = T ∩ capabilities        ← "具备这个功能才进"
-       · upsert devices(client_id, device_token_id, platform, last_ip, extra, online=true, last_seen)
-       · 重建 device_projects(该设备 → 加入的 project)
-       · presence.online(clientId, 加入的 projectIds)
-       · 回 welcome {clientId, projects}
+  2. 连 WS /api/client/ws?token=<device-token>&clientId=<自生成>[&platform=<可选>]
+  3. 服务端校验 device token(存在/未过期/active)→ 取该 token 勾定的 PROJECT 集 T;失败 close(4001)
+  4. 连上即处理(device token 已天然绑定 project,无需能力上报):
+       · upsert devices(client_id, device_token_id, platform, last_ip=从socket, online=true, last_seen)
+       · presence.online(clientId, T)        // 灌 project:clients:{pid}
+       · 回 welcome {clientId, projects: T}
   心跳:{heartbeat} → presence.refresh + last_seen 节流写库 → heartbeatAck
   回结果:{result,...} → registry.handleResult(不变)
   下线:presence.offline + devices.online=false(遵循缓存准则,见 §7)
 ```
 
-**待审阅确认点(§5):**
-- **(A) 能力上报机制**:提案用"连接后首帧 `register` 带 capabilities"(token+clientId 在 query 做鉴权,能力在首帧,避免塞 query)。备选更简:**不自报能力,加入 = token 的全部 project**(适合"该 token 下所有设备能力一致"场景)。二选一。
-- **(B) welcome 时机**:提案改为"收到 register 后才 online + welcome"(register 之前连着但不进 presence)。这是相较现状的协议变化,SDK 需配合。
+- `last_ip` 从连接 socket 取;`platform` 可选 query 参数;`extra` 暂缺省(子项4 补齐)。
+- 协议贴近现状:连上即 welcome,**无 register 首帧、无能力上报**。
 
 ## 6. device token 管理
 
 - CRUD API `/device-tokens`(生成返回明文/列表含在线设备数/改/撤销/软删),权限 `manage/device-token`(admin isRoot 直通)。
-- 与 `/access-tokens` 对称;可复用 access-token 模块的模式(明文回看、redis 缓存、软删+缓存失效)。
+- 与 `/access-tokens` 对称;复用 access-token 模块模式(明文回看、redis 缓存、软删+缓存失效)。
 
 ## 7. 冷热路径 & 缓存失效(全局准则,本重构遵循)
 
-- **热路径 presence**(invoke 派发读的 Redis 集合 `project:clients:{pid}`):由 WS 生命周期(register/心跳/断开)**主动写**。
+- **热路径 presence**(invoke 派发读的 Redis 集合 `project:clients:{pid}`):由 WS 生命周期(上线/心跳/断开)**主动写**。
 - **权威态被动变更**(stale 扫描置离线、device token 撤销/软删、admin 操作):**删对应 Redis 键**,不 update-in-place;设备下次心跳/请求进来懒回填。
 - device token 校验走 cache-aside(fail-open),撤销/删同步删缓存——照 `AccessTokenGuard` 既有模式。
 - 详见记忆准则:冷热分离 + 更新即删 Redis + 懒回填,减少脏数据。
 
 ## 8. 拆分 & 顺序(epic → 子项,每块独立 spec/plan/PR)
 
-1. **rename `groups→projects`**:`groups→projects`、`access_token_groups→access_token_projects`、全码引用、迁移。纯机械、无行为变化。**先做,后续全用新名。**(`client_groups` 留到子项3 连 FK 一起改。)
+1. **rename `groups→projects`**:`groups→projects`、`access_token_groups→access_token_projects`、全码引用、迁移。纯机械、无行为变化。**先做,后续全用新名。**(`client_groups` 不参与本次 rename——它将在子项3 直接删除。)
 2. **device token**:`device_tokens` + `device_token_projects` + CRUD API + `manage/device-token` 权限 + 在线设备数。独立、无依赖。
-3. **设备自注册 + 删 client-login**:WS 网关改 device-token 鉴权 + 自生成 id + `register` 能力交集 → upsert `devices`/`device_projects` + presence;**删 `clients`/`client_groups`(→device_projects)/`POST /clients`/`/api/client/login`/ClientService/Controller**;改 RBAC(去 `create/client`+`read/client`)、seed、smoke。**最大一块。**
+3. **设备自注册 + 删 client-login**:WS 网关改 device-token 鉴权 + 自生成 id → upsert `devices`(继承 token 的 project)+ presence;**删 `clients`/`client_groups`/`POST /clients`/`/api/client/login`/ClientService/Controller**;改 RBAC(去 `create/client`+`read/client`)、seed、smoke。**最大一块。**
 4. **设备持久态**(原待办 #2 剩余):stale 扫描 worker + 设备列表/详情 API(`read/device`)+ platform/ip/extra 落齐 + `status` 口径定稿。
 
-**⚠️ 时序铁律:** 子项3 内"删 client-login"必须在"自注册跑通"之后、同一 PR 完成,不得先删弄瘫系统。
+> 无生产系统需保活(尚未重构上线)→ 子项3 可直接删 client-login,不必为"过渡期保活"额外排序。
 
 ## 9. Out of scope
 - 前端管理后台(独立)。
