@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
 import { AuthModule } from './application/auth/auth.module';
 import { UsersModule } from './application/users/users.module';
 import { GroupsModule } from './application/groups/groups.module';
@@ -32,6 +35,11 @@ import { WsModule } from './infrastructure/ws/ws.module';
     MonitorModule,
     MetricsModule,
     RequestLogsModule,
+  ],
+  providers: [
+    // 全局鉴权:先 JWT(@Public 跳过),再 RBAC(@Roles 限制)
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}
