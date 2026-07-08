@@ -15,4 +15,5 @@ export const metrics = pgTable('metrics', {
   total: integer('total').notNull().default(0),
   okCount: integer('ok_count').notNull().default(0),
   errCount: integer('err_count').notNull().default(0),
+  description: varchar('description', { length: 255 }),
 });
