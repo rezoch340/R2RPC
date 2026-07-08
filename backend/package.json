@@ -20,7 +20,8 @@
     "migrate:groups": "ts-node -r tsconfig-paths/register src/scripts/migrate-groups.ts",
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "smoke": "node test/smoke.e2e.js"
+    "smoke": "node test/smoke.e2e.js",
+    "retention:smoke": "ts-node -r tsconfig-paths/register src/scripts/retention-smoke.ts"
   },
   "dependencies": {
     "@casl/ability": "^7.0.1",

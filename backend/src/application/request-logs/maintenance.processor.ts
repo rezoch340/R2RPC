@@ -1,22 +1,31 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
+import { ConfigService } from '../../infrastructure/config/config.service';
 import { QUEUE } from '../../infrastructure/queue/queue.constants';
 import { RequestLogsService } from './request-logs.service';
 
 const STALE_PENDING_MS = 10 * 60 * 1000;
 
-// 定时维护:扫描陈旧 pending(worker 崩溃遗留、payload 已无从补),标记 unavailable。
+// 定时维护:① repair 陈旧 pending;② request_logs 保留/裁剪。按 job.name 分派。
 @Processor(QUEUE.MAINTENANCE)
 export class MaintenanceProcessor extends WorkerHost {
   private readonly logger = new Logger('MaintenanceProcessor');
 
-  constructor(private readonly logs: RequestLogsService) {
+  constructor(
+    private readonly logs: RequestLogsService,
+    private readonly config: ConfigService,
+  ) {
     super();
   }
 
   async process(job: Job) {
-    if (job.name !== 'repair-stale-pending') return;
+    if (job.name === 'repair-stale-pending') return this.repairStalePending();
+    if (job.name === 'retention-sweep') return this.retentionSweep();
+  }
+
+  // 扫描 worker 崩溃遗留的陈旧 pending(payload 已无从补),标 unavailable
+  private async repairStalePending() {
     const stale = await this.logs.findStalePending(STALE_PENDING_MS, 500);
     for (const r of stale) {
       await this.logs.markState(r.requestId, 'unavailable');
@@ -27,5 +36,18 @@ export class MaintenanceProcessor extends WorkerHost {
       );
     }
     return { marked: stale.length };
+  }
+
+  // 按天清理 + 按 scope 裁剪 request_logs
+  private async retentionSweep() {
+    const { rawRetentionDays, keepLatestPerScope } = this.config.retention;
+    const cleaned = await this.logs.cleanupOldRequests(rawRetentionDays);
+    const trimmed = await this.logs.trimScopes(keepLatestPerScope);
+    if (cleaned || trimmed) {
+      this.logger.log(
+        `retention: 清理 ${cleaned} 条(>${rawRetentionDays}天), 裁剪 ${trimmed} 条(每scope>${keepLatestPerScope})`,
+      );
+    }
+    return { cleaned, trimmed };
   }
 }

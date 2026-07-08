@@ -45,4 +45,7 @@ export class ConfigService {
   get manticore() {
     return this.all.manticore;
   }
+  get retention() {
+    return this.all.retention;
+  }
 }
