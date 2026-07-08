@@ -28,6 +28,13 @@ export const configSchema = z.object({
   manticore: z.object({
     url: z.string().min(1),
   }),
+  // 日志保留(request_logs);非法值(≤0)直接校验失败终止,不静默兜底
+  retention: z
+    .object({
+      rawRetentionDays: z.number().int().positive().default(3),
+      keepLatestPerScope: z.number().int().positive().default(100),
+    })
+    .prefault({}),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
