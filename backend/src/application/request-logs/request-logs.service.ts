@@ -120,4 +120,33 @@ export class RequestLogsService {
       )
       .limit(limit);
   }
+
+  // 按天硬清理:删 created_at 早于 retentionDays 天的日志(log 表不软删)。返回删除条数。
+  async cleanupOldRequests(retentionDays: number): Promise<number> {
+    const cutoff = new Date(Date.now() - retentionDays * 86_400_000);
+    const res = await this.db
+      .delete(requestLogs)
+      .where(lt(requestLogs.createdAt, cutoff));
+    return res.rowCount ?? 0;
+  }
+
+  // 按 scope 裁剪:每 (group,action,client) 只留最新 keep 条(created_at DESC, id DESC)。返回删除条数。
+  // client_id 为 NULL 的行归为同一 scope("无 client")。
+  // ponytail: 全表窗口扫描,每轮维护跑一次;量级大到扛不住再改成只裁剪近期活跃 scope。
+  async trimScopes(keep: number): Promise<number> {
+    const res = await this.db.execute(sql`
+      DELETE FROM ${requestLogs}
+      WHERE ${requestLogs.id} IN (
+        SELECT id FROM (
+          SELECT ${requestLogs.id} AS id, ROW_NUMBER() OVER (
+            PARTITION BY ${requestLogs.groupName}, ${requestLogs.actionName}, ${requestLogs.clientId}
+            ORDER BY ${requestLogs.createdAt} DESC, ${requestLogs.id} DESC
+          ) AS rn
+          FROM ${requestLogs}
+        ) ranked
+        WHERE rn > ${keep}
+      )
+    `);
+    return res.rowCount ?? 0;
+  }
 }
