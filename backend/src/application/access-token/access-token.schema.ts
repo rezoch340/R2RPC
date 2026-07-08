@@ -1,18 +1,38 @@
-import { integer, pgTable, primaryKey, serial, timestamp, varchar } from 'drizzle-orm/pg-core';
+import {
+  integer,
+  pgTable,
+  primaryKey,
+  serial,
+  timestamp,
+  uniqueIndex,
+  varchar,
+} from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { users } from '../users/users.schema';
 import { groups } from '../groups/groups.schema';
 
 // Access Token 表——用于 API 密钥式授权
-export const accessTokens = pgTable('access_tokens', {
-  id: serial('id').primaryKey(),
-  name: varchar('name', { length: 128 }).notNull(),
-  token: varchar('token', { length: 128 }).notNull().unique(), // 明文可回看
-  status: varchar('status', { length: 16 }).notNull().default('active'),
-  expiresAt: timestamp('expires_at', { withTimezone: true }),
-  description: varchar('description', { length: 255 }),
-  createdBy: integer('created_by').references(() => users.id),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const accessTokens = pgTable(
+  'access_tokens',
+  {
+    id: serial('id').primaryKey(),
+    name: varchar('name', { length: 128 }).notNull(),
+    token: varchar('token', { length: 128 }).notNull(), // 明文可回看
+    status: varchar('status', { length: 16 }).notNull().default('active'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    description: varchar('description', { length: 255 }),
+    createdBy: integer('created_by').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('access_tokens_token_uq')
+      .on(t.token)
+      .where(sql`${t.deletedAt} IS NULL`),
+  ],
+);
 
 // Access Token 与分组的关联——多对多
 export const accessTokenGroups = pgTable(
