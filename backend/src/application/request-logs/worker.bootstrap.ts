@@ -20,5 +20,14 @@ export class WorkerBootstrap implements OnModuleInit {
         removeOnFail: true,
       },
     );
+    await this.maintenance.add(
+      'retention-sweep',
+      {},
+      {
+        repeat: { every: 5 * 60 * 1000 },
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
+    );
   }
 }

@@ -34,6 +34,13 @@
 - 端到端 smoke 新增软删断言:token 软删后 invoke → 401(证 alive 过滤 + 缓存删)、role 软删后同名重建拿新 id(证 partial unique)——全绿(34 断言),阶段4 收尾。
 - 顺带:**全项目 prettier + eslint 归零**(此前从没跑过,155 问题 → 0;请求对象/JSON.parse/socket 自定义属性补类型,`bootstrap()` 补 `void`,`ClusterBus` handler 放宽到 `void|Promise<void>`)。
 
+### 已完成 · 阶段5 request_logs 自动保留/裁剪
+- `request_logs`(日志表,硬删)加自动保留:`RequestLogsService.cleanupOldRequests(days)` 按天删超龄行 + `trimScopes(keep)` 用窗口函数按 `(group,action,client)` 每 scope 只留最新 N 条(`created_at DESC, id DESC`,`client_id` NULL 归同一 scope)。
+- 复用现成的 5min 维护 worker:`WorkerBootstrap` 新增 `retention-sweep` 可重复任务,`MaintenanceProcessor` 按 `job.name` 分派(repair-stale-pending / retention-sweep 各自私有方法)。
+- 阈值走集中 YAML 配置(zod 校验,fail-fast):`retention.rawRetentionDays`(默认 3)、`retention.keepLatestPerScope`(默认 100);非法值(≤0)直接启动失败,不静默兜底。
+- 独立冒烟 `src/scripts/retention-smoke.ts`(retention 无 API 面 → 直连 PG 种子超龄/超量行,断言 cleanup/trim 行数)—— 全绿。
+- 聚合表按天清理(`AGGREGATE_RETENTION_DAYS`)暂缓:`device_daily`/`rpc_daily` 表尚未建,随指标聚合体系一起做。
+
 ### 设计
 - 三套授权域设计定稿:**后台 CASL RBAC** + **设备组一等实体(设备多组)** + **invoke 独立 access token**(按设备组作用域、可过期)。
 - 全局软删除定稿:非日志实体表 `deleted_at` + partial unique + `alive()`/`softDelete()` 源头集中;`revoked`(运行状态)与 `deleted_at`(软删)正交。
