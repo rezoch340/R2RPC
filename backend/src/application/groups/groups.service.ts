@@ -1,5 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
+import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
 import { clientGroups } from '../client/client-groups.schema';
 import { groups } from './groups.schema';
@@ -12,14 +13,14 @@ export class GroupsService {
   }
 
   async list() {
-    return this.db.select().from(groups);
+    return this.db.select().from(groups).where(alive(groups));
   }
 
   async findByName(name: string) {
     const [row] = await this.db
       .select()
       .from(groups)
-      .where(eq(groups.name, name))
+      .where(alive(groups, eq(groups.name, name)))
       .limit(1);
     return row ?? null;
   }
@@ -33,7 +34,7 @@ export class GroupsService {
   }
 
   async remove(id: number) {
-    await this.db.delete(groups).where(eq(groups.id, id));
+    await softDelete(this.db, groups, eq(groups.id, id));
     return { deleted: true };
   }
 
@@ -42,7 +43,7 @@ export class GroupsService {
     const [g] = await this.db
       .select({ id: groups.id })
       .from(groups)
-      .where(eq(groups.name, name))
+      .where(alive(groups, eq(groups.name, name)))
       .limit(1);
     return g?.id ?? null;
   }
@@ -52,7 +53,7 @@ export class GroupsService {
     return this.db
       .select({ id: groups.id, name: groups.name })
       .from(clientGroups)
-      .innerJoin(groups, eq(clientGroups.groupId, groups.id))
+      .innerJoin(groups, alive(groups, eq(clientGroups.groupId, groups.id)))
       .where(eq(clientGroups.clientId, clientDbId));
   }
 }

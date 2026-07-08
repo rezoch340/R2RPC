@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { eq } from 'drizzle-orm';
+import { alive } from '../../common/db/soft-delete';
 import { hashPassword, verifyPassword } from '../../common/utils/password';
 import { ConfigService } from '../../infrastructure/config/config.service';
 import { DbService } from '../../infrastructure/db/db.service';
@@ -28,7 +29,7 @@ export class ClientService {
     const [row] = await this.db
       .select()
       .from(clients)
-      .where(eq(clients.clientId, clientId))
+      .where(alive(clients, eq(clients.clientId, clientId)))
       .limit(1);
     return row ?? null;
   }
@@ -90,7 +91,8 @@ export class ClientService {
         clientId: clients.clientId,
         createdAt: clients.createdAt,
       })
-      .from(clients);
+      .from(clients)
+      .where(alive(clients));
   }
 
   // 手机端登录:校验凭据,查设备所属组(client_groups,来源可信,非客户端自报)→ 签发多组 client JWT + 返回 wsUrl
