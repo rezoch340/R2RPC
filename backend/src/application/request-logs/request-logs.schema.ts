@@ -1,0 +1,49 @@
+import {
+  bigserial,
+  index,
+  integer,
+  pgTable,
+  timestamp,
+  uniqueIndex,
+  varchar,
+} from 'drizzle-orm/pg-core';
+
+// 请求日志「取证脊柱」——只存标量/标识字段,不存大 payload 原文(原文进 Manticore)
+export const requestLogs = pgTable(
+  'request_logs',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    requestId: varchar('request_id', { length: 64 }).notNull(),
+    groupName: varchar('group_name', { length: 128 }).notNull(),
+    actionName: varchar('action_name', { length: 128 }).notNull(),
+    clientId: varchar('client_id', { length: 128 }),
+    requesterUserId: integer('requester_user_id'),
+    status: varchar('status', { length: 32 }).notNull(),
+    httpCode: integer('http_code'),
+    latencyMs: integer('latency_ms'),
+    errorMessage: varchar('error_message', { length: 1024 }),
+    // payload 写入状态: pending / indexed / failed / unavailable
+    payloadState: varchar('payload_state', { length: 16 })
+      .notNull()
+      .default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('req_logs_request_id_uq').on(t.requestId),
+    index('req_logs_gac_created').on(
+      t.groupName,
+      t.actionName,
+      t.clientId,
+      t.createdAt,
+    ),
+    index('req_logs_gc_created').on(t.groupName, t.clientId, t.createdAt),
+    index('req_logs_client_created').on(t.clientId, t.createdAt),
+    index('req_logs_action_created').on(t.actionName, t.createdAt),
+    index('req_logs_created_ga').on(t.createdAt, t.groupName, t.actionName),
+    index('req_logs_status').on(t.status),
+    index('req_logs_payload_state').on(t.payloadState),
+  ],
+);

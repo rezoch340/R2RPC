@@ -1,0 +1,23 @@
+app:
+  port: 3000
+  globalPrefix: ''
+
+db:
+  host: 127.0.0.1
+  port: 5432
+  user: rer0rpc
+  password: rer0rpc
+  database: rer0rpc
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+  password: null
+  db: 0
+
+jwt:
+  secret: change-me-in-prod-please
+  expiresIn: 7d
+
+manticore:
+  url: http://127.0.0.1:9308
