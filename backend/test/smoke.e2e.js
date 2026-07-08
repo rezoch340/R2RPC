@@ -84,24 +84,43 @@ async function waitReady() {
   await sleep(300);
   assert(got.heartbeatAck, 'received heartbeatAck');
 
-  const inv = await http('POST', '/rpc/invoke/cn-nodes/echo', { timeoutSeconds: 10, payload: { encode_str: 'hello' } }, admin);
-  assert(inv.json.is_ok === true, 'invoke cn-nodes/echo -> is_ok true');
+  // ---------- 阶段3:invoke 改走独立 access token(与用户 JWT/RBAC 完全分离)----------
+
+  // admin 生成一枚只授权 cn-nodes 组的 access token(明文只在创建时回一次)
+  const tokenResp = await http('POST', '/access-tokens', { name: 'smoke-token', groups: ['cn-nodes'] }, admin);
+  assert(tokenResp.status < 300 && !!tokenResp.json.token, 'admin create access token (cn-nodes scoped)');
+  const accessToken = tokenResp.json.token;
+
+  // 命中:token 作用域内的组 -> invoke 成功(设备 dev-001 在 cn-nodes)
+  const inv = await http('POST', '/rpc/invoke/cn-nodes/echo', { timeoutSeconds: 10, payload: { encode_str: 'hello' } }, accessToken);
+  assert(inv.json.is_ok === true, 'invoke cn-nodes/echo (作用域内 token) -> is_ok true');
   assert(JSON.stringify(inv.json.payload) === JSON.stringify({ echo: { encode_str: 'hello' } }), 'invoke payload echoed');
 
-  // 同一设备在两个组都能命中(多组设备)
-  const inv2 = await http('POST', '/rpc/invoke/us-nodes/echo', { timeoutSeconds: 10, payload: { encode_str: 'world' } }, admin);
-  assert(inv2.json.is_ok === true && inv2.json.clientId === 'dev-001', 'invoke us-nodes/echo -> same device is_ok true');
+  // 越组:设备本身也在 us-nodes,但 token 只开了 cn-nodes -> 403(校验的是 token 的作用域,不是设备的组)
+  const inv2 = await http('POST', '/rpc/invoke/us-nodes/echo', { timeoutSeconds: 10, payload: { encode_str: 'world' } }, accessToken);
+  assert(inv2.status === 403, 'invoke us-nodes/echo with cn-nodes-scoped token -> 403(设备在组,token 不在)');
 
+  // 无效 token(伪造)-> 401
+  const invBadToken = await http('POST', '/rpc/invoke/cn-nodes/echo', { payload: {} }, 'rk_garbage');
+  assert(invBadToken.status === 401, 'invoke with invalid token -> 401');
+
+  // 无 Authorization 头 -> 401
+  const invNoAuth = await http('POST', '/rpc/invoke/cn-nodes/echo', { payload: {} }, null);
+  assert(invNoAuth.status === 401, 'invoke without Authorization header -> 401');
+
+  // 撤销:token 撤销后 status != active,再拿它调用 -> 403
+  const revokeResp = await http('POST', '/access-tokens', { name: 'revoke-me', groups: ['cn-nodes'] }, admin);
+  assert(revokeResp.status < 300 && !!revokeResp.json.token, 'admin create revoke-me token');
+  const revokeAction = await http('POST', `/access-tokens/${revokeResp.json.id}/revoke`, null, admin);
+  assert(revokeAction.status < 300, 'admin revoke revoke-me token');
+  const invRevoked = await http('POST', '/rpc/invoke/cn-nodes/echo', { payload: {} }, revokeResp.json.token);
+  assert(invRevoked.status === 403, 'invoke with revoked token -> 403');
+
+  // 超时:有效 cn-nodes token 调一个没人应答的 action
   const t0 = Date.now();
-  const inv3 = await http('POST', '/rpc/invoke/cn-nodes/sleep', { timeoutSeconds: 2, payload: {} }, admin);
+  const inv3 = await http('POST', '/rpc/invoke/cn-nodes/sleep', { timeoutSeconds: 2, payload: {} }, accessToken);
   assert(inv3.json.is_ok === false && inv3.json.status === 'timeout', 'invoke unanswered -> timeout');
   console.log('  timeout took ms: ' + (Date.now() - t0));
-
-  const inv4 = await http('POST', '/rpc/invoke/ghost-group/echo', { payload: {} }, admin);
-  assert(
-    inv4.json.is_ok === false && (inv4.json.status === 'no_group' || inv4.json.status === 'no_device'),
-    'invoke non-existent group -> no_group/no_device',
-  );
 
   const list = await http('GET', '/monitor/requests?pageSize=3', null, admin);
   assert(Array.isArray(list.json.rows) && !('requestPayload' in (list.json.rows[0] || {})), 'monitor list has no payload');
