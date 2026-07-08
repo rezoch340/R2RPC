@@ -15,7 +15,8 @@
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "ts-node -r tsconfig-paths/register src/scripts/migrate.ts",
+    "seed:admin": "ts-node -r tsconfig-paths/register src/scripts/seed-admin.ts",
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },

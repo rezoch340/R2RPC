@@ -1,0 +1,31 @@
+#!/usr/bin/env sh
+# 一键拉起开发环境:起基础设施 -> 等就绪 -> 迁移 -> 种子管理员
+set -eu
+
+HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+BACKEND="$HERE/../backend"
+
+echo "==> 启动基础设施 (postgres / redis / manticore)"
+docker compose -f "$HERE/docker-compose.yml" up -d
+
+echo "==> 等待 Postgres 就绪"
+until docker compose -f "$HERE/docker-compose.yml" exec -T postgres pg_isready -U rer0rpc -d rer0rpc >/dev/null 2>&1; do
+  sleep 1
+done
+
+echo "==> 等待 Redis 就绪"
+until docker compose -f "$HERE/docker-compose.yml" exec -T redis redis-cli ping >/dev/null 2>&1; do
+  sleep 1
+done
+
+echo "==> 执行数据库迁移 (drizzle-kit migrate)"
+cd "$BACKEND"
+pnpm db:migrate
+
+echo "==> 种子管理员账号"
+pnpm seed:admin
+
+echo ""
+echo "完成。启动服务:"
+echo "  cd backend && pnpm dev:api       # API + WS 网关 + Swagger(/docs)"
+echo "  cd backend && pnpm dev:worker    # BullMQ worker"
