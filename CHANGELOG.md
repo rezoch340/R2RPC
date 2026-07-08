@@ -20,6 +20,12 @@
 - RBAC 管理 API `/rbac/*`(角色/权限 CRUD + 角色绑权限 + 用户绑角色),以及 `/auth/me` 返回当前用户的 `permissions` 声明。
 - 种子脚本(`seed-admin.ts`)追加:admin 置 `is_root=true`;建 14 条权限全集(user/group/client 的 read-create-delete、metrics/monitor/rpc 的 read、invoke/rpc、manage/rbac、read/me);建 `operator` 角色,只挂 7 条 `read/*` 权限,幂等可重跑。端到端 smoke 新增 RBAC 断言:未登录 401、admin(isRoot)全绿、operator 只读通过、operator 越权(create/user)403、`/auth/me` 带 `permissions` 数组 —— 全部通过,阶段2 收尾。
 
+### 已完成 · 阶段3 invoke access token
+- invoke/clientQueue 与用户 JWT/RBAC 彻底解耦:`@Public` 跳过全局 JWT/Permission 守卫,改由独立的 `AccessTokenGuard` 校验 Bearer access token(有效性 + 未过期 + `active` 状态 + `:group` 作用域),redis 缓存热路径(fail-open,任何 redis 异常回落 DB 不阻断鉴权)。
+- Access token 后台管理 API `/access-tokens`(生成返回明文/列表/撤销),挂 `manage/access-token` 权限(admin isRoot 直通,operator 等只读角色不获得);`request_logs` 记 `access_token_id`,追踪每次 invoke 由哪个 token 发起。
+- 种子脚本(`seed-admin.ts`)权限全集补上 `manage/access-token`(共 14 条),幂等可重跑。
+- 端到端 smoke 的 invoke 断言全部改用 access token(不再传管理员 JWT,传了也会 401):同一设备跨组场景下验证「token 作用域命中」(cn-nodes 内 invoke 成功)、「越组 403」(设备本身也在 us-nodes,但 token 未开该组作用域,校验的是 token 而非设备)、「无效 token 401」、「无 Authorization 头 401」、「撤销后 403」,以及原有的超时分支——全绿,阶段3 收尾。
+
 ### 设计
 - 三套授权域设计定稿:**后台 CASL RBAC** + **设备组一等实体(设备多组)** + **invoke 独立 access token**(按设备组作用域、可过期)。
   见 `docs/superpowers/specs/2026-07-08-group-scoped-rbac-invoke-tokens-design.md`,分 3 阶段落地。

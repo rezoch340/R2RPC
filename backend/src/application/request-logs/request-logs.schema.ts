@@ -18,6 +18,7 @@ export const requestLogs = pgTable(
     actionName: varchar('action_name', { length: 128 }).notNull(),
     clientId: varchar('client_id', { length: 128 }),
     requesterUserId: integer('requester_user_id'),
+    accessTokenId: integer('access_token_id'),
     status: varchar('status', { length: 32 }).notNull(),
     httpCode: integer('http_code'),
     latencyMs: integer('latency_ms'),

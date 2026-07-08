@@ -29,6 +29,13 @@
       "when": 1783534673141,
       "tag": "0003_giant_maria_hill",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783537377619,
+      "tag": "0004_naive_lord_hawal",
+      "breakpoints": true
     }
   ]
 }

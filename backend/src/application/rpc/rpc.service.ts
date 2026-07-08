@@ -13,7 +13,8 @@ export interface InvokeParams {
   payload: unknown;
   timeoutSeconds?: number;
   clientId?: string;
-  requesterUserId?: number | string;
+  // invoke 调用方是 access token(3.4 起不再走用户 JWT),记录 token id 供 request_logs 溯源
+  accessTokenId?: number;
 }
 
 // 手机端回传的 result 形状
@@ -170,7 +171,8 @@ export class RpcService {
       group: p.group,
       action: p.action,
       clientId: resp.clientId,
-      requesterUserId: p.requesterUserId ?? null,
+      requesterUserId: null,
+      accessTokenId: p.accessTokenId ?? null,
       status: resp.status,
       httpCode: resp.httpCode,
       latencyMs: resp.latencyMs,

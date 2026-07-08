@@ -5,6 +5,7 @@ import { PermissionGuard } from './common/guards/permission.guard';
 import { AuthModule } from './application/auth/auth.module';
 import { UsersModule } from './application/users/users.module';
 import { GroupsModule } from './application/groups/groups.module';
+import { AccessTokenModule } from './application/access-token/access-token.module';
 import { DevicesModule } from './application/devices/devices.module';
 import { ClientModule } from './application/client/client.module';
 import { RpcModule } from './application/rpc/rpc.module';
@@ -31,6 +32,7 @@ import { WsModule } from './infrastructure/ws/ws.module';
     AuthModule,
     UsersModule,
     GroupsModule,
+    AccessTokenModule,
     DevicesModule,
     ClientModule,
     RpcModule,

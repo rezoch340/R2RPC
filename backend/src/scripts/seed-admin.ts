@@ -30,6 +30,7 @@ const ALL_PERMISSIONS: Array<{ action: string; subject: string }> = [
   { action: 'invoke', subject: 'rpc' },
   { action: 'read', subject: 'rpc' },
   { action: 'manage', subject: 'rbac' },
+  { action: 'manage', subject: 'access-token' },
 ];
 
 // operator 角色只挂 read/* 权限(只读,无 create/delete/invoke/manage)

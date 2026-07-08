@@ -52,6 +52,7 @@ export class RequestLogsService {
         clientId: job.clientId ?? null,
         requesterUserId:
           typeof job.requesterUserId === 'number' ? job.requesterUserId : null,
+        accessTokenId: job.accessTokenId ?? null,
         status: job.status,
         httpCode: job.httpCode ?? null,
         latencyMs: job.latencyMs ?? null,
