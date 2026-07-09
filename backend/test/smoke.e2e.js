@@ -364,6 +364,53 @@ async function waitReady() {
   );
   await http('DELETE', `/rbac/roles/${r2.json.id}`, null, admin); // 清理:软删掉重建的,免累积
 
+  // ---------- 2b:device token CRUD(admin isRoot 直通 manage/device-token)----------
+  const dtCreate = await http(
+    'POST',
+    '/device-tokens',
+    { name: 'dt-smoke', projects: ['cn-nodes'] },
+    admin,
+  );
+  assert(
+    dtCreate.status < 300 &&
+      typeof dtCreate.json.token === 'string' &&
+      dtCreate.json.token.startsWith('dk_'),
+    'create device token -> 明文 dk_ token',
+  );
+  assert(
+    Array.isArray(dtCreate.json.projects) &&
+      dtCreate.json.projects.includes('cn-nodes'),
+    'device token 回显 project cn-nodes',
+  );
+  const dtList = await http('GET', '/device-tokens', null, admin);
+  const dtRow = (dtList.json || []).find((x) => x.id === dtCreate.json.id);
+  assert(
+    !!dtRow && dtRow.onlineDeviceCount === 0,
+    'device token 列表含它且 onlineDeviceCount=0(2c 前无设备继承)',
+  );
+  const dtRevoke = await http(
+    'POST',
+    `/device-tokens/${dtCreate.json.id}/revoke`,
+    null,
+    admin,
+  );
+  assert(
+    dtRevoke.status < 300 && dtRevoke.json.status === 'revoked',
+    'revoke device token -> status revoked',
+  );
+  const dtDel = await http(
+    'DELETE',
+    `/device-tokens/${dtCreate.json.id}`,
+    null,
+    admin,
+  );
+  assert(dtDel.status < 300, 'soft-delete device token');
+  const dtList2 = await http('GET', '/device-tokens', null, admin);
+  assert(
+    !(dtList2.json || []).some((x) => x.id === dtCreate.json.id),
+    '软删后 device token 不再出现在列表(alive 过滤)',
+  );
+
   ws.close();
   await sleep(200);
   console.log(failed ? '\n=== SMOKE FAILED ===' : '\n=== SMOKE PASSED ===');
