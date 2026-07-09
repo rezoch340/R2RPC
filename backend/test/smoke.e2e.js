@@ -63,7 +63,7 @@ async function waitReady() {
   );
 
   const PLATFORM = 'smoke-android';
-  const wsUrl = `${B.replace(/^http/, 'ws')}/api/client/ws?token=${encodeURIComponent(regTok.json.token)}&clientId=${CLIENT_ID}&platform=${PLATFORM}`;
+  const wsUrl = `${B.replace(/^http/, 'ws')}/api/client/ws?token=${encodeURIComponent(regTok.json.token)}&clientId=${CLIENT_ID}&platform=${PLATFORM}&maxInFlight=600`;
   const ws = new WebSocket(wsUrl);
   const got = { welcome: false, heartbeatAck: false };
 
@@ -83,6 +83,12 @@ async function waitReady() {
   assert(
     Array.isArray(welcomeMsg.projects) && welcomeMsg.projects.length >= 1,
     'welcome 带继承自 device token 的 projects',
+  );
+  assert(
+    typeof welcomeMsg.maxInFlight === 'number' &&
+      welcomeMsg.maxInFlight >= 256 &&
+      welcomeMsg.maxInFlight <= 1024,
+    'welcome 回带 maxInFlight(夹 [256,1024])',
   );
 
   ws.on('message', (d) => {
@@ -445,6 +451,10 @@ async function waitReady() {
   assert(
     typeof devRow.lastIp === 'string' && devRow.lastIp.length > 0,
     '设备 last_ip 落库(来自 socket)',
+  );
+  assert(
+    devRow.maxInFlight === 600,
+    '设备 maxInFlight 落库(自报 600 在区间内)',
   );
   const devDetail = await http('GET', `/devices/${devRow.id}`, null, admin);
   assert(
