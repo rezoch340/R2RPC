@@ -15,6 +15,13 @@
       "when": 1783602142208,
       "tag": "0001_simple_klaw",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783603914694,
+      "tag": "0002_fluffy_tiger_shark",
+      "breakpoints": true
     }
   ]
 }

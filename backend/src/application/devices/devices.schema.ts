@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   pgTable,
   serial,
@@ -26,5 +27,6 @@ export const devices = pgTable(
     uniqueIndex('devices_client_id_uq')
       .on(t.clientId)
       .where(sql`${t.deletedAt} IS NULL`),
+    index('devices_device_token_id_idx').on(t.deviceTokenId),
   ],
 );
