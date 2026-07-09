@@ -10,6 +10,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
+import { SetEnabledDto } from './dto/set-enabled.dto';
 import { UsersService } from './users.service';
 
 @ApiTags('users')
@@ -44,5 +45,15 @@ export class UsersController {
   @ApiOperation({ summary: '删除用户' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.users.remove(id);
+  }
+
+  @Post(':id/enabled')
+  @RequirePermission('update', 'user')
+  @ApiOperation({ summary: '启用/停用用户(停用后禁止登录且立即吊销现有会话)' })
+  setEnabled(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetEnabledDto,
+  ) {
+    return this.users.setEnabled(id, dto.enabled);
   }
 }

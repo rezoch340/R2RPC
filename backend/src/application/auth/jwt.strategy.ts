@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '../../infrastructure/config/config.service';
@@ -30,6 +34,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // 先确认用户存在且未软删——已删用户的旧 JWT 必须失效(否则关联权限仍会加载)
     const user = await this.rbac.findAuthUser(id);
     if (!user) throw new UnauthorizedException('账号不存在或已删除');
+    if (!user.enabled) throw new ForbiddenException('账号已禁用');
     const permissions = await this.rbac.getUserPermissions(id);
     return {
       id,

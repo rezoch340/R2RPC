@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { verifyPassword } from '../../common/utils/password';
 import { UsersService } from '../users/users.service';
@@ -16,10 +20,14 @@ export class AuthService {
     if (!user || !verifyPassword(password, user.passwordHash)) {
       throw new UnauthorizedException('用户名或密码错误');
     }
+    if (!user.enabled) {
+      throw new ForbiddenException('账号已禁用');
+    }
     const token = await this.jwt.signAsync({
       sub: user.id,
       username: user.username,
     });
+    await this.users.updateLastLogin(user.id);
     return {
       token,
       user: { id: user.id, username: user.username, role: user.role },
