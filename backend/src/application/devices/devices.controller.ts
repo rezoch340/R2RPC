@@ -1,4 +1,10 @@
-import { Controller, Get, NotFoundException, Param, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { DevicesService } from './devices.service';
@@ -11,7 +17,9 @@ export class DevicesController {
 
   @Get()
   @RequirePermission('read', 'device')
-  @ApiOperation({ summary: '设备列表(持久态:online/status/platform/last_ip/last_seen)' })
+  @ApiOperation({
+    summary: '设备列表(持久态:online/status/platform/last_ip/last_seen)',
+  })
   list() {
     return this.devices.list();
   }
