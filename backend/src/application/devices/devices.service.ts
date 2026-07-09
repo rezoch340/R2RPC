@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { alive } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
@@ -27,13 +27,12 @@ export class DevicesService {
     deviceTokenId: number,
     meta: DeviceMeta = {},
   ): Promise<void> {
-    const fields = {
+    // lastIp 每次连接都刷(反映当前网络);platform/extra 是"安装态"元数据,本次缺省则保留旧值不覆盖
+    const base = {
       deviceTokenId,
       online: true,
       status: 'online',
-      platform: meta.platform ?? null,
       lastIp: meta.lastIp ?? null,
-      extra: meta.extra ?? null,
       lastSeenAt: new Date(),
     };
     const [existing] = await this.db
@@ -42,12 +41,22 @@ export class DevicesService {
       .where(alive(devices, eq(devices.clientId, clientId)))
       .limit(1);
     if (existing) {
+      const patch = {
+        ...base,
+        ...(meta.platform != null ? { platform: meta.platform } : {}),
+        ...(meta.extra != null ? { extra: meta.extra } : {}),
+      };
       await this.db
         .update(devices)
-        .set(fields)
+        .set(patch)
         .where(eq(devices.id, existing.id));
     } else {
-      await this.db.insert(devices).values({ clientId, ...fields });
+      await this.db.insert(devices).values({
+        clientId,
+        ...base,
+        platform: meta.platform ?? null,
+        extra: meta.extra ?? null,
+      });
     }
   }
 
@@ -70,23 +79,26 @@ export class DevicesService {
     for (const d of rows) {
       const present = await this.redis.client.exists(`presence:${d.clientId}`);
       if (present === 0) {
-        await this.db
+        // 仍带 online=true 守卫:若期间设备已优雅下线(online 翻 false),本次写成 no-op,不把 offline 误标 stale
+        const res = await this.db
           .update(devices)
           .set({ online: false, status: 'stale' })
-          .where(eq(devices.id, d.id));
-        stale++;
+          .where(
+            alive(devices, and(eq(devices.id, d.id), eq(devices.online, true))),
+          );
+        if ((res.rowCount ?? 0) > 0) stale++;
       }
     }
     return stale;
   }
 
-  // 列表:所有 alive 设备(按 id 倒序)
+  // 列表:所有 alive 设备(按 id 倒序,新设备在前)
   async list() {
     return this.db
       .select()
       .from(devices)
       .where(alive(devices))
-      .orderBy(devices.id);
+      .orderBy(desc(devices.id));
   }
 
   // 详情:单台(alive),不存在返回 null
