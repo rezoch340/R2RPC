@@ -8,7 +8,6 @@ import { ProjectsModule } from './application/projects/projects.module';
 import { AccessTokenModule } from './application/access-token/access-token.module';
 import { DeviceTokenModule } from './application/device-token/device-token.module';
 import { DevicesModule } from './application/devices/devices.module';
-import { ClientModule } from './application/client/client.module';
 import { RpcModule } from './application/rpc/rpc.module';
 import { MonitorModule } from './application/monitor/monitor.module';
 import { MetricsModule } from './application/metrics/metrics.module';
@@ -36,7 +35,6 @@ import { WsModule } from './infrastructure/ws/ws.module';
     AccessTokenModule,
     DeviceTokenModule,
     DevicesModule,
-    ClientModule,
     RpcModule,
     MonitorModule,
     MetricsModule,

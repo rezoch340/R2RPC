@@ -4,8 +4,6 @@ import { Pool } from 'pg';
 import { ConfigService } from '../infrastructure/config/config.service';
 import { users } from '../application/users/users.schema';
 import { projects } from '../application/projects/projects.schema';
-import { clients } from '../application/client/client.schema';
-import { clientGroups } from '../application/client/client-groups.schema';
 import {
   permissions,
   rolePermissions,
@@ -16,8 +14,6 @@ import { hashPassword } from '../common/utils/password';
 // 种子管理员账号 + demo 分组/设备 + RBAC 基础数据(幂等,可重复执行)。用法: pnpm seed:admin
 // 可用环境变量覆盖: ADMIN_USER / ADMIN_PASSWORD
 const DEMO_PROJECTS = ['cn-nodes', 'us-nodes'];
-const DEMO_CLIENT_ID = 'dev-001';
-const DEMO_CLIENT_SECRET = 'secret123';
 
 // 权限全集(action, subject)
 const ALL_PERMISSIONS: Array<{ action: string; subject: string }> = [
@@ -27,8 +23,6 @@ const ALL_PERMISSIONS: Array<{ action: string; subject: string }> = [
   { action: 'read', subject: 'project' },
   { action: 'create', subject: 'project' },
   { action: 'delete', subject: 'project' },
-  { action: 'read', subject: 'client' },
-  { action: 'create', subject: 'client' },
   { action: 'read', subject: 'metrics' },
   { action: 'read', subject: 'monitor' },
   { action: 'invoke', subject: 'rpc' },
@@ -71,36 +65,6 @@ async function main() {
     .insert(projects)
     .values(DEMO_PROJECTS.map((name) => ({ name })))
     .onConflictDoNothing();
-  const projectRows = await db.select().from(projects);
-  const projectIdByName = new Map(projectRows.map((g) => [g.name, g.id]));
-
-  // demo 设备账号 dev-001(secret: secret123),关联 cn-nodes + us-nodes(演示多 project 设备)
-  await db
-    .insert(clients)
-    .values({
-      clientId: DEMO_CLIENT_ID,
-      secretHash: hashPassword(DEMO_CLIENT_SECRET),
-    })
-    .onConflictDoNothing();
-  const [device] = await db
-    .select({ id: clients.id })
-    .from(clients)
-    .where(eq(clients.clientId, DEMO_CLIENT_ID))
-    .limit(1);
-
-  for (const name of DEMO_PROJECTS) {
-    const projectId = projectIdByName.get(name);
-    if (!projectId) continue;
-    await db
-      .insert(clientGroups)
-      .values({ clientId: device.id, groupId: projectId })
-      .onConflictDoNothing();
-  }
-
-  console.log(
-    `demo 设备已就绪: ${DEMO_CLIENT_ID}(secret: ${DEMO_CLIENT_SECRET}, project: ${DEMO_PROJECTS.join(', ')})`,
-  );
-
   // 权限全集(幂等,唯一约束 action+subject)
   await db.insert(permissions).values(ALL_PERMISSIONS).onConflictDoNothing();
   const permRows = await db.select().from(permissions);

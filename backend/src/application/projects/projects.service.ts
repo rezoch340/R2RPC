@@ -2,7 +2,6 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
-import { clientGroups } from '../client/client-groups.schema';
 import { projects } from './projects.schema';
 
 @Injectable()
@@ -46,17 +45,5 @@ export class ProjectsService {
       .where(alive(projects, eq(projects.name, name)))
       .limit(1);
     return g?.id ?? null;
-  }
-
-  // 查设备所属的所有 project(id + name),供设备登录签发多 project JWT 用(2c 重构)
-  async projectsOfClient(clientDbId: number) {
-    return this.db
-      .select({ id: projects.id, name: projects.name })
-      .from(clientGroups)
-      .innerJoin(
-        projects,
-        alive(projects, eq(clientGroups.groupId, projects.id)),
-      )
-      .where(eq(clientGroups.clientId, clientDbId));
   }
 }

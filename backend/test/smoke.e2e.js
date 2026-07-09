@@ -47,37 +47,26 @@ async function waitReady() {
   const admin = await waitReady();
   assert(!!admin, 'admin login');
 
-  // 建 project + 建设备账号(多 project:cn-nodes + us-nodes),409 说明种子已建过,忽略即可(幂等)
-  const created = await http(
+  // ---------- 设备自注册:admin 建 device token(cn-nodes)-> 设备用它 + 自生成 clientId 连 WS ----------
+  const CLIENT_ID = 'smoke-dev-001';
+  const regTok = await http(
     'POST',
-    '/clients',
-    {
-      clientId: 'dev-001',
-      secret: 'secret123',
-      projects: ['cn-nodes', 'us-nodes'],
-    },
+    '/device-tokens',
+    { name: 'reg-token', projects: ['cn-nodes'] },
     admin,
   );
   assert(
-    created.status < 300 || created.status === 409,
-    'create device account (or already exists)',
+    regTok.status < 300 &&
+      typeof regTok.json.token === 'string' &&
+      regTok.json.token.startsWith('dk_'),
+    'admin 建注册用 device token(dk_)',
   );
 
-  const cl = await http('POST', '/api/client/login', {
-    clientId: 'dev-001',
-    secret: 'secret123',
-  });
-  assert(cl.status < 300 && !!cl.json.wsUrl, 'client login returns wsUrl');
-  const loginProjects = cl.json.projects || [];
-  assert(
-    loginProjects.includes('cn-nodes') && loginProjects.includes('us-nodes'),
-    'client login projects include cn-nodes + us-nodes',
-  );
-
-  const ws = new WebSocket(cl.json.wsUrl);
+  const wsUrl = `${B.replace(/^http/, 'ws')}/api/client/ws?token=${encodeURIComponent(regTok.json.token)}&clientId=${CLIENT_ID}`;
+  const ws = new WebSocket(wsUrl);
   const got = { welcome: false, heartbeatAck: false };
 
-  await new Promise((resolve, reject) => {
+  const welcomeMsg = await new Promise((resolve, reject) => {
     const to = setTimeout(() => reject(new Error('welcome timeout')), 5000);
     ws.on('error', reject);
     ws.on('message', (d) => {
@@ -85,11 +74,15 @@ async function waitReady() {
       if (m.type === 'welcome') {
         got.welcome = true;
         clearTimeout(to);
-        resolve();
+        resolve(m);
       }
     });
   });
   assert(got.welcome, 'received welcome');
+  assert(
+    Array.isArray(welcomeMsg.projects) && welcomeMsg.projects.length >= 1,
+    'welcome 带继承自 device token 的 projects',
+  );
 
   ws.on('message', (d) => {
     const m = JSON.parse(d.toString());
@@ -99,7 +92,7 @@ async function waitReady() {
         JSON.stringify({
           type: 'result',
           requestId: m.requestId,
-          clientId: 'dev-001',
+          clientId: CLIENT_ID,
           status: 'ok',
           is_ok: true,
           payload: { echo: m.payload },
@@ -409,6 +402,14 @@ async function waitReady() {
   assert(
     !(dtList2.json || []).some((x) => x.id === dtCreate.json.id),
     '软删后 device token 不再出现在列表(alive 过滤)',
+  );
+
+  // 设备已在线,注册用 token 的在线设备数应为 1
+  const regList = await http('GET', '/device-tokens', null, admin);
+  const regRow = (regList.json || []).find((x) => x.id === regTok.json.id);
+  assert(
+    !!regRow && regRow.onlineDeviceCount === 1,
+    '注册 token onlineDeviceCount=1(设备已自注册在线)',
   );
 
   ws.close();
