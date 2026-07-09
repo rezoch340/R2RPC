@@ -56,10 +56,10 @@ export class RpcService {
     const timeoutMs = timeoutSeconds * 1000;
     const startedAt = Date.now();
 
-    // project 名 -> project id(DB 查询;不存在直接 404,不算基础设施异常)
-    let projectId: number | null;
+    // project 名 -> {id, enabled}(DB 查询;不存在 404、禁用 403,均不算基础设施异常)
+    let proj: { id: number; enabled: boolean } | null;
     try {
-      projectId = await this.projects.idByName(p.project);
+      proj = await this.projects.findEnabledIdByName(p.project);
     } catch (e) {
       this.logger.error(
         `功能组解析失败(基础设施异常): ${(e as Error).message}`,
@@ -74,7 +74,7 @@ export class RpcService {
         '基础设施异常,无法调度',
       );
     }
-    if (!projectId) {
+    if (!proj) {
       return this.fail(
         p,
         requestId,
@@ -85,6 +85,18 @@ export class RpcService {
         '功能组不存在',
       );
     }
+    if (!proj.enabled) {
+      return this.fail(
+        p,
+        requestId,
+        null,
+        startedAt,
+        'disabled',
+        403,
+        '功能组已停用',
+      );
+    }
+    const projectId = proj.id;
 
     // 选目标设备:指定 clientId 优先,否则组内轮询。基础设施(redis)异常也要留取证脊柱。
     let clientId = p.clientId ?? null;
