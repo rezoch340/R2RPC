@@ -98,7 +98,11 @@ export class RpcService {
     }
     const projectId = proj.id;
 
-    // 选目标设备:指定 clientId 优先,否则组内轮询。基础设施(redis)异常也要留取证脊柱。
+    // 选目标设备 + 占在途槽(合一步,边挑边占):
+    //  - 指定 clientId:校验在线 → 占其槽,满则 rejected;
+    //  - 未指定:组内 RR 轮询挑第一个未满设备并占槽,全满才 rejected(组饱和)。
+    // 到达下面 dispatch try 时槽必已占(由 finally releaseSlot 释放);占槽成功到出 try 之间无 await,
+    // catch 不会泄漏已占的槽。基础设施(redis)异常也要留取证脊柱。
     let clientId = p.clientId ?? null;
     try {
       if (clientId) {
@@ -113,9 +117,21 @@ export class RpcService {
             '指定设备不在线',
           );
         }
+        const maxInFlight = await this.presence.getMaxInFlight(clientId);
+        if (!(await this.presence.tryAcquireSlot(clientId, maxInFlight))) {
+          return this.fail(
+            p,
+            requestId,
+            clientId,
+            startedAt,
+            'rejected',
+            429,
+            '设备在途任务已满',
+          );
+        }
       } else {
-        clientId = await this.presence.pickOnline(projectId);
-        if (!clientId) {
+        const picked = await this.presence.pickOnlineAcquire(projectId);
+        if (picked === 'no_device') {
           return this.fail(
             p,
             requestId,
@@ -126,28 +142,22 @@ export class RpcService {
             '功能组内无在线设备',
           );
         }
+        if (picked === 'saturated') {
+          return this.fail(
+            p,
+            requestId,
+            null,
+            startedAt,
+            'rejected',
+            429,
+            '功能组内设备在途任务均已满',
+          );
+        }
+        clientId = picked.clientId;
       }
     } catch (e) {
-      this.logger.error(`设备选择失败(基础设施异常): ${(e as Error).message}`);
-      return this.fail(
-        p,
-        requestId,
-        clientId,
-        startedAt,
-        'error',
-        503,
-        '基础设施异常,无法调度',
-      );
-    }
-
-    // 在途并发限流:占一个槽,满则 rejected/429。redis 异常funnel 到 fail,与本方法其它步骤一致(保证留取证脊柱)
-    let acquired: boolean;
-    try {
-      const maxInFlight = await this.presence.getMaxInFlight(clientId);
-      acquired = await this.presence.tryAcquireSlot(clientId, maxInFlight);
-    } catch (e) {
       this.logger.error(
-        `在途限流检查失败(基础设施异常): ${(e as Error).message}`,
+        `设备选择/占槽失败(基础设施异常): ${(e as Error).message}`,
       );
       return this.fail(
         p,
@@ -157,17 +167,6 @@ export class RpcService {
         'error',
         503,
         '基础设施异常,无法调度',
-      );
-    }
-    if (!acquired) {
-      return this.fail(
-        p,
-        requestId,
-        clientId,
-        startedAt,
-        'rejected',
-        429,
-        '设备在途任务已满',
       );
     }
     try {
