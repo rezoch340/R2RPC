@@ -41,9 +41,12 @@ export class RequestLogsService {
     return this.dbService.db;
   }
 
-  // 写请求日志脊柱(幂等:request_id 冲突不重复插)
-  async writeSpine(job: RequestLogJob, payloadState: PayloadState) {
-    await this.db
+  // 写请求日志脊柱(幂等:request_id 冲突不重复插)。返回是否首插(true = 本次真的插了)。
+  async writeSpine(
+    job: RequestLogJob,
+    payloadState: PayloadState,
+  ): Promise<boolean> {
+    const res = await this.db
       .insert(requestLogs)
       .values({
         requestId: job.requestId,
@@ -62,6 +65,7 @@ export class RequestLogsService {
         finishedAt: job.finishedAt ? new Date(job.finishedAt) : null,
       })
       .onConflictDoNothing({ target: requestLogs.requestId });
+    return (res.rowCount ?? 0) > 0;
   }
 
   async markState(requestId: string, state: PayloadState) {
