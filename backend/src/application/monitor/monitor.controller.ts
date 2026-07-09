@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import { QueryRequestOptionsDto } from './dto/query-request-options.dto';
 import { QueryRequestsDto } from './dto/query-requests.dto';
 import { MonitorService } from './monitor.service';
 
@@ -29,6 +30,20 @@ export class MonitorController {
       to: q.to ? new Date(q.to) : undefined,
       page: q.page,
       pageSize: q.pageSize,
+    });
+  }
+
+  @Get('request-options')
+  @RequirePermission('read', 'monitor')
+  @ApiOperation({
+    summary:
+      '请求筛选下拉选项(去重 project/action/client,联动过滤 + 实体仍存在)',
+  })
+  requestOptions(@Query() q: QueryRequestOptionsDto) {
+    return this.monitor.requestOptions({
+      project: q.project,
+      action: q.action,
+      clientId: q.clientId,
     });
   }
 

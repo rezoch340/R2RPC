@@ -26,6 +26,11 @@ export class MonitorService {
     return this.logs.list(filter);
   }
 
+  // 筛选下拉选项:去重 project/action/client(联动过滤 + 实体仍存在)
+  requestOptions(f: { project?: string; action?: string; clientId?: string }) {
+    return this.logs.filterOptions(f);
+  }
+
   // 详情:先查 PG 脊柱,再按 requestId 从 Manticore 懒加载 payload;不可用则标记 payloadUnavailable
   async detail(requestId: string) {
     const spine = await this.logs.detailSpine(requestId);
