@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { desc, gte, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import { DbService } from '../../infrastructure/db/db.service';
 import { RequestLogJob } from '../request-logs/request-log.types';
 import { requestLogs } from '../request-logs/request-logs.schema';
@@ -41,6 +41,86 @@ export class MetricsService {
       .limit(10);
 
     return { totals, byStatus, byProject };
+  }
+
+  // 今天(UTC)往前 n 天的日期串 'YYYY-MM-DD'
+  private utcDateNDaysAgo(n: number): string {
+    const now = new Date();
+    return new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - n),
+    )
+      .toISOString()
+      .slice(0, 10);
+  }
+
+  // 近7天设备指标:按 (clientId, project) 汇总 device_daily_metrics(可选 project 过滤)
+  async weekly(project?: string) {
+    const cutoffDate = this.utcDateNDaysAgo(6); // 含今天共 7 天
+    const conds = [gte(deviceDailyMetrics.statDate, cutoffDate)];
+    if (project) conds.push(eq(deviceDailyMetrics.projectName, project));
+    return this.db
+      .select({
+        clientId: deviceDailyMetrics.clientId,
+        project: deviceDailyMetrics.projectName,
+        totalRequests: sql<number>`sum(${deviceDailyMetrics.totalRequests})::int`,
+        successRequests: sql<number>`sum(${deviceDailyMetrics.successRequests})::int`,
+        failedRequests: sql<number>`sum(${deviceDailyMetrics.failedRequests})::int`,
+        timeoutRequests: sql<number>`sum(${deviceDailyMetrics.timeoutRequests})::int`,
+        avgLatencyMs: sql<number>`coalesce(round(sum(${deviceDailyMetrics.totalLatencyMs})::numeric / nullif(sum(${deviceDailyMetrics.totalRequests}), 0)), 0)::int`,
+        maxLatencyMs: sql<number>`coalesce(max(${deviceDailyMetrics.maxLatencyMs}), 0)::int`,
+      })
+      .from(deviceDailyMetrics)
+      .where(and(...conds))
+      .groupBy(deviceDailyMetrics.clientId, deviceDailyMetrics.projectName)
+      .orderBy(desc(sql`sum(${deviceDailyMetrics.totalRequests})`));
+  }
+
+  // 按天趋势:近 days 天 rpc_daily_metrics 汇总,JS 生成 UTC 日期序列补零(缺的天填 0)
+  async trend(days: number, project?: string) {
+    const cutoffDate = this.utcDateNDaysAgo(days - 1);
+    const conds = [gte(rpcDailyMetrics.statDate, cutoffDate)];
+    if (project) conds.push(eq(rpcDailyMetrics.projectName, project));
+    const rows = await this.db
+      .select({
+        statDate: rpcDailyMetrics.statDate,
+        total: sql<number>`sum(${rpcDailyMetrics.totalRequests})::int`,
+        success: sql<number>`sum(${rpcDailyMetrics.successRequests})::int`,
+        failed: sql<number>`sum(${rpcDailyMetrics.failedRequests})::int`,
+        timeout: sql<number>`sum(${rpcDailyMetrics.timeoutRequests})::int`,
+        totalLat: sql<number>`sum(${rpcDailyMetrics.totalLatencyMs})::bigint`,
+        maxLat: sql<number>`coalesce(max(${rpcDailyMetrics.maxLatencyMs}), 0)::int`,
+      })
+      .from(rpcDailyMetrics)
+      .where(and(...conds))
+      .groupBy(rpcDailyMetrics.statDate);
+    const byDate = new Map(rows.map((r) => [String(r.statDate), r]));
+    const points: {
+      statDate: string;
+      totalRequests: number;
+      successRequests: number;
+      failedRequests: number;
+      timeoutRequests: number;
+      avgLatencyMs: number;
+      maxLatencyMs: number;
+      successRate: number;
+    }[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = this.utcDateNDaysAgo(i);
+      const r = byDate.get(d);
+      const total = Number(r?.total ?? 0);
+      const success = Number(r?.success ?? 0);
+      points.push({
+        statDate: d,
+        totalRequests: total,
+        successRequests: success,
+        failedRequests: Number(r?.failed ?? 0),
+        timeoutRequests: Number(r?.timeout ?? 0),
+        avgLatencyMs: total ? Math.round(Number(r?.totalLat ?? 0) / total) : 0,
+        maxLatencyMs: Number(r?.maxLat ?? 0),
+        successRate: total ? Math.round((success * 10000) / total) / 100 : 0,
+      });
+    }
+    return points;
   }
 
   // 状态归类:ok→success,timeout→timeout,其余→failed(新系统 status 口径)

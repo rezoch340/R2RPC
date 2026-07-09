@@ -1,6 +1,7 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import { QueryTrendDto } from './dto/query-trend.dto';
 import { MetricsService } from './metrics.service';
 
 @ApiTags('metrics')
@@ -16,5 +17,23 @@ export class MetricsController {
   })
   overview() {
     return this.metrics.overview();
+  }
+
+  @Get('weekly')
+  @RequirePermission('read', 'metrics')
+  @ApiOperation({
+    summary: '近7天设备指标(按 clientId×project 汇总;可选 ?project)',
+  })
+  weekly(@Query('project') project?: string) {
+    return this.metrics.weekly(project);
+  }
+
+  @Get('trend')
+  @RequirePermission('read', 'metrics')
+  @ApiOperation({
+    summary: '按天趋势序列(默认近7天,缺天补零;可选 ?days ?project)',
+  })
+  trend(@Query() q: QueryTrendDto) {
+    return this.metrics.trend(q.days ?? 7, q.project);
   }
 }
