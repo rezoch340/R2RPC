@@ -24,6 +24,7 @@ export const devices = pgTable(
     platform: varchar('platform', { length: 64 }),
     lastIp: varchar('last_ip', { length: 64 }),
     extra: text('extra'),
+    maxInFlight: integer('max_in_flight'),
     description: varchar('description', { length: 255 }),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),

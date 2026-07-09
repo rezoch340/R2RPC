@@ -12,7 +12,11 @@ import { ConnectionRegistry } from './connection.registry';
 import { PresenceService } from './presence.service';
 
 // socket 上挂的会话上下文(设备可属多 project)
-type ClientSocket = WebSocket & { _clientId?: string; _projects?: number[] };
+type ClientSocket = WebSocket & {
+  _clientId?: string;
+  _projects?: number[];
+  _maxInFlight?: number;
+};
 
 // 设备常驻连接网关(路径 /api/client/ws)。鉴权:device token(?token) + 自生成 clientId(?clientId)。
 @WebSocketGateway({ path: '/api/client/ws' })
@@ -34,6 +38,7 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       platform: string | null;
       lastIp: string | null;
       extra: string | null;
+      maxInFlight: number;
     };
     try {
       const url = new URL(req.url ?? '', 'http://localhost');
@@ -42,6 +47,9 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (!token || !cid) throw new Error('missing token/clientId');
       const platform = url.searchParams.get('platform');
       const extra = url.searchParams.get('extra');
+      const maxInFlight = this.presence.clampMaxInFlight(
+        url.searchParams.get('maxInFlight'),
+      );
       const xff = req.headers['x-forwarded-for'];
       const lastIp =
         (Array.isArray(xff) ? xff[0] : xff)?.split(',')[0].trim() ||
@@ -52,7 +60,7 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       clientId = cid;
       projects = v.projectIds;
       deviceTokenId = v.tokenId;
-      meta = { platform, lastIp, extra };
+      meta = { platform, lastIp, extra, maxInFlight };
     } catch {
       this.logger.warn('WS 鉴权失败,关闭连接');
       socket.close(4001, 'unauthorized');
@@ -61,11 +69,14 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     socket._clientId = clientId;
     socket._projects = projects;
+    socket._maxInFlight = meta.maxInFlight;
     try {
       // redis/db 抖动时直接关连接,设备会自动重连等基础设施恢复
       await this.registry.register(clientId, socket);
       await this.devices.registerOnline(clientId, deviceTokenId, meta);
       await this.presence.online(clientId, projects);
+      await this.presence.setMaxInFlight(clientId, meta.maxInFlight);
+      await this.presence.resetInFlight(clientId);
     } catch (e) {
       this.logger.warn(`WS 上线失败(基础设施不可用): ${(e as Error).message}`);
       socket.close(4503, 'infra unavailable');
@@ -79,7 +90,12 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
           : Buffer.from(data).toString();
       void this.onMessage(socket, raw).catch(() => undefined);
     });
-    this.send(socket, { type: 'welcome', clientId, projects });
+    this.send(socket, {
+      type: 'welcome',
+      clientId,
+      projects,
+      maxInFlight: meta.maxInFlight,
+    });
     this.logger.log(`设备上线: ${clientId}@[${projects.join(',')}]`);
   }
 
@@ -116,6 +132,11 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         case 'heartbeat':
           if (socket._clientId) {
             await this.presence.refresh(socket._clientId);
+            if (socket._maxInFlight)
+              await this.presence.setMaxInFlight(
+                socket._clientId,
+                socket._maxInFlight,
+              );
             await this.registry.refreshSession(socket._clientId);
           }
           this.send(socket, { type: 'heartbeatAck' });

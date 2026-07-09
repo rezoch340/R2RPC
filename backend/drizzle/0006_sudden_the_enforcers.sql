@@ -1,0 +1,1 @@
+ALTER TABLE "devices" ADD COLUMN "max_in_flight" integer;

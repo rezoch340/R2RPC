@@ -43,6 +43,13 @@
       "when": 1783615862909,
       "tag": "0005_dark_pandemic",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783619665671,
+      "tag": "0006_sudden_the_enforcers",
+      "breakpoints": true
     }
   ]
 }
