@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { desc, sql } from 'drizzle-orm';
+import { desc, gte, lt, sql } from 'drizzle-orm';
 import { DbService } from '../../infrastructure/db/db.service';
 import { RequestLogJob } from '../request-logs/request-log.types';
 import { requestLogs } from '../request-logs/request-logs.schema';
@@ -123,5 +123,55 @@ export class MetricsService {
           },
         });
     }
+  }
+
+  // 重启对账:删最近 days 天聚合行 -> 从 request_logs 重聚合(修增量丢/重)。UTC 分桶,同 recordCompletion 口径。
+  async rebuildRecent(days: number): Promise<void> {
+    const cutoff = new Date(Date.now() - days * 86_400_000);
+    const cutoffDate = cutoff.toISOString().slice(0, 10);
+    await this.db.transaction(async (tx) => {
+      await tx.delete(rpcDailyMetrics).where(gte(rpcDailyMetrics.statDate, cutoffDate));
+      await tx.delete(deviceDailyMetrics).where(gte(deviceDailyMetrics.statDate, cutoffDate));
+      await tx.execute(sql`
+        INSERT INTO rpc_daily_metrics
+          (stat_date, project_name, action_name, client_id,
+           total_requests, success_requests, failed_requests, timeout_requests,
+           total_latency_ms, max_latency_ms, updated_at)
+        SELECT (created_at AT TIME ZONE 'UTC')::date, project_name, action_name, COALESCE(client_id, ''),
+          count(*),
+          count(*) FILTER (WHERE status = 'ok'),
+          count(*) FILTER (WHERE status <> 'ok' AND status <> 'timeout'),
+          count(*) FILTER (WHERE status = 'timeout'),
+          COALESCE(sum(latency_ms), 0), COALESCE(max(latency_ms), 0), now()
+        FROM request_logs
+        WHERE created_at >= ${cutoff}
+        GROUP BY 1, project_name, action_name, COALESCE(client_id, '')
+      `);
+      await tx.execute(sql`
+        INSERT INTO device_daily_metrics
+          (stat_date, client_id, project_name,
+           total_requests, success_requests, failed_requests, timeout_requests,
+           total_latency_ms, max_latency_ms, updated_at)
+        SELECT (created_at AT TIME ZONE 'UTC')::date, client_id, project_name,
+          count(*),
+          count(*) FILTER (WHERE status = 'ok'),
+          count(*) FILTER (WHERE status <> 'ok' AND status <> 'timeout'),
+          count(*) FILTER (WHERE status = 'timeout'),
+          COALESCE(sum(latency_ms), 0), COALESCE(max(latency_ms), 0), now()
+        FROM request_logs
+        WHERE created_at >= ${cutoff} AND client_id IS NOT NULL
+        GROUP BY 1, client_id, project_name
+      `);
+    });
+  }
+
+  // 按天清理:删 stat_date 早于 今天-(retentionDays-1) 的聚合行。返回删除条数。
+  async cleanupOldMetrics(retentionDays: number): Promise<{ rpc: number; device: number }> {
+    const cutoff = new Date(Date.now() - (retentionDays - 1) * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const r = await this.db.delete(rpcDailyMetrics).where(lt(rpcDailyMetrics.statDate, cutoff));
+    const d = await this.db.delete(deviceDailyMetrics).where(lt(deviceDailyMetrics.statDate, cutoff));
+    return { rpc: r.rowCount ?? 0, device: d.rowCount ?? 0 };
   }
 }
