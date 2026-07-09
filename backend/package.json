@@ -23,7 +23,8 @@
     "retention:smoke": "ts-node -r tsconfig-paths/register src/scripts/retention-smoke.ts",
     "device:stale:smoke": "ts-node -r tsconfig-paths/register src/scripts/device-stale-smoke.ts",
     "metrics:smoke": "ts-node -r tsconfig-paths/register src/scripts/metrics-smoke.ts",
-    "maxinflight:smoke": "ts-node -r tsconfig-paths/register src/scripts/max-inflight-smoke.ts"
+    "maxinflight:smoke": "ts-node -r tsconfig-paths/register src/scripts/max-inflight-smoke.ts",
+    "openapi:gen": "ts-node -r tsconfig-paths/register src/scripts/gen-openapi.ts"
   },
   "dependencies": {
     "@casl/ability": "^7.0.1",

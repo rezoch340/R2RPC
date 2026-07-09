@@ -1,0 +1,852 @@
+openapi: 3.0.0
+paths:
+  /device-tokens:
+    post:
+      operationId: DeviceTokenController_create
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDeviceTokenDto'
+      responses:
+        '201':
+          description: ''
+      security:
+        - bearer: []
+      summary: 生成 device token(返回明文,供 SDK 配置)
+      tags:
+        - device-token
+    get:
+      operationId: DeviceTokenController_list
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 列表:所有 device token(含明文、project 名、在线设备数)
+      tags:
+        - device-token
+  /device-tokens/{id}/revoke:
+    post:
+      operationId: DeviceTokenController_revoke
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '201':
+          description: ''
+      security:
+        - bearer: []
+      summary: 撤销 device token
+      tags:
+        - device-token
+  /device-tokens/{id}:
+    delete:
+      operationId: DeviceTokenController_delete
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 删除 device token(软删,与撤销正交)
+      tags:
+        - device-token
+  /projects:
+    get:
+      operationId: ProjectsController_list
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 功能组列表
+      tags:
+        - projects
+    post:
+      operationId: ProjectsController_create
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectDto'
+      responses:
+        '201':
+          description: ''
+      security:
+        - bearer: []
+      summary: 创建功能组
+      tags:
+        - projects
+  /projects/info:
+    get:
+      operationId: ProjectsController_info
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 功能组派生统计(设备数/在线/近7天/成功率/运行态)
+      tags:
+        - projects
+  /projects/{id}:
+    delete:
+      operationId: ProjectsController_remove
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 删除功能组
+      tags:
+        - projects
+  /projects/{id}/enabled:
+    post:
+      operationId: ProjectsController_setEnabled
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetEnabledDto'
+      responses:
+        '201':
+          description: ''
+      security:
+        - bearer: []
+      summary: 启用/停用功能组(停用后 invoke 拒派)
+      tags:
+        - projects
+  /metrics/overview:
+    get:
+      operationId: MetricsController_overview
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 指标总览(总量 / 成功失败 / 平均延迟 / 分状态 / 分组)
+      tags:
+        - metrics
+  /metrics/weekly:
+    get:
+      operationId: MetricsController_weekly
+      parameters:
+        - name: project
+          required: true
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 近7天设备指标(按 clientId×project 汇总;可选 ?project)
+      tags:
+        - metrics
+  /metrics/trend:
+    get:
+      operationId: MetricsController_trend
+      parameters:
+        - name: days
+          required: false
+          in: query
+          description: 天数,1-90
+          schema:
+            default: 7
+            type: number
+        - name: project
+          required: false
+          in: query
+          description: 按 project 过滤
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 按天趋势序列(默认近7天,缺天补零;可选 ?days ?project)
+      tags:
+        - metrics
+  /devices:
+    get:
+      operationId: DevicesController_list
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 设备列表(持久态:online/status/platform/last_ip/last_seen)
+      tags:
+        - devices
+  /devices/{id}:
+    get:
+      operationId: DevicesController_get
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 设备详情
+      tags:
+        - devices
+  /rbac/roles:
+    post:
+      operationId: RbacController_createRole
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleDto'
+      responses:
+        '201':
+          description: ''
+      security:
+        - bearer: []
+      summary: 创建角色
+      tags:
+        - rbac
+    get:
+      operationId: RbacController_listRoles
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 列表:所有角色
+      tags:
+        - rbac
+  /rbac/roles/{id}:
+    delete:
+      operationId: RbacController_deleteRole
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 删除角色
+      tags:
+        - rbac
+  /rbac/permissions:
+    post:
+      operationId: RbacController_createPermission
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePermissionDto'
+      responses:
+        '201':
+          description: ''
+      security:
+        - bearer: []
+      summary: 创建权限
+      tags:
+        - rbac
+    get:
+      operationId: RbacController_listPermissions
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 列表:所有权限
+      tags:
+        - rbac
+  /rbac/permissions/{id}:
+    delete:
+      operationId: RbacController_deletePermission
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 删除权限
+      tags:
+        - rbac
+  /rbac/roles/{roleId}/permissions/{permissionId}:
+    post:
+      operationId: RbacController_attachPermission
+      parameters:
+        - name: roleId
+          required: true
+          in: path
+          schema:
+            type: number
+        - name: permissionId
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '201':
+          description: ''
+      security:
+        - bearer: []
+      summary: 角色绑定权限
+      tags:
+        - rbac
+    delete:
+      operationId: RbacController_detachPermission
+      parameters:
+        - name: roleId
+          required: true
+          in: path
+          schema:
+            type: number
+        - name: permissionId
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 角色移除权限
+      tags:
+        - rbac
+  /rbac/users/{userId}/roles/{roleId}:
+    post:
+      operationId: RbacController_assignRole
+      parameters:
+        - name: userId
+          required: true
+          in: path
+          schema:
+            type: number
+        - name: roleId
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '201':
+          description: ''
+      security:
+        - bearer: []
+      summary: 用户分配角色
+      tags:
+        - rbac
+    delete:
+      operationId: RbacController_unassignRole
+      parameters:
+        - name: userId
+          required: true
+          in: path
+          schema:
+            type: number
+        - name: roleId
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 用户移除角色
+      tags:
+        - rbac
+  /auth/login:
+    post:
+      operationId: AuthController_login
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginDto'
+      responses:
+        '201':
+          description: ''
+      summary: 管理员登录,返回 JWT
+      tags:
+        - auth
+  /auth/me:
+    get:
+      operationId: AuthController_me
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 当前登录用户
+      tags:
+        - auth
+  /users:
+    get:
+      operationId: UsersController_list
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 用户列表
+      tags:
+        - users
+    post:
+      operationId: UsersController_create
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserDto'
+      responses:
+        '201':
+          description: ''
+      security:
+        - bearer: []
+      summary: 创建用户
+      tags:
+        - users
+  /users/{id}:
+    get:
+      operationId: UsersController_findOne
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 用户详情
+      tags:
+        - users
+    delete:
+      operationId: UsersController_remove
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 删除用户
+      tags:
+        - users
+  /users/{id}/enabled:
+    post:
+      operationId: UsersController_setEnabled
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetEnabledDto'
+      responses:
+        '201':
+          description: ''
+      security:
+        - bearer: []
+      summary: 启用/停用用户(停用后禁止登录且立即吊销现有会话)
+      tags:
+        - users
+  /access-tokens:
+    post:
+      operationId: AccessTokenController_create
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccessTokenDto'
+      responses:
+        '201':
+          description: ''
+      security:
+        - bearer: []
+      summary: 生成 access token(返回明文)
+      tags:
+        - access-token
+    get:
+      operationId: AccessTokenController_list
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 列表:所有 access token(含明文、project 名)
+      tags:
+        - access-token
+  /access-tokens/{id}/revoke:
+    post:
+      operationId: AccessTokenController_revoke
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '201':
+          description: ''
+      security:
+        - bearer: []
+      summary: 撤销 access token
+      tags:
+        - access-token
+  /access-tokens/{id}:
+    delete:
+      operationId: AccessTokenController_delete
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 删除 access token(软删,与撤销正交)
+      tags:
+        - access-token
+  /rpc/invoke/{project}/{action}:
+    post:
+      operationId: RpcController_invoke
+      parameters:
+        - name: project
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: action
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvokeDto'
+      responses:
+        '201':
+          description: ''
+      security:
+        - bearer: []
+      summary: 调用 project 内在线设备执行 action(可选 ?clientId 指定设备)
+      tags:
+        - rpc
+  /rpc/clientQueue:
+    get:
+      operationId: RpcController_clientQueue
+      parameters:
+        - name: project
+          required: true
+          in: query
+          schema:
+            type: string
+        - name: clientId
+          required: true
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: project 内在线设备(或指定 clientId 的在线状态)
+      tags:
+        - rpc
+  /monitor/requests:
+    get:
+      operationId: MonitorController_list
+      parameters:
+        - name: project
+          required: false
+          in: query
+          schema:
+            type: string
+        - name: action
+          required: false
+          in: query
+          schema:
+            type: string
+        - name: clientId
+          required: false
+          in: query
+          schema:
+            type: string
+        - name: status
+          required: false
+          in: query
+          schema:
+            type: string
+        - name: from
+          required: false
+          in: query
+          description: ISO 起始时间
+          schema:
+            type: string
+        - name: to
+          required: false
+          in: query
+          description: ISO 结束时间
+          schema:
+            type: string
+        - name: page
+          required: false
+          in: query
+          schema:
+            default: 1
+            type: number
+        - name: pageSize
+          required: false
+          in: query
+          schema:
+            default: 20
+            type: number
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 请求记录列表(查 PG 脊柱,不返 payload)
+      tags:
+        - monitor
+  /monitor/request-options:
+    get:
+      operationId: MonitorController_requestOptions
+      parameters:
+        - name: project
+          required: false
+          in: query
+          schema:
+            type: string
+        - name: action
+          required: false
+          in: query
+          schema:
+            type: string
+        - name: clientId
+          required: false
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 请求筛选下拉选项(去重 project/action/client,联动过滤 + 实体仍存在)
+      tags:
+        - monitor
+  /monitor/requests/{requestId}:
+    get:
+      operationId: MonitorController_detail
+      parameters:
+        - name: requestId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 请求详情(PG 脊柱 + 懒加载 Manticore payload)
+      tags:
+        - monitor
+info:
+  title: RER0RPC API
+  description: ''
+  version: '0.1'
+  contact: {}
+tags: []
+servers: []
+components:
+  securitySchemes:
+    bearer:
+      scheme: bearer
+      bearerFormat: JWT
+      type: http
+  schemas:
+    CreateDeviceTokenDto:
+      type: object
+      properties:
+        name:
+          type: string
+        projects:
+          type: array
+          items:
+            type: string
+        expiresAt:
+          type: string
+        description:
+          type: string
+      required:
+        - name
+        - projects
+    CreateProjectDto:
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+        - name
+    SetEnabledDto:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+      required:
+        - enabled
+    CreateRoleDto:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+      required:
+        - name
+    CreatePermissionDto:
+      type: object
+      properties:
+        action:
+          type: string
+        subject:
+          type: string
+        description:
+          type: string
+      required:
+        - action
+        - subject
+    LoginDto:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+        - username
+        - password
+    CreateUserDto:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+          enum:
+            - admin
+            - operator
+          default: admin
+      required:
+        - username
+        - password
+    CreateAccessTokenDto:
+      type: object
+      properties:
+        name:
+          type: string
+        projects:
+          type: array
+          items:
+            type: string
+        expiresAt:
+          type: string
+        description:
+          type: string
+      required:
+        - name
+        - projects
+    InvokeDto:
+      type: object
+      properties:
+        timeoutSeconds:
+          type: number
+          description: 超时秒数
+          default: 20
+        payload:
+          type: object
+          description: 调用负载(扁平对象)
+      required:
+        - payload
