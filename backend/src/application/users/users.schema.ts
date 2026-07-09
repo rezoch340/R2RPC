@@ -17,6 +17,8 @@ export const users = pgTable(
     passwordHash: varchar('password_hash', { length: 255 }).notNull(),
     role: varchar('role', { length: 32 }).notNull().default('admin'),
     isRoot: boolean('is_root').notNull().default(false),
+    enabled: boolean('enabled').notNull().default(true),
+    lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
     description: varchar('description', { length: 255 }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
