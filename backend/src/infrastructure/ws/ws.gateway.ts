@@ -20,6 +20,17 @@ type ClientSocket = WebSocket & {
   _pingTimer?: NodeJS.Timeout;
 };
 
+// ws 8.21 内部 Receiver 的相关字段/方法(见 node_modules/ws/lib/receiver.js):
+// getInfo 处同步解析帧头并设 _fin/_opcode;控制帧强制 FIN,故解析后 _fin===false 只可能是数据帧分片。
+// createError 走 ws 自身的协议错误链路(→ 'error' → websocket.close(code))。
+type WsReceiver = {
+  _bufferedBytes: number;
+  _fin: boolean;
+  _errored: boolean;
+  getInfo: (cb: (err?: Error) => void) => void;
+  createError: (...args: unknown[]) => Error;
+};
+
 // 单帧上限 4 MiB(ws.Server maxPayload,超限自动 close 1009);WsAdapter 透传装饰器选项
 const MAX_PAYLOAD_BYTES = 4 * 1024 * 1024;
 const PING_INTERVAL_MS = 5000; // 服务端主动 ping
@@ -38,6 +49,8 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {}
 
   async handleConnection(socket: ClientSocket, req: IncomingMessage) {
+    // DoS 加固:拒分片帧(FIN=0)。须在任何 await 前挂,确保早于设备发首帧被 receiver 处理
+    this.rejectFragmentedFrames(socket);
     let clientId: string;
     let projects: number[];
     let deviceTokenId: number;
@@ -185,6 +198,39 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     } catch (e) {
       this.logger.warn(`ws message 处理失败: ${(e as Error).message}`);
     }
+  }
+
+  // 拒绝分片帧(FIN=0 的数据帧/延续帧):ws 高层不暴露帧级 FIN(重组后才 onMessage),
+  // 故实例级包裹 receiver.getInfo,帧头解析后若 _fin===false 用 ws 自身错误链路以 1009 关闭整条连接。
+  // 依赖 ws 内部字段(锁定版本 8.21);若升级后 getInfo 失踪则 fail-open(记一条 error,连接照常,
+  // maxPayload+读超时仍兜 DoS 面),不因内部变更把设备连接搞崩。
+  private rejectFragmentedFrames(socket: WebSocket) {
+    const receiver = (socket as unknown as { _receiver?: WsReceiver })
+      ._receiver;
+    if (!receiver || typeof receiver.getInfo !== 'function') {
+      this.logger.error('拒分片加固失效:ws receiver.getInfo 不可用(ws 变更?)');
+      return;
+    }
+    const originalGetInfo = receiver.getInfo.bind(receiver) as (
+      cb: (err?: Error) => void,
+    ) => void;
+    receiver.getInfo = (cb: (err?: Error) => void) => {
+      // 帧头(≥2 字节)已缓冲才可信;不足时 getInfo 早退,_fin 是上一帧陈旧值,不能读
+      const hadHeaderBytes = receiver._bufferedBytes >= 2;
+      originalGetInfo(cb);
+      // getInfo happy-path 不调 cb;此刻它刚同步设完 _fin/_errored(已 errored 则别重复 cb)
+      if (hadHeaderBytes && !receiver._errored && receiver._fin === false) {
+        cb(
+          receiver.createError(
+            RangeError,
+            'fragmented frames are not allowed',
+            true,
+            1009,
+            'WS_ERR_FRAGMENTED_FRAME',
+          ),
+        );
+      }
+    };
   }
 
   private send(socket: WebSocket, obj: unknown) {

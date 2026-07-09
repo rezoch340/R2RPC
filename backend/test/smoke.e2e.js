@@ -557,6 +557,32 @@ async function waitReady() {
     admin,
   );
 
+  // #6b 拒分片:发一个 FIN=0 的分片数据帧,服务端应立即以 1009 关闭整条连接。
+  // 用独立 clientId,不顶掉主设备 session;放在所有断言之后,探针短命不影响前面统计。
+  const fragUrl = `${B.replace(/^http/, 'ws')}/api/client/ws?token=${encodeURIComponent(regTok.json.token)}&clientId=smoke-frag-probe&maxInFlight=300`;
+  const fragWs = new WebSocket(fragUrl);
+  const fragClose = await new Promise((resolve) => {
+    const to = setTimeout(() => resolve({ code: null }), 5000);
+    fragWs.on('open', () =>
+      fragWs.send('{"type":"heartbeat"}', { fin: false }),
+    );
+    fragWs.on('close', (code) => {
+      clearTimeout(to);
+      resolve({ code });
+    });
+    // 关闭伴随的 error 忽略(1009 后会触发)
+    fragWs.on('error', () => {});
+  });
+  assert(
+    fragClose.code === 1009,
+    '分片帧(FIN=0)被服务端以 1009 关闭(#6b 拒分片)',
+  );
+  try {
+    fragWs.terminate();
+  } catch {
+    /* 已关 */
+  }
+
   ws.close();
   await sleep(200);
   console.log(failed ? '\n=== SMOKE FAILED ===' : '\n=== SMOKE PASSED ===');
