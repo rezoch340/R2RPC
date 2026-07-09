@@ -5,8 +5,8 @@ import { RequestLogJob } from '../request-logs/request-log.types';
 import { requestLogs } from '../request-logs/request-logs.schema';
 import { deviceDailyMetrics, rpcDailyMetrics } from './metrics.schema';
 
-// 指标基础聚合:MVP 直接对请求日志脊柱做查询时聚合。
-// ponytail: 查询时聚合;量大后改为 worker 异步聚合进 metrics 表(schema 已备)。
+// 指标聚合:完成时增量累加进日聚合表(recordCompletion)+ 启动对账(rebuildRecent)+ 按天清理。
+// 查询时聚合(overview)暂留;读侧派生视图(weekly/trend)见 3b。
 @Injectable()
 export class MetricsService {
   constructor(private readonly dbService: DbService) {}
@@ -59,46 +59,15 @@ export class MetricsService {
     const latency = job.latencyMs ?? 0;
     const clientId = job.clientId ?? '';
 
-    await this.db
-      .insert(rpcDailyMetrics)
-      .values({
-        statDate,
-        projectName: job.project,
-        actionName: job.action,
-        clientId,
-        totalRequests: 1,
-        successRequests: success,
-        failedRequests: failed,
-        timeoutRequests: timeout,
-        totalLatencyMs: latency,
-        maxLatencyMs: latency,
-      })
-      .onConflictDoUpdate({
-        target: [
-          rpcDailyMetrics.statDate,
-          rpcDailyMetrics.projectName,
-          rpcDailyMetrics.actionName,
-          rpcDailyMetrics.clientId,
-        ],
-        set: {
-          totalRequests: sql`${rpcDailyMetrics.totalRequests} + 1`,
-          successRequests: sql`${rpcDailyMetrics.successRequests} + ${success}`,
-          failedRequests: sql`${rpcDailyMetrics.failedRequests} + ${failed}`,
-          timeoutRequests: sql`${rpcDailyMetrics.timeoutRequests} + ${timeout}`,
-          totalLatencyMs: sql`${rpcDailyMetrics.totalLatencyMs} + ${latency}`,
-          maxLatencyMs: sql`GREATEST(${rpcDailyMetrics.maxLatencyMs}, ${latency})`,
-          updatedAt: new Date(),
-        },
-      });
-
-    // device 维度只在有真实 client 时累加(无 client 不进 device_daily)
-    if (job.clientId) {
-      await this.db
-        .insert(deviceDailyMetrics)
+    // rpc + device 两个 upsert 放同一事务:避免 rpc 已提交而 device 抛错时(重试因 writeSpine 首插判被跳过)两表长期不一致
+    await this.db.transaction(async (tx) => {
+      await tx
+        .insert(rpcDailyMetrics)
         .values({
           statDate,
-          clientId: job.clientId,
           projectName: job.project,
+          actionName: job.action,
+          clientId,
           totalRequests: 1,
           successRequests: success,
           failedRequests: failed,
@@ -108,26 +77,69 @@ export class MetricsService {
         })
         .onConflictDoUpdate({
           target: [
-            deviceDailyMetrics.statDate,
-            deviceDailyMetrics.clientId,
-            deviceDailyMetrics.projectName,
+            rpcDailyMetrics.statDate,
+            rpcDailyMetrics.projectName,
+            rpcDailyMetrics.actionName,
+            rpcDailyMetrics.clientId,
           ],
           set: {
-            totalRequests: sql`${deviceDailyMetrics.totalRequests} + 1`,
-            successRequests: sql`${deviceDailyMetrics.successRequests} + ${success}`,
-            failedRequests: sql`${deviceDailyMetrics.failedRequests} + ${failed}`,
-            timeoutRequests: sql`${deviceDailyMetrics.timeoutRequests} + ${timeout}`,
-            totalLatencyMs: sql`${deviceDailyMetrics.totalLatencyMs} + ${latency}`,
-            maxLatencyMs: sql`GREATEST(${deviceDailyMetrics.maxLatencyMs}, ${latency})`,
+            totalRequests: sql`${rpcDailyMetrics.totalRequests} + 1`,
+            successRequests: sql`${rpcDailyMetrics.successRequests} + ${success}`,
+            failedRequests: sql`${rpcDailyMetrics.failedRequests} + ${failed}`,
+            timeoutRequests: sql`${rpcDailyMetrics.timeoutRequests} + ${timeout}`,
+            totalLatencyMs: sql`${rpcDailyMetrics.totalLatencyMs} + ${latency}`,
+            maxLatencyMs: sql`GREATEST(${rpcDailyMetrics.maxLatencyMs}, ${latency})`,
             updatedAt: new Date(),
           },
         });
-    }
+
+      // device 维度只在有真实 client 时累加(无 client 不进 device_daily)
+      if (job.clientId) {
+        await tx
+          .insert(deviceDailyMetrics)
+          .values({
+            statDate,
+            clientId: job.clientId,
+            projectName: job.project,
+            totalRequests: 1,
+            successRequests: success,
+            failedRequests: failed,
+            timeoutRequests: timeout,
+            totalLatencyMs: latency,
+            maxLatencyMs: latency,
+          })
+          .onConflictDoUpdate({
+            target: [
+              deviceDailyMetrics.statDate,
+              deviceDailyMetrics.clientId,
+              deviceDailyMetrics.projectName,
+            ],
+            set: {
+              totalRequests: sql`${deviceDailyMetrics.totalRequests} + 1`,
+              successRequests: sql`${deviceDailyMetrics.successRequests} + ${success}`,
+              failedRequests: sql`${deviceDailyMetrics.failedRequests} + ${failed}`,
+              timeoutRequests: sql`${deviceDailyMetrics.timeoutRequests} + ${timeout}`,
+              totalLatencyMs: sql`${deviceDailyMetrics.totalLatencyMs} + ${latency}`,
+              maxLatencyMs: sql`GREATEST(${deviceDailyMetrics.maxLatencyMs}, ${latency})`,
+              updatedAt: new Date(),
+            },
+          });
+      }
+    });
   }
 
-  // 重启对账:删最近 days 天聚合行 -> 从 request_logs 重聚合(修增量丢/重)。UTC 分桶,同 recordCompletion 口径。
+  // 重启对账:重灌最近 days 个"整天"(UTC)的聚合行(修增量丢/重)。
+  // cutoff 取 今天-(days-1) 的 UTC 零点,让 DELETE(按 stat_date 整天)与 INSERT(按 created_at)覆盖同一整天区间;
+  // 更老的边界日(raw 已按天清掉早半天)不动,保留其增量完整值,避免被半天 raw 重灌成欠计。
   async rebuildRecent(days: number): Promise<void> {
-    const cutoff = new Date(Date.now() - days * 86_400_000);
+    const now = new Date();
+    const cutoff = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() - (days - 1),
+      ),
+    );
     const cutoffDate = cutoff.toISOString().slice(0, 10);
     await this.db.transaction(async (tx) => {
       await tx
