@@ -39,6 +39,37 @@ async function main() {
   const a6 = await svc.tryAcquireSlot(CID, MAX);
   check(a6 === true, 'release 到负后兜底 0,仍可占');
 
+  // 组饱和轮询:pickOnlineAcquire 跳过满设备,全满才 saturated
+  const PID = 999999; // 测试用假 project id
+  const D1 = 'pick-smoke-d1';
+  const D2 = 'pick-smoke-d2';
+  await svc.offline(D1, [PID]);
+  await svc.offline(D2, [PID]);
+
+  const e0 = await svc.pickOnlineAcquire(PID);
+  check(e0 === 'no_device', '空组 → no_device');
+
+  // 两台上线;d1 max=1 且占满,d2 max=8 空闲
+  await svc.online(D1, [PID]);
+  await svc.online(D2, [PID]);
+  await svc.setMaxInFlight(D1, 1);
+  await svc.setMaxInFlight(D2, 8);
+  await svc.resetInFlight(D1);
+  await svc.resetInFlight(D2);
+  await svc.tryAcquireSlot(D1, 1); // d1 占满
+  const r1 = await svc.pickOnlineAcquire(PID);
+  check(
+    typeof r1 !== 'string' && r1.clientId === D2,
+    '跳过已满的 d1,选中并占 d2',
+  );
+  // 把 d2 也占满(max=8,上面 pick 已占 1,再占 7)
+  for (let i = 0; i < 7; i++) await svc.tryAcquireSlot(D2, 8);
+  const r2 = await svc.pickOnlineAcquire(PID);
+  check(r2 === 'saturated', '全满 → saturated');
+
+  await svc.offline(D1, [PID]);
+  await svc.offline(D2, [PID]);
+
   await svc.resetInFlight(CID);
   await redis.quit();
   console.log(

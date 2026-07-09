@@ -94,13 +94,24 @@ export class PresenceService {
     return (await this.r.exists(`presence:${clientId}`)) === 1;
   }
 
-  // project 内轮询选一个在线设备(顺带清理 presence 已过期的陈旧集合成员)
-  async pickOnline(projectId: number): Promise<string | null> {
+  // project 内轮询,占第一个未满设备的在途槽(边挑边占):从 RR 游标起轮一圈,
+  // 占到即返 { clientId }(该设备槽已占,调用方 dispatch 后须 releaseSlot);
+  // 整圈都满返 'saturated';无在线返 'no_device'。顺带清理 presence 已过期的陈旧集合成员(listOnline 内)。
+  async pickOnlineAcquire(
+    projectId: number,
+  ): Promise<{ clientId: string } | 'no_device' | 'saturated'> {
     const online = await this.listOnline(projectId);
-    if (!online.length) return null;
+    if (!online.length) return 'no_device';
     online.sort();
-    const idx = (await this.r.incr(`rpc:rr:${projectId}`)) % online.length;
-    return online[idx];
+    const start = (await this.r.incr(`rpc:rr:${projectId}`)) % online.length;
+    for (let i = 0; i < online.length; i++) {
+      const clientId = online[(start + i) % online.length];
+      const max = await this.getMaxInFlight(clientId);
+      if (await this.tryAcquireSlot(clientId, max)) {
+        return { clientId };
+      }
+    }
+    return 'saturated';
   }
 
   async listOnline(projectId: number): Promise<string[]> {
