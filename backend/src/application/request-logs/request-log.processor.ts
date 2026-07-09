@@ -8,6 +8,7 @@ import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { QUEUE } from '../../infrastructure/queue/queue.constants';
 import { SearchService } from '../../infrastructure/search/search.service';
+import { MetricsService } from '../metrics/metrics.service';
 import { buildManticoreDoc } from './request-log.doc';
 import { RequestLogJob } from './request-log.types';
 import { RequestLogsService } from './request-logs.service';
@@ -21,6 +22,7 @@ export class RequestLogProcessor extends WorkerHost {
   constructor(
     private readonly logs: RequestLogsService,
     private readonly search: SearchService,
+    private readonly metrics: MetricsService,
     @InjectQueue(QUEUE.DEAD_LETTER) private readonly dlq: Queue,
   ) {
     super();
@@ -28,7 +30,8 @@ export class RequestLogProcessor extends WorkerHost {
 
   async process(job: Job<RequestLogJob>) {
     const d = job.data;
-    await this.logs.writeSpine(d, 'pending');
+    const fresh = await this.logs.writeSpine(d, 'pending');
+    if (fresh) await this.metrics.recordCompletion(d); // 仅首见 requestId 累加(去重;重试不重复计)
     await this.search.indexPayload(buildManticoreDoc(d));
     await this.logs.markState(d.requestId, 'indexed');
   }

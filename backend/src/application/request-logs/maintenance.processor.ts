@@ -4,6 +4,7 @@ import { Job } from 'bullmq';
 import { ConfigService } from '../../infrastructure/config/config.service';
 import { QUEUE } from '../../infrastructure/queue/queue.constants';
 import { DevicesService } from '../devices/devices.service';
+import { MetricsService } from '../metrics/metrics.service';
 import { RequestLogsService } from './request-logs.service';
 
 const STALE_PENDING_MS = 10 * 60 * 1000;
@@ -17,6 +18,7 @@ export class MaintenanceProcessor extends WorkerHost {
     private readonly logs: RequestLogsService,
     private readonly config: ConfigService,
     private readonly devices: DevicesService,
+    private readonly metrics: MetricsService,
   ) {
     super();
   }
@@ -25,6 +27,7 @@ export class MaintenanceProcessor extends WorkerHost {
     if (job.name === 'repair-stale-pending') return this.repairStalePending();
     if (job.name === 'retention-sweep') return this.retentionSweep();
     if (job.name === 'mark-devices-stale') return this.markDevicesStale();
+    if (job.name === 'metrics-cleanup') return this.metricsCleanup();
   }
 
   // 扫描 worker 崩溃遗留的陈旧 pending(payload 已无从补),标 unavailable
@@ -60,5 +63,18 @@ export class MaintenanceProcessor extends WorkerHost {
     if (stale)
       this.logger.warn(`stale: ${stale} 台设备 presence 已过期,置 stale`);
     return { stale };
+  }
+
+  // 按天清理聚合表(device_daily_metrics/rpc_daily_metrics)
+  private async metricsCleanup() {
+    const { aggregateRetentionDays } = this.config.retention;
+    const { rpc, device } = await this.metrics.cleanupOldMetrics(
+      aggregateRetentionDays,
+    );
+    if (rpc || device)
+      this.logger.log(
+        `metrics-cleanup: 删聚合 rpc ${rpc} + device ${device}(>${aggregateRetentionDays}天)`,
+      );
+    return { rpc, device };
   }
 }
