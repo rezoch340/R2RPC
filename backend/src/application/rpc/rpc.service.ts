@@ -140,82 +140,102 @@ export class RpcService {
       );
     }
 
-    const job = {
-      type: 'job',
-      requestId,
-      project: p.project,
-      action: p.action,
-      payload: p.payload,
-      timeoutSeconds,
-    };
-
-    // 先同步注册本地 waiter,再 await 写 redis 等待方标记,最后才 dispatch ——
-    // 不依赖 ioredis 的 FIFO 顺序,严格保证 waiter 落地早于 job 被设备处理、result 回流。
-    // dispatch 失败/异常分支下面会 cancelWaiter 直接 reject 而不 await 它,这里挂个空 catch
-    // 防止那种情况下产生 unhandled rejection 把进程带崩(redis 故障绝不能挂死进程)。
-    const resultP = this.registry.registerWaiter<DeviceResult>(
-      requestId,
-      clientId,
-      timeoutMs,
-    );
-    resultP.catch(() => {});
-
-    let dispatched: boolean;
-    try {
-      // markWaiting 必须 await 完再 dispatch,不依赖 ioredis 的 FIFO 顺序
-      await this.registry.markWaiting(requestId, timeoutMs);
-      dispatched = await this.registry.dispatchJob(clientId, job);
-    } catch (e) {
-      this.registry.cancelWaiter(requestId, 'dispatch_error');
-      this.logger.error(`job 派发失败(基础设施异常): ${(e as Error).message}`);
+    // 在途并发限流:占一个槽,满则 rejected/429
+    const maxInFlight = await this.presence.getMaxInFlight(clientId);
+    if (!(await this.presence.tryAcquireSlot(clientId, maxInFlight))) {
       return this.fail(
         p,
         requestId,
         clientId,
         startedAt,
-        'error',
-        503,
-        '基础设施异常,无法调度',
+        'rejected',
+        429,
+        '设备在途任务已满',
       );
     }
-    if (!dispatched) {
-      this.registry.cancelWaiter(requestId, 'unavailable');
-      return this.fail(
-        p,
-        requestId,
-        clientId,
-        startedAt,
-        'unavailable',
-        503,
-        '设备连接已断开',
-      );
-    }
-
     try {
-      const result = await resultP;
-      const isOk = result.is_ok ?? result.status === 'ok';
-      const resp: InvokeResponse = {
+      const job = {
+        type: 'job',
         requestId,
-        clientId,
-        is_ok: !!isOk,
-        status: result.status ?? (isOk ? 'ok' : 'error'),
-        httpCode: result.httpCode ?? 200,
-        latencyMs: Date.now() - startedAt,
-        payload: result.payload,
-        error: result.error,
+        project: p.project,
+        action: p.action,
+        payload: p.payload,
+        timeoutSeconds,
       };
-      void this.enqueueLog(p, resp, startedAt, result.payload);
-      return resp;
-    } catch {
-      return this.fail(
-        p,
+
+      // 先同步注册本地 waiter,再 await 写 redis 等待方标记,最后才 dispatch ——
+      // 不依赖 ioredis 的 FIFO 顺序,严格保证 waiter 落地早于 job 被设备处理、result 回流。
+      // dispatch 失败/异常分支下面会 cancelWaiter 直接 reject 而不 await 它,这里挂个空 catch
+      // 防止那种情况下产生 unhandled rejection 把进程带崩(redis 故障绝不能挂死进程)。
+      const resultP = this.registry.registerWaiter<DeviceResult>(
         requestId,
         clientId,
-        startedAt,
-        'timeout',
-        504,
-        `超时(${timeoutSeconds}s)`,
+        timeoutMs,
       );
+      resultP.catch(() => {});
+
+      let dispatched: boolean;
+      try {
+        // markWaiting 必须 await 完再 dispatch,不依赖 ioredis 的 FIFO 顺序
+        await this.registry.markWaiting(requestId, timeoutMs);
+        dispatched = await this.registry.dispatchJob(clientId, job);
+      } catch (e) {
+        this.registry.cancelWaiter(requestId, 'dispatch_error');
+        this.logger.error(
+          `job 派发失败(基础设施异常): ${(e as Error).message}`,
+        );
+        return this.fail(
+          p,
+          requestId,
+          clientId,
+          startedAt,
+          'error',
+          503,
+          '基础设施异常,无法调度',
+        );
+      }
+      if (!dispatched) {
+        this.registry.cancelWaiter(requestId, 'unavailable');
+        return this.fail(
+          p,
+          requestId,
+          clientId,
+          startedAt,
+          'unavailable',
+          503,
+          '设备连接已断开',
+        );
+      }
+
+      try {
+        const result = await resultP;
+        const isOk = result.is_ok ?? result.status === 'ok';
+        const resp: InvokeResponse = {
+          requestId,
+          clientId,
+          is_ok: !!isOk,
+          status: result.status ?? (isOk ? 'ok' : 'error'),
+          httpCode: result.httpCode ?? 200,
+          latencyMs: Date.now() - startedAt,
+          payload: result.payload,
+          error: result.error,
+        };
+        void this.enqueueLog(p, resp, startedAt, result.payload);
+        return resp;
+      } catch {
+        return this.fail(
+          p,
+          requestId,
+          clientId,
+          startedAt,
+          'timeout',
+          504,
+          `超时(${timeoutSeconds}s)`,
+        );
+      }
+    } finally {
+      // 每次 acquire 精确配对一次 release(error/unavailable/success/timeout 全覆盖)
+      await this.presence.releaseSlot(clientId).catch(() => undefined);
     }
   }
 
