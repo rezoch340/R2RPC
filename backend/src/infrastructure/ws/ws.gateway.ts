@@ -30,16 +30,29 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     let clientId: string;
     let projects: number[];
     let deviceTokenId: number;
+    let meta: {
+      platform: string | null;
+      lastIp: string | null;
+      extra: string | null;
+    };
     try {
       const url = new URL(req.url ?? '', 'http://localhost');
       const token = url.searchParams.get('token');
       const cid = url.searchParams.get('clientId');
       if (!token || !cid) throw new Error('missing token/clientId');
+      const platform = url.searchParams.get('platform');
+      const extra = url.searchParams.get('extra');
+      const xff = req.headers['x-forwarded-for'];
+      const lastIp =
+        (Array.isArray(xff) ? xff[0] : xff)?.split(',')[0].trim() ||
+        req.socket.remoteAddress ||
+        null;
       const v = await this.deviceTokens.validateForConnect(token);
       if (!v) throw new Error('invalid device token');
       clientId = cid;
       projects = v.projectIds;
       deviceTokenId = v.tokenId;
+      meta = { platform, lastIp, extra };
     } catch {
       this.logger.warn('WS 鉴权失败,关闭连接');
       socket.close(4001, 'unauthorized');
@@ -51,7 +64,7 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       // redis/db 抖动时直接关连接,设备会自动重连等基础设施恢复
       await this.registry.register(clientId, socket);
-      await this.devices.registerOnline(clientId, deviceTokenId);
+      await this.devices.registerOnline(clientId, deviceTokenId, meta);
       await this.presence.online(clientId, projects);
     } catch (e) {
       this.logger.warn(`WS 上线失败(基础设施不可用): ${(e as Error).message}`);

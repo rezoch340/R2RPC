@@ -4,6 +4,7 @@ import {
   integer,
   pgTable,
   serial,
+  text,
   timestamp,
   uniqueIndex,
   varchar,
@@ -19,6 +20,10 @@ export const devices = pgTable(
     clientId: varchar('client_id', { length: 128 }).notNull(),
     deviceTokenId: integer('device_token_id').references(() => deviceTokens.id),
     online: boolean('online').notNull().default(false),
+    status: varchar('status', { length: 16 }).notNull().default('offline'), // online/offline/stale
+    platform: varchar('platform', { length: 64 }),
+    lastIp: varchar('last_ip', { length: 64 }),
+    extra: text('extra'),
     description: varchar('description', { length: 255 }),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),

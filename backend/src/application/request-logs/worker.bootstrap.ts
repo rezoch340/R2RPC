@@ -29,5 +29,14 @@ export class WorkerBootstrap implements OnModuleInit {
         removeOnFail: true,
       },
     );
+    await this.maintenance.add(
+      'mark-devices-stale',
+      {},
+      {
+        repeat: { every: 60 * 1000 },
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
+    );
   }
 }

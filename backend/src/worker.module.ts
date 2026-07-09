@@ -4,6 +4,7 @@ import { MaintenanceProcessor } from './application/request-logs/maintenance.pro
 import { RequestLogProcessor } from './application/request-logs/request-log.processor';
 import { RequestLogsModule } from './application/request-logs/request-logs.module';
 import { WorkerBootstrap } from './application/request-logs/worker.bootstrap';
+import { DevicesModule } from './application/devices/devices.module';
 import { ConfigModule } from './infrastructure/config/config.module';
 import { DbModule } from './infrastructure/db/db.module';
 import { QueueModule } from './infrastructure/queue/queue.module';
@@ -19,6 +20,7 @@ import { SearchModule } from './infrastructure/search/search.module';
     SearchModule,
     QueueModule,
     RequestLogsModule,
+    DevicesModule,
   ],
   providers: [
     RequestLogProcessor,

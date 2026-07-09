@@ -20,7 +20,8 @@
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "smoke": "node test/smoke.e2e.js",
-    "retention:smoke": "ts-node -r tsconfig-paths/register src/scripts/retention-smoke.ts"
+    "retention:smoke": "ts-node -r tsconfig-paths/register src/scripts/retention-smoke.ts",
+    "device:stale:smoke": "ts-node -r tsconfig-paths/register src/scripts/device-stale-smoke.ts"
   },
   "dependencies": {
     "@casl/ability": "^7.0.1",
