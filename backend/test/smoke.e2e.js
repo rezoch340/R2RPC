@@ -62,7 +62,8 @@ async function waitReady() {
     'admin 建注册用 device token(dk_)',
   );
 
-  const wsUrl = `${B.replace(/^http/, 'ws')}/api/client/ws?token=${encodeURIComponent(regTok.json.token)}&clientId=${CLIENT_ID}`;
+  const PLATFORM = 'smoke-android';
+  const wsUrl = `${B.replace(/^http/, 'ws')}/api/client/ws?token=${encodeURIComponent(regTok.json.token)}&clientId=${CLIENT_ID}&platform=${PLATFORM}`;
   const ws = new WebSocket(wsUrl);
   const got = { welcome: false, heartbeatAck: false };
 
@@ -410,6 +411,25 @@ async function waitReady() {
   assert(
     !!regRow && regRow.onlineDeviceCount === 1,
     '注册 token onlineDeviceCount=1(设备已自注册在线)',
+  );
+
+  // 2d:设备持久态(设备已在线,应能在 /devices 查到 online + platform)
+  const devList = await http('GET', '/devices', null, admin);
+  const devRow = (devList.json || []).find((x) => x.clientId === CLIENT_ID);
+  assert(!!devRow, '/devices 列表含自注册设备');
+  assert(
+    devRow.online === true && devRow.status === 'online',
+    '设备 online=true status=online',
+  );
+  assert(devRow.platform === PLATFORM, '设备 platform 落库(来自 ?platform)');
+  assert(
+    typeof devRow.lastIp === 'string' && devRow.lastIp.length > 0,
+    '设备 last_ip 落库(来自 socket)',
+  );
+  const devDetail = await http('GET', `/devices/${devRow.id}`, null, admin);
+  assert(
+    devDetail.status < 300 && devDetail.json.id === devRow.id,
+    '/devices/:id 详情',
   );
 
   ws.close();
