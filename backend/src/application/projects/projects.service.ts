@@ -1,4 +1,8 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
@@ -45,5 +49,30 @@ export class ProjectsService {
       .where(alive(projects, eq(projects.name, name)))
       .limit(1);
     return g?.id ?? null;
+  }
+
+  // 供 invoke 派发:一把查出 id + enabled(alive)
+  async findEnabledIdByName(name: string) {
+    const [row] = await this.db
+      .select({ id: projects.id, enabled: projects.enabled })
+      .from(projects)
+      .where(alive(projects, eq(projects.name, name)))
+      .limit(1);
+    return row ?? null;
+  }
+
+  // 启停(alive)
+  async setEnabled(id: number, enabled: boolean) {
+    const [row] = await this.db
+      .update(projects)
+      .set({ enabled })
+      .where(alive(projects, eq(projects.id, id)))
+      .returning({
+        id: projects.id,
+        name: projects.name,
+        enabled: projects.enabled,
+      });
+    if (!row) throw new NotFoundException('功能组不存在');
+    return row;
   }
 }

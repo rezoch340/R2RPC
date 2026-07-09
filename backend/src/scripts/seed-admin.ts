@@ -23,6 +23,7 @@ const ALL_PERMISSIONS: Array<{ action: string; subject: string }> = [
   { action: 'read', subject: 'project' },
   { action: 'create', subject: 'project' },
   { action: 'delete', subject: 'project' },
+  { action: 'update', subject: 'project' },
   { action: 'read', subject: 'metrics' },
   { action: 'read', subject: 'monitor' },
   { action: 'invoke', subject: 'rpc' },

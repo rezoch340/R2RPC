@@ -10,6 +10,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CreateProjectDto } from './dto/create-project.dto';
+import { SetEnabledDto } from './dto/set-enabled.dto';
 import { ProjectsService } from './projects.service';
 
 @ApiTags('projects')
@@ -37,5 +38,15 @@ export class ProjectsController {
   @ApiOperation({ summary: '删除功能组' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.projects.remove(id);
+  }
+
+  @Post(':id/enabled')
+  @RequirePermission('update', 'project')
+  @ApiOperation({ summary: '启用/停用功能组(停用后 invoke 拒派)' })
+  setEnabled(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetEnabledDto,
+  ) {
+    return this.projects.setEnabled(id, dto.enabled);
   }
 }
