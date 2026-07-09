@@ -27,7 +27,8 @@ export class AuthService {
       sub: user.id,
       username: user.username,
     });
-    await this.users.updateLastLogin(user.id);
+    // last_login 是记录性信息,best-effort:写失败不阻断登录
+    void this.users.updateLastLogin(user.id).catch(() => undefined);
     return {
       token,
       user: { id: user.id, username: user.username, role: user.role },
