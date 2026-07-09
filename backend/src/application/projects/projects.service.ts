@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, count, eq, max, sql } from 'drizzle-orm';
+import { count, eq, max, sql } from 'drizzle-orm';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
 import { devices } from '../devices/devices.schema';
