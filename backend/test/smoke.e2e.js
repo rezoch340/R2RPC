@@ -239,6 +239,26 @@ async function waitReady() {
     'metrics overview',
   );
 
+  const wk = await http('GET', '/metrics/weekly', null, admin);
+  assert(
+    wk.status === 200 && Array.isArray(wk.json),
+    '/metrics/weekly -> 200 数组',
+  );
+  const tr = await http('GET', '/metrics/trend?days=7', null, admin);
+  assert(
+    tr.status === 200 && Array.isArray(tr.json) && tr.json.length === 7,
+    '/metrics/trend?days=7 -> 7 个按天点(补零)',
+  );
+  assert(
+    tr.json.every(
+      (p) =>
+        typeof p.statDate === 'string' &&
+        typeof p.totalRequests === 'number' &&
+        typeof p.successRate === 'number',
+    ),
+    'trend 每点含 statDate/totalRequests/successRate',
+  );
+
   // ---------- RBAC:operator 角色只读,越权 403,未登录 401 ----------
 
   // 无 token 访问受保护接口 -> 401
