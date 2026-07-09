@@ -9,6 +9,7 @@ interface DeviceMeta {
   platform?: string | null;
   lastIp?: string | null;
   extra?: string | null;
+  maxInFlight?: number | null;
 }
 
 @Injectable()
@@ -33,6 +34,7 @@ export class DevicesService {
       online: true,
       status: 'online',
       lastIp: meta.lastIp ?? null,
+      maxInFlight: meta.maxInFlight ?? null,
       lastSeenAt: new Date(),
     };
     const [existing] = await this.db

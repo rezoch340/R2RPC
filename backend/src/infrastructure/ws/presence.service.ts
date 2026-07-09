@@ -3,6 +3,9 @@ import { RedisService } from '../redis/redis.service';
 
 // 在线镜像 TTL(秒);手机端心跳刷新
 const PRESENCE_TTL = 30;
+const MAX_IN_FLIGHT_DEFAULT = 512;
+const MAX_IN_FLIGHT_MIN = 256;
+const MAX_IN_FLIGHT_MAX = 1024;
 
 // 设备在线状态(redis 镜像,多 project)。权威成员关系仍在 PG(client_groups);这里只做在线状态与 project 内选设备。
 // 注意:presence 是软镜像,不做锁;哪个实例持有该 socket 由 ConnectionRegistry 管(client:session),这里不重复维护。
@@ -33,9 +36,52 @@ export class PresenceService {
 
   async offline(clientId: string, projectIds: number[]) {
     await this.r.del(`presence:${clientId}`);
+    await this.r.del(`device:maxinflight:${clientId}`);
+    await this.r.del(`device:inflight:${clientId}`);
     for (const gid of projectIds) {
       await this.r.srem(`project:clients:${gid}`, clientId);
     }
+  }
+
+  // 夹取自报值到 [256,1024];非数/缺省 → 512
+  clampMaxInFlight(raw: unknown): number {
+    const n = Math.floor(Number(raw));
+    if (!Number.isFinite(n)) return MAX_IN_FLIGHT_DEFAULT;
+    return Math.min(MAX_IN_FLIGHT_MAX, Math.max(MAX_IN_FLIGHT_MIN, n));
+  }
+
+  // 写/刷设备 maxInFlight(TTL 随 presence)
+  async setMaxInFlight(clientId: string, max: number) {
+    await this.r.set(
+      `device:maxinflight:${clientId}`,
+      String(max),
+      'EX',
+      PRESENCE_TTL,
+    );
+  }
+  async getMaxInFlight(clientId: string): Promise<number> {
+    const v = await this.r.get(`device:maxinflight:${clientId}`);
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : MAX_IN_FLIGHT_DEFAULT;
+  }
+
+  // 连接时清在途计数(限泄漏在一次 session 内)
+  async resetInFlight(clientId: string) {
+    await this.r.del(`device:inflight:${clientId}`);
+  }
+  // 占一个在途槽:INCR;若超上限自减回退返 false
+  async tryAcquireSlot(clientId: string, max: number): Promise<boolean> {
+    const n = await this.r.incr(`device:inflight:${clientId}`);
+    if (n > max) {
+      await this.r.decr(`device:inflight:${clientId}`);
+      return false;
+    }
+    return true;
+  }
+  // 释放一个在途槽(兜底不为负)
+  async releaseSlot(clientId: string) {
+    const n = await this.r.decr(`device:inflight:${clientId}`);
+    if (n < 0) await this.r.set(`device:inflight:${clientId}`, '0');
   }
 
   async isOnline(clientId: string) {
