@@ -6,6 +6,8 @@ const PRESENCE_TTL = 30;
 const MAX_IN_FLIGHT_DEFAULT = 512;
 const MAX_IN_FLIGHT_MIN = 256;
 const MAX_IN_FLIGHT_MAX = 1024;
+// 原子占槽:INCR 后若超上限同一脚本内 DECR 回退,防非原子两步在 redis 抖动时半失败泄漏(照 ConnectionRegistry 的内联 CAS 脚本)
+const ACQUIRE_SLOT_LUA = `local n = redis.call('incr', KEYS[1]); if n > tonumber(ARGV[1]) then redis.call('decr', KEYS[1]); return 0 else return 1 end`;
 
 // 设备在线状态(redis 镜像,多 project)。权威成员关系仍在 PG(client_groups);这里只做在线状态与 project 内选设备。
 // 注意:presence 是软镜像,不做锁;哪个实例持有该 socket 由 ConnectionRegistry 管(client:session),这里不重复维护。
@@ -43,8 +45,11 @@ export class PresenceService {
     }
   }
 
-  // 夹取自报值到 [256,1024];非数/缺省 → 512
+  // 夹取自报值到 [256,1024];缺省(?maxInFlight 缺失 → null/''）或非数 → 512
   clampMaxInFlight(raw: unknown): number {
+    if (raw === null || raw === undefined || raw === '') {
+      return MAX_IN_FLIGHT_DEFAULT;
+    }
     const n = Math.floor(Number(raw));
     if (!Number.isFinite(n)) return MAX_IN_FLIGHT_DEFAULT;
     return Math.min(MAX_IN_FLIGHT_MAX, Math.max(MAX_IN_FLIGHT_MIN, n));
@@ -69,14 +74,15 @@ export class PresenceService {
   async resetInFlight(clientId: string) {
     await this.r.del(`device:inflight:${clientId}`);
   }
-  // 占一个在途槽:INCR;若超上限自减回退返 false
+  // 占一个在途槽(原子 Lua:INCR + 超限同脚本 DECR 回退,不会半失败泄漏)。满则返 false
   async tryAcquireSlot(clientId: string, max: number): Promise<boolean> {
-    const n = await this.r.incr(`device:inflight:${clientId}`);
-    if (n > max) {
-      await this.r.decr(`device:inflight:${clientId}`);
-      return false;
-    }
-    return true;
+    const r = (await this.r.eval(
+      ACQUIRE_SLOT_LUA,
+      1,
+      `device:inflight:${clientId}`,
+      String(max),
+    )) as number;
+    return r === 1;
   }
   // 释放一个在途槽(兜底不为负)
   async releaseSlot(clientId: string) {

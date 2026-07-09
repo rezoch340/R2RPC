@@ -140,9 +140,26 @@ export class RpcService {
       );
     }
 
-    // 在途并发限流:占一个槽,满则 rejected/429
-    const maxInFlight = await this.presence.getMaxInFlight(clientId);
-    if (!(await this.presence.tryAcquireSlot(clientId, maxInFlight))) {
+    // 在途并发限流:占一个槽,满则 rejected/429。redis 异常funnel 到 fail,与本方法其它步骤一致(保证留取证脊柱)
+    let acquired: boolean;
+    try {
+      const maxInFlight = await this.presence.getMaxInFlight(clientId);
+      acquired = await this.presence.tryAcquireSlot(clientId, maxInFlight);
+    } catch (e) {
+      this.logger.error(
+        `在途限流检查失败(基础设施异常): ${(e as Error).message}`,
+      );
+      return this.fail(
+        p,
+        requestId,
+        clientId,
+        startedAt,
+        'error',
+        503,
+        '基础设施异常,无法调度',
+      );
+    }
+    if (!acquired) {
       return this.fail(
         p,
         requestId,
