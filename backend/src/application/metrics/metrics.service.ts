@@ -123,6 +123,21 @@ export class MetricsService {
     return points;
   }
 
+  // 近7天每 project 的请求/成功数(供 GroupInfo)。返回 project_name -> {requests7d, success7d}
+  async requests7dByProject() {
+    const cutoffDate = this.utcDateNDaysAgo(6);
+    const rows = await this.db
+      .select({
+        project: rpcDailyMetrics.projectName,
+        requests7d: sql<number>`sum(${rpcDailyMetrics.totalRequests})::int`,
+        success7d: sql<number>`sum(${rpcDailyMetrics.successRequests})::int`,
+      })
+      .from(rpcDailyMetrics)
+      .where(gte(rpcDailyMetrics.statDate, cutoffDate))
+      .groupBy(rpcDailyMetrics.projectName);
+    return new Map(rows.map((r) => [r.project, r]));
+  }
+
   // 状态归类:ok→success,timeout→timeout,其余→failed(新系统 status 口径)
   private classify(status: string) {
     return {

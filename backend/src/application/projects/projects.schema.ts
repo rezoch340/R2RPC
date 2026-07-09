@@ -1,4 +1,5 @@
 import {
+  boolean,
   pgTable,
   serial,
   timestamp,
@@ -14,6 +15,7 @@ export const projects = pgTable(
     id: serial('id').primaryKey(),
     name: varchar('name', { length: 128 }).notNull(),
     description: varchar('description', { length: 255 }),
+    enabled: boolean('enabled').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -452,6 +452,59 @@ async function waitReady() {
     '/devices/:id 详情',
   );
 
+  // ---------- #8:GroupInfo + 分组启停 ----------
+  const gi = await http('GET', '/projects/info', null, admin);
+  assert(
+    gi.status === 200 && Array.isArray(gi.json),
+    '/projects/info -> 200 数组',
+  );
+  const cn = (gi.json || []).find((x) => x.name === 'cn-nodes');
+  assert(
+    !!cn &&
+      typeof cn.totalDevices === 'number' &&
+      typeof cn.onlineDevices === 'number' &&
+      typeof cn.status === 'string',
+    'GroupInfo cn-nodes 含 totalDevices/onlineDevices/status',
+  );
+  assert(
+    cn.onlineDevices >= 1 && cn.status === 'online',
+    'cn-nodes 有在线设备 -> status online',
+  );
+
+  // 停用 cn-nodes -> invoke 该组应被拒(disabled),GroupInfo status=disabled
+  const projList = await http('GET', '/projects', null, admin);
+  const cnProj = (projList.json || []).find((x) => x.name === 'cn-nodes');
+  const disable = await http(
+    'POST',
+    `/projects/${cnProj.id}/enabled`,
+    { enabled: false },
+    admin,
+  );
+  assert(
+    disable.status < 300 && disable.json.enabled === false,
+    '停用 cn-nodes',
+  );
+  const invDisabled = await http(
+    'POST',
+    '/rpc/invoke/cn-nodes/echo',
+    { payload: {} },
+    accessToken,
+  );
+  assert(
+    invDisabled.json.status === 'disabled',
+    '停用后 invoke cn-nodes -> disabled 拒派',
+  );
+  const gi2 = await http('GET', '/projects/info', null, admin);
+  const cn2 = (gi2.json || []).find((x) => x.name === 'cn-nodes');
+  assert(cn2.status === 'disabled', 'GroupInfo cn-nodes status=disabled');
+  // 复原,免影响后续/重跑
+  await http(
+    'POST',
+    `/projects/${cnProj.id}/enabled`,
+    { enabled: true },
+    admin,
+  );
+
   ws.close();
   await sleep(200);
   console.log(failed ? '\n=== SMOKE FAILED ===' : '\n=== SMOKE PASSED ===');
