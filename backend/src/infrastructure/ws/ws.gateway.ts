@@ -16,10 +16,14 @@ type ClientSocket = WebSocket & {
   _clientId?: string;
   _projects?: number[];
   _maxInFlight?: number;
+  _lastActivity?: number;
+  _pingTimer?: NodeJS.Timeout;
 };
 
 // 单帧上限 4 MiB(ws.Server maxPayload,超限自动 close 1009);WsAdapter 透传装饰器选项
 const MAX_PAYLOAD_BYTES = 4 * 1024 * 1024;
+const PING_INTERVAL_MS = 5000; // 服务端主动 ping
+const READ_TIMEOUT_MS = 20000; // 无活动(message/pong)超此即判离线断开
 
 // 设备常驻连接网关(路径 /api/client/ws)。鉴权:device token(?token) + 自生成 clientId(?clientId)。
 @WebSocketGateway({ path: '/api/client/ws', maxPayload: MAX_PAYLOAD_BYTES })
@@ -86,6 +90,7 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
     socket.on('message', (data: RawData) => {
+      socket._lastActivity = Date.now();
       const raw = Array.isArray(data)
         ? Buffer.concat(data).toString()
         : Buffer.isBuffer(data)
@@ -99,10 +104,27 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       projects,
       maxInFlight: meta.maxInFlight,
     });
+    // 服务端主动 ping + 读超时:无活动(message/pong)超 READ_TIMEOUT 即断开
+    socket._lastActivity = Date.now();
+    socket.on('pong', () => {
+      socket._lastActivity = Date.now();
+    });
+    socket._pingTimer = setInterval(() => {
+      if (socket.readyState !== 1) return;
+      if (Date.now() - (socket._lastActivity ?? 0) > READ_TIMEOUT_MS) {
+        this.logger.warn(
+          `设备读超时(${READ_TIMEOUT_MS}ms 无活动),断开: ${socket._clientId}`,
+        );
+        socket.terminate();
+        return;
+      }
+      socket.ping();
+    }, PING_INTERVAL_MS);
     this.logger.log(`设备上线: ${clientId}@[${projects.join(',')}]`);
   }
 
   async handleDisconnect(socket: ClientSocket) {
+    if (socket._pingTimer) clearInterval(socket._pingTimer);
     const clientId = socket._clientId;
     const projects = socket._projects;
     if (clientId) {
