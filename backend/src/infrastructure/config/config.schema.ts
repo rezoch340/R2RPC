@@ -33,6 +33,7 @@ export const configSchema = z.object({
     .object({
       rawRetentionDays: z.number().int().positive().default(3),
       keepLatestPerScope: z.number().int().positive().default(100),
+      aggregateRetentionDays: z.number().int().positive().default(30),
     })
     .prefault({}),
 });
