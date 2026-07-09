@@ -6,6 +6,7 @@ import { AuthModule } from './application/auth/auth.module';
 import { UsersModule } from './application/users/users.module';
 import { ProjectsModule } from './application/projects/projects.module';
 import { AccessTokenModule } from './application/access-token/access-token.module';
+import { DeviceTokenModule } from './application/device-token/device-token.module';
 import { DevicesModule } from './application/devices/devices.module';
 import { ClientModule } from './application/client/client.module';
 import { RpcModule } from './application/rpc/rpc.module';
@@ -33,6 +34,7 @@ import { WsModule } from './infrastructure/ws/ws.module';
     UsersModule,
     ProjectsModule,
     AccessTokenModule,
+    DeviceTokenModule,
     DevicesModule,
     ClientModule,
     RpcModule,
