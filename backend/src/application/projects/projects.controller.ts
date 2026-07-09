@@ -26,6 +26,13 @@ export class ProjectsController {
     return this.projects.list();
   }
 
+  @Get('info')
+  @RequirePermission('read', 'project')
+  @ApiOperation({ summary: '功能组派生统计(设备数/在线/近7天/成功率/运行态)' })
+  info() {
+    return this.projects.groupInfo();
+  }
+
   @Post()
   @RequirePermission('create', 'project')
   @ApiOperation({ summary: '创建功能组' })
