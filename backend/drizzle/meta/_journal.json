@@ -8,6 +8,13 @@
       "when": 1783599101999,
       "tag": "0000_cold_zaladane",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783602142208,
+      "tag": "0001_simple_klaw",
+      "breakpoints": true
     }
   ]
 }
