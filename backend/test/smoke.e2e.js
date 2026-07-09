@@ -112,6 +112,14 @@ async function waitReady() {
   await sleep(300);
   assert(got.heartbeatAck, 'received heartbeatAck');
 
+  // #5:服务端应在 ping 间隔内主动 ping 设备(ws 客户端自动回 pong)
+  let gotServerPing = false;
+  ws.on('ping', () => {
+    gotServerPing = true;
+  });
+  await sleep(6000); // > PING_INTERVAL(5s),至少收到一次
+  assert(gotServerPing, '收到服务端主动 ping(#5)');
+
   // ---------- 阶段3:invoke 改走独立 access token(与用户 JWT/RBAC 完全分离)----------
 
   // admin 生成一枚只授权 cn-nodes 组的 access token(明文只在创建时回一次)

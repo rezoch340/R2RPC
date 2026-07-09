@@ -15,6 +15,7 @@ export interface JobMessage {
   action: string;
   payload: unknown;
   timeoutSeconds: number;
+  deadlineAt?: number; // epoch ms,过期任务派发前丢弃;0/缺省=无截止
 }
 
 export interface ResultMessage {

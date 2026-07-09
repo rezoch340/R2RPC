@@ -95,6 +95,11 @@ export class ConnectionRegistry implements OnModuleInit {
   private deliverLocalJob(clientId: string, job: unknown): boolean {
     const s = this.sockets.get(clientId);
     if (!s || s.readyState !== 1) return false;
+    const deadlineAt = (job as { deadlineAt?: number }).deadlineAt;
+    if (deadlineAt && Date.now() > deadlineAt) {
+      this.logger.warn(`job 已过 deadline,丢弃: ${clientId}`);
+      return false; // 过期不发(即时派发下极少触发;跨实例经 bus 到达时若已过期在此丢弃)
+    }
     s.send(JSON.stringify(job));
     return true;
   }
