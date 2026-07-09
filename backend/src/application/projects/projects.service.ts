@@ -107,7 +107,10 @@ export class ProjectsService {
         lastSeen: max(devices.lastSeenAt),
       })
       .from(devices)
-      .innerJoin(deviceTokens, eq(devices.deviceTokenId, deviceTokens.id))
+      .innerJoin(
+        deviceTokens,
+        alive(deviceTokens, eq(devices.deviceTokenId, deviceTokens.id)),
+      )
       .innerJoin(
         deviceTokenProjects,
         eq(deviceTokens.id, deviceTokenProjects.tokenId),
