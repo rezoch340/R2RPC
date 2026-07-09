@@ -33,6 +33,8 @@ export class UsersService {
         username: users.username,
         role: users.role,
         createdAt: users.createdAt,
+        enabled: users.enabled,
+        lastLoginAt: users.lastLoginAt,
       })
       .from(users)
       .where(alive(users));
@@ -45,6 +47,8 @@ export class UsersService {
         username: users.username,
         role: users.role,
         createdAt: users.createdAt,
+        enabled: users.enabled,
+        lastLoginAt: users.lastLoginAt,
       })
       .from(users)
       .where(alive(users, eq(users.id, id)))
@@ -76,5 +80,26 @@ export class UsersService {
   async remove(id: number) {
     await softDelete(this.db, users, eq(users.id, id));
     return { deleted: true };
+  }
+
+  async updateLastLogin(id: number) {
+    await this.db
+      .update(users)
+      .set({ lastLoginAt: new Date() })
+      .where(eq(users.id, id));
+  }
+
+  async setEnabled(id: number, enabled: boolean) {
+    const [row] = await this.db
+      .update(users)
+      .set({ enabled })
+      .where(alive(users, eq(users.id, id)))
+      .returning({
+        id: users.id,
+        username: users.username,
+        enabled: users.enabled,
+      });
+    if (!row) throw new NotFoundException('用户不存在');
+    return row;
   }
 }

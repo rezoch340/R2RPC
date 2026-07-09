@@ -342,6 +342,40 @@ async function waitReady() {
     'op1 GET /auth/me -> 200 with permissions array (operator has read/me)',
   );
 
+  // ---------- #7:用户 enabled 启停 + last_login ----------
+  const usersList2 = await http('GET', '/users', null, admin);
+  const op1row = (usersList2.json || []).find((u) => u.username === 'op1');
+  assert(!!op1row && op1row.enabled === true, 'op1 默认 enabled=true');
+  // 停用 op1 -> 其现有 token 立即失效(每请求拦)+ 新登录被拒
+  const disableU = await http(
+    'POST',
+    `/users/${op1row.id}/enabled`,
+    { enabled: false },
+    admin,
+  );
+  assert(disableU.status < 300 && disableU.json.enabled === false, '停用 op1');
+  const opReq = await http('GET', '/auth/me', null, opToken); // opToken 是 op1 之前登录拿的
+  assert(opReq.status === 403, '停用后 op1 现有 token 访问 -> 403(每请求吊销)');
+  const opLogin2 = await http('POST', '/auth/login', {
+    username: 'op1',
+    password: 'oppass123',
+  });
+  assert(opLogin2.status === 403, '停用后 op1 重新登录 -> 403');
+  // 复原
+  await http('POST', `/users/${op1row.id}/enabled`, { enabled: true }, admin);
+  const opLogin3 = await http('POST', '/auth/login', {
+    username: 'op1',
+    password: 'oppass123',
+  });
+  assert(opLogin3.status < 300 && !!opLogin3.json.token, '启用后 op1 可再登录');
+  const adminRow = (usersList2.json || []).find((u) => u.username === 'admin');
+  assert(
+    adminRow &&
+      (adminRow.lastLoginAt === null ||
+        typeof adminRow.lastLoginAt === 'string'),
+    'users 列表含 lastLoginAt 字段',
+  );
+
   // ---------- Phase 4:软删除 ----------
   // (a) access token 软删(DELETE)与 revoke 正交:删后立即失效,返 401(revoke 是 403)
   const delTok = await http(

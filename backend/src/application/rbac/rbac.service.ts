@@ -47,12 +47,12 @@ export class RbacService {
     );
   }
 
-  // 查用户身份(id + 是否 root),过滤软删——已删用户视为不存在,JwtStrategy 据此拒绝其 JWT
+  // 查用户身份(id + 是否 root + 是否启用),过滤软删——已删用户视为不存在,JwtStrategy 据此拒绝其 JWT
   async findAuthUser(
     userId: number,
-  ): Promise<{ id: number; isRoot: boolean } | null> {
+  ): Promise<{ id: number; isRoot: boolean; enabled: boolean } | null> {
     const [u] = await this.db
-      .select({ id: users.id, isRoot: users.isRoot })
+      .select({ id: users.id, isRoot: users.isRoot, enabled: users.enabled })
       .from(users)
       .where(alive(users, eq(users.id, userId)))
       .limit(1);
