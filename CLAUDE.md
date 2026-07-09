@@ -1,0 +1,78 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+RER0RPC 是设备侧 RPC 中继平台(思路类似 Sekiro):调用方按 `project`(功能组)或指定 `clientId`,把请求下发到在线设备,设备执行后实时回传结果。**活代码全在 `backend/`(NestJS 重写版)。**
+
+> ⚠️ `docs/项目总览-中文.md` 描述的是**老 Go 系统**(`cmd/`/`internal/`、MySQL、端口 9876)——那套代码本仓库并不存在,别照它写。真实架构:NestJS + PostgreSQL + Redis + BullMQ + Manticore,端口 **3000**,默认管理员 `admin/admin123456`。老 Go 文档只用来**对齐功能语义**(`docs/RER0RPC-核心功能统计.md`,老名 `group`=新名 `project`)。
+
+## 动手前先读
+
+- **`docs/后端进度.md` 是唯一进度台账** —— 确认当前 epic/子项、已完成项。规则:一功能一分支,完成即在该文件勾 ✅ + 补「完成记录」,和代码同 PR 合入 main(进度跟 git,不靠会话记忆)。
+- **`docs/design-conventions.md`** —— 工程约定(分层、并发、事务、缓存、请求日志),动手前必读。
+- 设计定稿/实现计划在 `docs/superpowers/{specs,plans}/`。
+
+## 命令(在 `backend/` 下跑)
+
+> ⚠️ **本机 pnpm 坑**:`pnpm <script>` 会先跑一次 `pnpm install`(verify-deps),沙箱里可能失败即中断脚本。若 `pnpm build` 之类报 pnpm install 错,改直接调二进制:`node_modules/.bin/{nest,eslint,prettier,drizzle-kit,ts-node}`。
+
+```bash
+pnpm build                 # nest build。提交/PR 前必过:build + lint + format
+pnpm lint / pnpm format    # eslint --fix / prettier
+pnpm start:api             # API 进程(HTTP + WS 网关,端口 3000)
+pnpm start:worker          # Worker 进程(独立!--entryFile worker)
+pnpm db:generate           # drizzle-kit 从 src/**/*.schema.ts 生成迁移(见坑)
+pnpm db:migrate            # 应用迁移(独立步骤,绝不在 app 启动时跑)
+pnpm seed:admin            # 种子 admin + demo projects + RBAC 权限(幂等,可重跑)
+pnpm smoke                 # 端到端冒烟(node test/smoke.e2e.js,需 API 在跑)
+pnpm retention:smoke | device:stale:smoke | metrics:smoke   # 无 API 面(worker)功能的直连 PG 冒烟
+pnpm test                  # Jest 单测(*.spec.ts)
+```
+
+- **前置基础设施**:PostgreSQL / Redis / Manticore 按 `config.yaml`(默认 `localhost:5432/6379/9308`)须已在跑;仓库无 docker-compose,自行起。配置走 `CONFIG_FILE`(默认 `./config.yaml`,`config.example.yaml` 是模板),zod 校验失败即启动失败。
+- **drizzle 迁移坑**:`db:generate` 在**同一次同时 drop 旧表 + 建新表**时,会交互式问"rename vs create"——非交互环境会卡住,须明确回答(拆表/新表通常选 **create**)。纯 ADD COLUMN / 只新增表不问。改破坏式迁移前确认 `docs/后端进度.md` 里该阶段允许破坏。
+
+## 双进程架构(关键)
+
+**API 进程与 Worker 进程分开部署**,各自扩缩容:
+
+- **API**(`main.ts` / `AppModule`):HTTP 路由 + WS 网关(`infrastructure/ws`)。**热路径**只做校验 + 核心业务 + **入队**,亚毫秒返回,不碰慢 IO / 外部请求。
+- **Worker**(`worker.ts` / `WorkerModule`):BullMQ 消费者(`RequestLogProcessor` / `DeadLetterProcessor` / `MaintenanceProcessor`)+ `WorkerBootstrap` 挂的定时维护(`repair-stale-pending` / `retention-sweep` / `mark-devices-stale` / `metrics-cleanup`)+ 启动对账。**Processor 只注册在 WorkerModule**,别塞进 AppModule(否则 API 也去消费队列、双跑)。
+- 共享状态只在 **PG(权威)+ Redis(在线态/缓存/分布式锁)**;进程内不留跨请求状态(无状态、可水平扩容)。跨实例 WS 派发/结果路由经 `ClusterBus`(Redis pub/sub)。
+
+## Device-model 三概念(`src/application/`)
+
+- **project**(`projects/`,旧名 group):功能组;设备与两类 token 都挂到它上。
+- **device token**(`device-token/`,明文前缀 `dk_`):设备**自注册上线**凭证,建时勾 project;设备继承该 token 的 project(不自报能力)。
+- **access token**(`access-token/`,前缀 `rk_`):**调用方 invoke** 凭证,勾 project。
+- 旧 client-login(clients/client_groups/密码登录)**已删**,设备一律 device-token 自注册(WS `?token=<dk_>&clientId=<SDK自生成>`)。
+
+## 两条主链路
+
+**invoke(热)** `POST /rpc/invoke/:project/:action`(`@Public` + `AccessTokenGuard` 校验 token 有该 project,非用户 JWT):
+project→id → `PresenceService.pickOnline` 从 Redis `project:clients:{pid}` 轮询选在线设备(或 `?clientId=` 指定)→ `ConnectionRegistry` 注册 waiter + `markWaiting` → `dispatchJob`(本地或经 ClusterBus 跨实例)→ 设备 WS 回 `result` → `handleResult`(`rpc:completed` 去重 + 路由回等待实例)resolve → `enqueueLog` 入队(冷)。
+
+**请求日志/指标(冷)**:`RequestLogProcessor` 消费 REQUEST_LOG 队列 → `writeSpine` 写 PG `request_logs`(取证脊柱,标量列,幂等,**返回是否首插**)→ 索引 payload 到 Manticore → 标 indexed;**首插时**顺带 `MetricsService.recordCompletion` 累加日聚合(靠首插判去重,BullMQ 重试不重复计)。列表查 PG 脊柱(不返 payload),详情按 requestId 从 Manticore 懒加载。指标:`device_daily_metrics`/`rpc_daily_metrics` per-completion upsert 自增;Worker 启动 `rebuildRecent` 从 request_logs 重灌最近 N 整天对账;`metrics-cleanup` 按 `aggregateRetentionDays` 清理。
+
+## DB 约定
+
+- **Drizzle**:表定义 `{module}.schema.ts`(`pgTable`);`drizzle.config.ts` 用 glob(`src/**/*.schema.ts`)收集。schema 改了 → `db:generate` + `db:migrate`。
+- **实体表铁律**:非日志表必须有 `description` + 软删(`deleted_at` + `alive()`/`softDelete()`,来自 `src/common/db/soft-delete.ts`),token/name 唯一走 **partial unique**(`WHERE deleted_at IS NULL`);读一律过 `alive()`。
+- **日志/派生表豁免**(硬清理、可从别处重建):`request_logs`、`*_daily_metrics` —— 不加 description/deleted_at。
+- **缓存 cache-aside + 写即删**:写库(权威)后**删**对应 Redis key(不是更新),下次请求懒回填;撤销/软删/stale 等被动变更同步删缓存。presence(WS 上线/心跳/断开)是主动写。
+- 迁移**独立步骤**跑,绝不在 app 启动时改库。
+
+## RBAC
+
+CASL;权限是 DB `permissions` 行,`(action, subject)` **free-form**(新 subject 无需代码注册)。controller 上加 `@RequirePermission('read','device')`;`PermissionGuard` 里 `user.isRoot` 直通全部。加权限 = 往 `src/scripts/seed-admin.ts` 的 `ALL_PERMISSIONS` 加一行再 `seed:admin`。
+
+## 协作铁律
+
+- **不直接提交 main**:功能分支 → PR → 合并 → 同步主干、清分支。commit 用 emoji + 中文。
+- **注释中文**,放被注释代码**上一行**(非行尾)。
+- **并发读-改-写**优先级:原子语句(`UPDATE ... SET n=n+1`,drizzle 用 `sql` 自增)> 行锁事务(`.for('update')`)> Redis 分布式锁(fail-open)。
+- **事务**:写库方法收可选 `tx?` 句柄(传了复用调用方事务、没传自开);`run` 内所有写一律走 `tx`,**绝不**用全局 `this.db`。
+- **e2e 走 HTTP**:有 API 的功能 e2e 一律打 API、不直连库(`test/smoke.e2e.js`);仅**无 API 面**的 worker 功能(stale/metrics/retention)才写直连 PG 的 `src/scripts/*-smoke.ts`。
+- 别默认建 `repository.ts`;新模块用 `nest g`(不手写样板),schema 用 Drizzle 替掉 CLI 的 `entities/`。
