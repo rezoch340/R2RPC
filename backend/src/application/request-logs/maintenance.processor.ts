@@ -68,9 +68,13 @@ export class MaintenanceProcessor extends WorkerHost {
   // 按天清理聚合表(device_daily_metrics/rpc_daily_metrics)
   private async metricsCleanup() {
     const { aggregateRetentionDays } = this.config.retention;
-    const { rpc, device } = await this.metrics.cleanupOldMetrics(aggregateRetentionDays);
+    const { rpc, device } = await this.metrics.cleanupOldMetrics(
+      aggregateRetentionDays,
+    );
     if (rpc || device)
-      this.logger.log(`metrics-cleanup: 删聚合 rpc ${rpc} + device ${device}(>${aggregateRetentionDays}天)`);
+      this.logger.log(
+        `metrics-cleanup: 删聚合 rpc ${rpc} + device ${device}(>${aggregateRetentionDays}天)`,
+      );
     return { rpc, device };
   }
 }

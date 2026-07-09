@@ -130,8 +130,12 @@ export class MetricsService {
     const cutoff = new Date(Date.now() - days * 86_400_000);
     const cutoffDate = cutoff.toISOString().slice(0, 10);
     await this.db.transaction(async (tx) => {
-      await tx.delete(rpcDailyMetrics).where(gte(rpcDailyMetrics.statDate, cutoffDate));
-      await tx.delete(deviceDailyMetrics).where(gte(deviceDailyMetrics.statDate, cutoffDate));
+      await tx
+        .delete(rpcDailyMetrics)
+        .where(gte(rpcDailyMetrics.statDate, cutoffDate));
+      await tx
+        .delete(deviceDailyMetrics)
+        .where(gte(deviceDailyMetrics.statDate, cutoffDate));
       await tx.execute(sql`
         INSERT INTO rpc_daily_metrics
           (stat_date, project_name, action_name, client_id,
@@ -166,12 +170,18 @@ export class MetricsService {
   }
 
   // 按天清理:删 stat_date 早于 今天-(retentionDays-1) 的聚合行。返回删除条数。
-  async cleanupOldMetrics(retentionDays: number): Promise<{ rpc: number; device: number }> {
+  async cleanupOldMetrics(
+    retentionDays: number,
+  ): Promise<{ rpc: number; device: number }> {
     const cutoff = new Date(Date.now() - (retentionDays - 1) * 86_400_000)
       .toISOString()
       .slice(0, 10);
-    const r = await this.db.delete(rpcDailyMetrics).where(lt(rpcDailyMetrics.statDate, cutoff));
-    const d = await this.db.delete(deviceDailyMetrics).where(lt(deviceDailyMetrics.statDate, cutoff));
+    const r = await this.db
+      .delete(rpcDailyMetrics)
+      .where(lt(rpcDailyMetrics.statDate, cutoff));
+    const d = await this.db
+      .delete(deviceDailyMetrics)
+      .where(lt(deviceDailyMetrics.statDate, cutoff));
     return { rpc: r.rowCount ?? 0, device: d.rowCount ?? 0 };
   }
 }

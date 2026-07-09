@@ -49,7 +49,11 @@ export class WorkerBootstrap implements OnModuleInit {
     await this.maintenance.add(
       'metrics-cleanup',
       {},
-      { repeat: { every: 5 * 60 * 1000 }, removeOnComplete: true, removeOnFail: true },
+      {
+        repeat: { every: 5 * 60 * 1000 },
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
     );
   }
 }

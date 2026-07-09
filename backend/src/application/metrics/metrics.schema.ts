@@ -16,13 +16,25 @@ export const deviceDailyMetrics = pgTable(
     statDate: date('stat_date').notNull(),
     clientId: varchar('client_id', { length: 128 }).notNull(),
     projectName: varchar('project_name', { length: 128 }).notNull(),
-    totalRequests: bigint('total_requests', { mode: 'number' }).notNull().default(0),
-    successRequests: bigint('success_requests', { mode: 'number' }).notNull().default(0),
-    failedRequests: bigint('failed_requests', { mode: 'number' }).notNull().default(0),
-    timeoutRequests: bigint('timeout_requests', { mode: 'number' }).notNull().default(0),
-    totalLatencyMs: bigint('total_latency_ms', { mode: 'number' }).notNull().default(0),
+    totalRequests: bigint('total_requests', { mode: 'number' })
+      .notNull()
+      .default(0),
+    successRequests: bigint('success_requests', { mode: 'number' })
+      .notNull()
+      .default(0),
+    failedRequests: bigint('failed_requests', { mode: 'number' })
+      .notNull()
+      .default(0),
+    timeoutRequests: bigint('timeout_requests', { mode: 'number' })
+      .notNull()
+      .default(0),
+    totalLatencyMs: bigint('total_latency_ms', { mode: 'number' })
+      .notNull()
+      .default(0),
     maxLatencyMs: integer('max_latency_ms').notNull().default(0),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.statDate, t.clientId, t.projectName] }),
@@ -39,16 +51,30 @@ export const rpcDailyMetrics = pgTable(
     projectName: varchar('project_name', { length: 128 }).notNull(),
     actionName: varchar('action_name', { length: 128 }).notNull(),
     clientId: varchar('client_id', { length: 128 }).notNull().default(''),
-    totalRequests: bigint('total_requests', { mode: 'number' }).notNull().default(0),
-    successRequests: bigint('success_requests', { mode: 'number' }).notNull().default(0),
-    failedRequests: bigint('failed_requests', { mode: 'number' }).notNull().default(0),
-    timeoutRequests: bigint('timeout_requests', { mode: 'number' }).notNull().default(0),
-    totalLatencyMs: bigint('total_latency_ms', { mode: 'number' }).notNull().default(0),
+    totalRequests: bigint('total_requests', { mode: 'number' })
+      .notNull()
+      .default(0),
+    successRequests: bigint('success_requests', { mode: 'number' })
+      .notNull()
+      .default(0),
+    failedRequests: bigint('failed_requests', { mode: 'number' })
+      .notNull()
+      .default(0),
+    timeoutRequests: bigint('timeout_requests', { mode: 'number' })
+      .notNull()
+      .default(0),
+    totalLatencyMs: bigint('total_latency_ms', { mode: 'number' })
+      .notNull()
+      .default(0),
     maxLatencyMs: integer('max_latency_ms').notNull().default(0),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
-    primaryKey({ columns: [t.statDate, t.projectName, t.actionName, t.clientId] }),
+    primaryKey({
+      columns: [t.statDate, t.projectName, t.actionName, t.clientId],
+    }),
     index('rpc_daily_project_date').on(t.projectName, t.statDate),
     index('rpc_daily_action_date').on(t.actionName, t.statDate),
   ],
