@@ -178,6 +178,7 @@ export class RpcService {
         action: p.action,
         payload: p.payload,
         timeoutSeconds,
+        deadlineAt: startedAt + timeoutMs, // startedAt/timeoutMs 已在 invoke 作用域
       };
 
       // 先同步注册本地 waiter,再 await 写 redis 等待方标记,最后才 dispatch ——

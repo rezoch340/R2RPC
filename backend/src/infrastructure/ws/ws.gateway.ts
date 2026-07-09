@@ -18,8 +18,11 @@ type ClientSocket = WebSocket & {
   _maxInFlight?: number;
 };
 
+// 单帧上限 4 MiB(ws.Server maxPayload,超限自动 close 1009);WsAdapter 透传装饰器选项
+const MAX_PAYLOAD_BYTES = 4 * 1024 * 1024;
+
 // 设备常驻连接网关(路径 /api/client/ws)。鉴权:device token(?token) + 自生成 clientId(?clientId)。
-@WebSocketGateway({ path: '/api/client/ws' })
+@WebSocketGateway({ path: '/api/client/ws', maxPayload: MAX_PAYLOAD_BYTES })
 export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger('WsGateway');
 
