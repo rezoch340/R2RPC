@@ -5,43 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1783518651139,
-      "tag": "0000_nasty_wild_child",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1783527062386,
-      "tag": "0001_violet_onslaught",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1783533793313,
-      "tag": "0002_confused_vector",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1783534673141,
-      "tag": "0003_giant_maria_hill",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1783537377619,
-      "tag": "0004_naive_lord_hawal",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1783540752274,
-      "tag": "0005_jazzy_shard",
+      "when": 1783599101999,
+      "tag": "0000_cold_zaladane",
       "breakpoints": true
     }
   ]
