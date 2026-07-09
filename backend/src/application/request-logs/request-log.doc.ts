@@ -4,7 +4,7 @@ import { RequestLogJob } from './request-log.types';
 export function buildManticoreDoc(d: RequestLogJob): Record<string, unknown> {
   return {
     request_id: d.requestId,
-    group_name: d.group,
+    project_name: d.project,
     action_name: d.action,
     client_id: d.clientId ?? '',
     status: d.status,

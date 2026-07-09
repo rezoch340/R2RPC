@@ -28,16 +28,16 @@ export class MetricsService {
       .groupBy(requestLogs.status)
       .orderBy(desc(sql`count(*)`));
 
-    const byGroup = await this.db
+    const byProject = await this.db
       .select({
-        group: requestLogs.groupName,
+        project: requestLogs.projectName,
         count: sql<number>`count(*)::int`,
       })
       .from(requestLogs)
-      .groupBy(requestLogs.groupName)
+      .groupBy(requestLogs.projectName)
       .orderBy(desc(sql`count(*)`))
       .limit(10);
 
-    return { totals, byStatus, byGroup };
+    return { totals, byStatus, byProject };
   }
 }

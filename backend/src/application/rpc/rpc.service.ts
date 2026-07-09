@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { GroupsService } from '../groups/groups.service';
+import { ProjectsService } from '../projects/projects.service';
 import { QueueService } from '../../infrastructure/queue/queue.service';
 import { ConnectionRegistry } from '../../infrastructure/ws/connection.registry';
 import { PresenceService } from '../../infrastructure/ws/presence.service';
@@ -8,7 +8,7 @@ import { RequestLogJob } from '../request-logs/request-log.types';
 import { RequestLogsService } from '../request-logs/request-logs.service';
 
 export interface InvokeParams {
-  group: string;
+  project: string;
   action: string;
   payload: unknown;
   timeoutSeconds?: number;
@@ -42,26 +42,28 @@ export interface InvokeResponse {
 export class RpcService {
   private readonly logger = new Logger('Rpc');
   constructor(
-    private readonly groups: GroupsService,
+    private readonly projects: ProjectsService,
     private readonly presence: PresenceService,
     private readonly registry: ConnectionRegistry,
     private readonly queue: QueueService,
     private readonly requestLogs: RequestLogsService,
   ) {}
 
-  // RPC invoke 热路径(可分布式):组名→组id -> 选设备 -> 注册 waiter -> 跨实例下发 job -> 等 result / 超时 -> 入队日志
+  // RPC invoke 热路径(可分布式):project 名→project id -> 选设备 -> 注册 waiter -> 跨实例下发 job -> 等 result / 超时 -> 入队日志
   async invoke(p: InvokeParams): Promise<InvokeResponse> {
     const requestId = randomUUID();
     const timeoutSeconds = p.timeoutSeconds ?? 20;
     const timeoutMs = timeoutSeconds * 1000;
     const startedAt = Date.now();
 
-    // 组名 -> 组 id(DB 查询;不存在直接 404,不算基础设施异常)
-    let groupId: number | null;
+    // project 名 -> project id(DB 查询;不存在直接 404,不算基础设施异常)
+    let projectId: number | null;
     try {
-      groupId = await this.groups.idByName(p.group);
+      projectId = await this.projects.idByName(p.project);
     } catch (e) {
-      this.logger.error(`分组解析失败(基础设施异常): ${(e as Error).message}`);
+      this.logger.error(
+        `功能组解析失败(基础设施异常): ${(e as Error).message}`,
+      );
       return this.fail(
         p,
         requestId,
@@ -72,15 +74,15 @@ export class RpcService {
         '基础设施异常,无法调度',
       );
     }
-    if (!groupId) {
+    if (!projectId) {
       return this.fail(
         p,
         requestId,
         null,
         startedAt,
-        'no_group',
+        'no_project',
         404,
-        '组不存在',
+        '功能组不存在',
       );
     }
 
@@ -100,7 +102,7 @@ export class RpcService {
           );
         }
       } else {
-        clientId = await this.presence.pickOnline(groupId);
+        clientId = await this.presence.pickOnline(projectId);
         if (!clientId) {
           return this.fail(
             p,
@@ -109,7 +111,7 @@ export class RpcService {
             startedAt,
             'no_device',
             503,
-            'group 内无在线设备',
+            '功能组内无在线设备',
           );
         }
       }
@@ -129,7 +131,7 @@ export class RpcService {
     const job = {
       type: 'job',
       requestId,
-      group: p.group,
+      project: p.project,
       action: p.action,
       payload: p.payload,
       timeoutSeconds,
@@ -236,7 +238,7 @@ export class RpcService {
   ) {
     const job: RequestLogJob = {
       requestId: resp.requestId,
-      group: p.group,
+      project: p.project,
       action: p.action,
       clientId: resp.clientId,
       requesterUserId: null,

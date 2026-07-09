@@ -1,7 +1,7 @@
 // 请求日志队列任务体(热路径入队 / worker 消费 / 降级同步写共用)
 export interface RequestLogJob {
   requestId: string;
-  group: string;
+  project: string;
   action: string;
   clientId: string | null;
   requesterUserId: number | string | null;

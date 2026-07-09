@@ -16,7 +16,7 @@ export class CreateAccessTokenDto {
   @IsArray()
   @ArrayNotEmpty()
   @IsString({ each: true })
-  groups: string[];
+  projects: string[];
 
   @ApiProperty({ required: false })
   @IsOptional()

@@ -11,7 +11,7 @@ export type WsMessageType =
 export interface JobMessage {
   type: 'job';
   requestId: string;
-  group: string;
+  project: string;
   action: string;
   payload: unknown;
   timeoutSeconds: number;

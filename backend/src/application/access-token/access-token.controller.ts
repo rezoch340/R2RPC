@@ -27,7 +27,7 @@ export class AccessTokenController {
   create(@Body() dto: CreateAccessTokenDto, @Req() req: AuthedRequest) {
     return this.tokens.create({
       name: dto.name,
-      groups: dto.groups,
+      projects: dto.projects,
       description: dto.description,
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
       createdBy: req.user?.id,
@@ -37,7 +37,7 @@ export class AccessTokenController {
   // 列表:所有 token(包含明文,后台可回看)
   @Get()
   @RequirePermission('manage', 'access-token')
-  @ApiOperation({ summary: '列表:所有 access token(含明文、组名)' })
+  @ApiOperation({ summary: '列表:所有 access token(含明文、project 名)' })
   list() {
     return this.tokens.list();
   }

@@ -7,7 +7,7 @@ import { requestLogs } from './request-logs.schema';
 export type PayloadState = 'pending' | 'indexed' | 'failed' | 'unavailable';
 
 export interface ListFilter {
-  group?: string;
+  project?: string;
   action?: string;
   clientId?: string;
   status?: string;
@@ -21,7 +21,7 @@ export interface ListFilter {
 const SPINE = {
   id: requestLogs.id,
   requestId: requestLogs.requestId,
-  groupName: requestLogs.groupName,
+  projectName: requestLogs.projectName,
   actionName: requestLogs.actionName,
   clientId: requestLogs.clientId,
   requesterUserId: requestLogs.requesterUserId,
@@ -47,7 +47,7 @@ export class RequestLogsService {
       .insert(requestLogs)
       .values({
         requestId: job.requestId,
-        groupName: job.group,
+        projectName: job.project,
         actionName: job.action,
         clientId: job.clientId ?? null,
         requesterUserId:
@@ -74,7 +74,7 @@ export class RequestLogsService {
   // 监控列表:查脊柱,不返 payload,支持过滤 + 分页
   async list(f: ListFilter) {
     const conds: SQL[] = [];
-    if (f.group) conds.push(eq(requestLogs.groupName, f.group));
+    if (f.project) conds.push(eq(requestLogs.projectName, f.project));
     if (f.action) conds.push(eq(requestLogs.actionName, f.action));
     if (f.clientId) conds.push(eq(requestLogs.clientId, f.clientId));
     if (f.status) conds.push(eq(requestLogs.status, f.status));
@@ -130,7 +130,7 @@ export class RequestLogsService {
     return res.rowCount ?? 0;
   }
 
-  // 按 scope 裁剪:每 (group,action,client) 只留最新 keep 条(created_at DESC, id DESC)。返回删除条数。
+  // 按 scope 裁剪:每 (project,action,client) 只留最新 keep 条(created_at DESC, id DESC)。返回删除条数。
   // client_id 为 NULL 的行归为同一 scope("无 client")。
   // ponytail: 全表窗口扫描,每轮维护跑一次;量级大到扛不住再改成只裁剪近期活跃 scope。
   async trimScopes(keep: number): Promise<number> {
@@ -139,7 +139,7 @@ export class RequestLogsService {
       WHERE ${requestLogs.id} IN (
         SELECT id FROM (
           SELECT ${requestLogs.id} AS id, ROW_NUMBER() OVER (
-            PARTITION BY ${requestLogs.groupName}, ${requestLogs.actionName}, ${requestLogs.clientId}
+            PARTITION BY ${requestLogs.projectName}, ${requestLogs.actionName}, ${requestLogs.clientId}
             ORDER BY ${requestLogs.createdAt} DESC, ${requestLogs.id} DESC
           ) AS rn
           FROM ${requestLogs}

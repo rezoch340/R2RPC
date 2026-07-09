@@ -4,7 +4,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionGuard } from './common/guards/permission.guard';
 import { AuthModule } from './application/auth/auth.module';
 import { UsersModule } from './application/users/users.module';
-import { GroupsModule } from './application/groups/groups.module';
+import { ProjectsModule } from './application/projects/projects.module';
 import { AccessTokenModule } from './application/access-token/access-token.module';
 import { DevicesModule } from './application/devices/devices.module';
 import { ClientModule } from './application/client/client.module';
@@ -31,7 +31,7 @@ import { WsModule } from './infrastructure/ws/ws.module';
     RbacModule,
     AuthModule,
     UsersModule,
-    GroupsModule,
+    ProjectsModule,
     AccessTokenModule,
     DevicesModule,
     ClientModule,

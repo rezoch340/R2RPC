@@ -7,9 +7,9 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
-// 设备分组
-export const groups = pgTable(
-  'groups',
+// 功能组(project,原 groups 改名)
+export const projects = pgTable(
+  'projects',
   {
     id: serial('id').primaryKey(),
     name: varchar('name', { length: 128 }).notNull(),
@@ -20,7 +20,7 @@ export const groups = pgTable(
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (t) => [
-    uniqueIndex('groups_name_uq')
+    uniqueIndex('projects_name_uq')
       .on(t.name)
       .where(sql`${t.deletedAt} IS NULL`),
   ],

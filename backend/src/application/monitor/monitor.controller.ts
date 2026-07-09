@@ -21,7 +21,7 @@ export class MonitorController {
   @ApiOperation({ summary: '请求记录列表(查 PG 脊柱,不返 payload)' })
   list(@Query() q: QueryRequestsDto) {
     return this.monitor.list({
-      group: q.group,
+      project: q.project,
       action: q.action,
       clientId: q.clientId,
       status: q.status,
