@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { and, desc, eq, gte, lt, lte, SQL, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNotNull, lt, lte, SQL, sql } from 'drizzle-orm';
 import { DbService } from '../../infrastructure/db/db.service';
+import { alive } from '../../common/db/soft-delete';
+import { devices } from '../devices/devices.schema';
+import { projects } from '../projects/projects.schema';
 import { RequestLogJob } from './request-log.types';
 import { requestLogs } from './request-logs.schema';
 
@@ -99,6 +102,67 @@ export class RequestLogsService {
       .from(requestLogs)
       .where(where);
     return { rows, page, pageSize, total };
+  }
+
+  // 监控筛选下拉选项:从 request_logs 去重取 project/action/client 三类候选,供 UI 下拉。
+  // 联动过滤:每一维**排除自身**、按其余已选维约束(选了 project 后 action/client 只回该组下出现过的)。
+  // 实体存在要求(对齐老系统):project 须在 projects(alive)、client 须在 devices(alive);action 无实体不约束。
+  // 每类封顶 200(下拉够用),超出截断。
+  async filterOptions(f: {
+    project?: string;
+    action?: string;
+    clientId?: string;
+  }) {
+    const LIMIT = 200;
+
+    // projects:按 action/client 联动,inner join projects(alive)要求分组仍存在
+    const projConds: SQL[] = [];
+    if (f.action) projConds.push(eq(requestLogs.actionName, f.action));
+    if (f.clientId) projConds.push(eq(requestLogs.clientId, f.clientId));
+    const projectRows = await this.db
+      .selectDistinct({ name: requestLogs.projectName })
+      .from(requestLogs)
+      .innerJoin(
+        projects,
+        alive(projects, eq(projects.name, requestLogs.projectName)),
+      )
+      .where(projConds.length ? and(...projConds) : undefined)
+      .orderBy(requestLogs.projectName)
+      .limit(LIMIT);
+
+    // actions:按 project/client 联动(action 无实体,不 join)
+    const actConds: SQL[] = [];
+    if (f.project) actConds.push(eq(requestLogs.projectName, f.project));
+    if (f.clientId) actConds.push(eq(requestLogs.clientId, f.clientId));
+    const actionRows = await this.db
+      .selectDistinct({ name: requestLogs.actionName })
+      .from(requestLogs)
+      .where(actConds.length ? and(...actConds) : undefined)
+      .orderBy(requestLogs.actionName)
+      .limit(LIMIT);
+
+    // clientIds:按 project/action 联动,inner join devices(alive)要求设备仍存在;排除 client_id 为空的行
+    const cliConds: SQL[] = [isNotNull(requestLogs.clientId)];
+    if (f.project) cliConds.push(eq(requestLogs.projectName, f.project));
+    if (f.action) cliConds.push(eq(requestLogs.actionName, f.action));
+    const clientRows = await this.db
+      .selectDistinct({ clientId: requestLogs.clientId })
+      .from(requestLogs)
+      .innerJoin(
+        devices,
+        alive(devices, eq(devices.clientId, requestLogs.clientId)),
+      )
+      .where(and(...cliConds))
+      .orderBy(requestLogs.clientId)
+      .limit(LIMIT);
+
+    return {
+      projects: projectRows.map((r) => r.name),
+      actions: actionRows.map((r) => r.name),
+      clientIds: clientRows
+        .map((r) => r.clientId)
+        .filter((c): c is string => !!c),
+    };
   }
 
   async detailSpine(requestId: string) {

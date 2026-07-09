@@ -247,6 +247,46 @@ async function waitReady() {
     'monitor list has no payload',
   );
 
+  // #9 请求筛选下拉选项:去重 project/action/client(联动 + 实体仍存在)。
+  // 日志走冷路径(worker 异步写),先轮询等 cn-nodes/echo 落库再断言,避免 flaky。
+  let opts = { projects: [], actions: [], clientIds: [] };
+  for (let i = 0; i < 20; i++) {
+    const r = await http('GET', '/monitor/request-options', null, admin);
+    opts = r.json || {};
+    if (
+      Array.isArray(opts.projects) &&
+      opts.projects.includes('cn-nodes') &&
+      Array.isArray(opts.actions) &&
+      opts.actions.includes('echo')
+    )
+      break;
+    await sleep(300);
+  }
+  assert(
+    Array.isArray(opts.projects) && opts.projects.includes('cn-nodes'),
+    '#9 request-options: projects 含 cn-nodes(实体存在)',
+  );
+  assert(
+    Array.isArray(opts.actions) && opts.actions.includes('echo'),
+    '#9 request-options: actions 含 echo',
+  );
+  assert(
+    Array.isArray(opts.clientIds) && opts.clientIds.includes('smoke-dev-001'),
+    '#9 request-options: clientIds 含在线设备 smoke-dev-001(devices alive)',
+  );
+  // 联动:按不存在的 action 过滤 -> projects 应为空(该 action 无日志)
+  const optsFiltered = await http(
+    'GET',
+    '/monitor/request-options?action=__no_such_action__',
+    null,
+    admin,
+  );
+  assert(
+    Array.isArray(optsFiltered.json.projects) &&
+      optsFiltered.json.projects.length === 0,
+    '#9 request-options: 联动过滤(action 无日志 -> projects 空)',
+  );
+
   const m = await http('GET', '/metrics/overview', null, admin);
   assert(
     m.json.totals && typeof m.json.totals.total === 'number',
