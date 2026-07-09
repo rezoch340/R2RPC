@@ -22,7 +22,7 @@ export class SearchService implements OnModuleInit {
 
   async ensureTable() {
     await this.rawSql(
-      `CREATE TABLE IF NOT EXISTS ${TABLE} (request_id string, group_name string, action_name string, client_id string, status string, http_code int, latency_ms int, created_at string, finished_at string, request_payload_json text, response_payload_json text, error_message text)`,
+      `CREATE TABLE IF NOT EXISTS ${TABLE} (request_id string, project_name string, action_name string, client_id string, status string, http_code int, latency_ms int, created_at string, finished_at string, request_payload_json text, response_payload_json text, error_message text)`,
     );
     this.ready = true;
   }

@@ -9,7 +9,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { users } from '../users/users.schema';
-import { groups } from '../groups/groups.schema';
+import { projects } from '../projects/projects.schema';
 
 // Access Token 表——用于 API 密钥式授权
 export const accessTokens = pgTable(
@@ -34,17 +34,17 @@ export const accessTokens = pgTable(
   ],
 );
 
-// Access Token 与分组的关联——多对多
-export const accessTokenGroups = pgTable(
-  'access_token_groups',
+// Access Token 与 project 的关联——多对多
+export const accessTokenProjects = pgTable(
+  'access_token_projects',
   {
     tokenId: integer('token_id')
       .notNull()
       .references(() => accessTokens.id, { onDelete: 'cascade' }),
-    groupId: integer('group_id')
+    projectId: integer('project_id')
       .notNull()
-      .references(() => groups.id, { onDelete: 'cascade' }),
+      .references(() => projects.id, { onDelete: 'cascade' }),
     description: varchar('description', { length: 255 }),
   },
-  (t) => [primaryKey({ columns: [t.tokenId, t.groupId] })],
+  (t) => [primaryKey({ columns: [t.tokenId, t.projectId] })],
 );

@@ -9,7 +9,7 @@ import { alive } from '../../common/db/soft-delete';
 import { hashPassword, verifyPassword } from '../../common/utils/password';
 import { ConfigService } from '../../infrastructure/config/config.service';
 import { DbService } from '../../infrastructure/db/db.service';
-import { GroupsService } from '../groups/groups.service';
+import { ProjectsService } from '../projects/projects.service';
 import { clientGroups } from './client-groups.schema';
 import { clients } from './client.schema';
 
@@ -19,7 +19,7 @@ export class ClientService {
     private readonly dbService: DbService,
     private readonly jwt: JwtService,
     private readonly cfg: ConfigService,
-    private readonly groups: GroupsService,
+    private readonly projects: ProjectsService,
   ) {}
   private get db() {
     return this.dbService.db;
@@ -34,26 +34,26 @@ export class ClientService {
     return row ?? null;
   }
 
-  // 管理端:创建手机设备账号(secret 存 scrypt 哈希),并按组名关联 client_groups
-  // 组名不存在则建组;组成员关系是设备权限的唯一来源,不接受客户端自报
+  // 管理端:创建手机设备账号(secret 存 scrypt 哈希),并按 project 名关联 client_groups
+  // project 成员关系是设备权限的唯一来源,不接受客户端自报
   async createAccount(input: {
     clientId: string;
     secret: string;
-    groups: string[];
+    projects: string[];
   }) {
     if (await this.findByClientId(input.clientId)) {
       throw new ConflictException('设备账号已存在');
     }
 
-    // Dedupe group names to avoid composite PK violations
-    const groupNames = [...new Set(input.groups)];
+    // Dedupe project names to avoid composite PK violations
+    const projectNames = [...new Set(input.projects)];
 
-    // Resolve group IDs before transaction (create groups if needed)
-    const groupIds = await Promise.all(
-      groupNames.map(async (name) => {
+    // Resolve project IDs before transaction (create projects if needed)
+    const projectIds = await Promise.all(
+      projectNames.map(async (name) => {
         return (
-          (await this.groups.idByName(name)) ??
-          (await this.groups.create(name)).id
+          (await this.projects.idByName(name)) ??
+          (await this.projects.create(name)).id
         );
       }),
     );
@@ -74,8 +74,10 @@ export class ClientService {
 
       const [client] = insertResult;
 
-      for (const groupId of groupIds) {
-        await tx.insert(clientGroups).values({ clientId: client.id, groupId });
+      for (const projectId of projectIds) {
+        await tx
+          .insert(clientGroups)
+          .values({ clientId: client.id, groupId: projectId });
       }
 
       return client;
@@ -95,19 +97,19 @@ export class ClientService {
       .where(alive(clients));
   }
 
-  // 手机端登录:校验凭据,查设备所属组(client_groups,来源可信,非客户端自报)→ 签发多组 client JWT + 返回 wsUrl
+  // 手机端登录:校验凭据,查设备所属 project(client_groups,来源可信,非客户端自报)→ 签发多 project client JWT + 返回 wsUrl
   async login(clientId: string, secret: string) {
     const acc = await this.findByClientId(clientId);
     if (!acc || !verifyPassword(secret, acc.secretHash)) {
       throw new UnauthorizedException('设备登录凭据无效');
     }
-    const grps = await this.groups.groupsOfClient(acc.id);
+    const projs = await this.projects.projectsOfClient(acc.id);
     const token = await this.jwt.signAsync({
       sub: clientId,
       clientId,
       role: 'client',
-      groups: grps.map((g) => g.id),
-      groupNames: grps.map((g) => g.name),
+      projects: projs.map((g) => g.id),
+      projectNames: projs.map((g) => g.name),
     });
     const base =
       this.cfg.app.publicWsUrl ?? `ws://127.0.0.1:${this.cfg.app.port}`;
@@ -115,7 +117,7 @@ export class ClientService {
       token,
       wsUrl: `${base}/api/client/ws?token=${token}`,
       clientId,
-      groups: grps.map((g) => g.name),
+      projects: projs.map((g) => g.name),
     };
   }
 }

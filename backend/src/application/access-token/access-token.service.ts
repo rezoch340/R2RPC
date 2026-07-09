@@ -8,15 +8,15 @@ import { createHash, randomBytes } from 'node:crypto';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
-import { groups } from '../groups/groups.schema';
-import { GroupsService } from '../groups/groups.service';
-import { accessTokenGroups, accessTokens } from './access-token.schema';
+import { projects } from '../projects/projects.schema';
+import { ProjectsService } from '../projects/projects.service';
+import { accessTokenProjects, accessTokens } from './access-token.schema';
 
 @Injectable()
 export class AccessTokenService {
   constructor(
     private readonly dbService: DbService,
-    private readonly groups: GroupsService,
+    private readonly projects: ProjectsService,
     private readonly redis: RedisService,
   ) {}
 
@@ -26,35 +26,35 @@ export class AccessTokenService {
 
   /**
    * 创建 AccessToken:
-   * - 去重组名
-   * - 验证组存在(idByName)
-   * - 事务:插 accessTokens + accessTokenGroups
-   * - 返回 token 行 + 组名(供 UI 回显)
+   * - 去重 project 名
+   * - 验证 project 存在(idByName)
+   * - 事务:插 accessTokens + accessTokenProjects
+   * - 返回 token 行 + project 名(供 UI 回显)
    */
   async create(input: {
     name: string;
-    groups: string[];
+    projects: string[];
     expiresAt?: Date;
     description?: string;
     createdBy?: number;
   }) {
-    // 去重组名,避免复合 PK 冲突
-    const groupNames = [...new Set(input.groups)];
+    // 去重 project 名,避免复合 PK 冲突
+    const projectNames = [...new Set(input.projects)];
 
-    // 验证组存在,解析组 id
-    const groupIds: number[] = [];
-    for (const groupName of groupNames) {
-      const gid = await this.groups.idByName(groupName);
+    // 验证 project 存在,解析 project id
+    const projectIds: number[] = [];
+    for (const projectName of projectNames) {
+      const gid = await this.projects.idByName(projectName);
       if (gid === null) {
-        throw new BadRequestException(`组不存在: ${groupName}`);
+        throw new BadRequestException(`功能组不存在: ${projectName}`);
       }
-      groupIds.push(gid);
+      projectIds.push(gid);
     }
 
     // 生成 token(明文可回看,per 设计)
     const token = 'rk_' + randomBytes(24).toString('base64url');
 
-    // 事务:插 accessTokens + accessTokenGroups
+    // 事务:插 accessTokens + accessTokenProjects
     const result = await this.db.transaction(async (tx) => {
       // 插 accessTokens,返回完整行
       const insertResult = await tx
@@ -70,11 +70,11 @@ export class AccessTokenService {
 
       const [tokenRow] = insertResult;
 
-      // 为每个 groupId 插 accessTokenGroups
-      for (const groupId of groupIds) {
-        await tx.insert(accessTokenGroups).values({
+      // 为每个 projectId 插 accessTokenProjects
+      for (const projectId of projectIds) {
+        await tx.insert(accessTokenProjects).values({
           tokenId: tokenRow.id,
-          groupId,
+          projectId,
         });
       }
 
@@ -84,12 +84,12 @@ export class AccessTokenService {
     return {
       ...result,
       token, // 明文 token(plain)
-      groups: groupNames, // 组名供回显
+      projects: projectNames, // project 名供回显
     };
   }
 
   /**
-   * 列表:所有 token + 其组名(join accessTokenGroups→groups)
+   * 列表:所有 token + 其 project 名(join accessTokenProjects→projects)
    */
   async list() {
     // ponytail: 简单 select + 内存 join;若列表超大,可建数据库 view
@@ -98,21 +98,21 @@ export class AccessTokenService {
       .from(accessTokens)
       .where(alive(accessTokens));
 
-    // 为每个 token 查其组名
+    // 为每个 token 查其 project 名
     const result = await Promise.all(
       tokens.map(async (t) => {
-        const groupNames = await this.db
-          .select({ name: groups.name })
-          .from(accessTokenGroups)
-          // 软删组不进展示的组名列表(读到已删)
+        const projectNames = await this.db
+          .select({ name: projects.name })
+          .from(accessTokenProjects)
+          // 软删 project 不进展示的 project 名列表(读到已删)
           .innerJoin(
-            groups,
-            alive(groups, eq(accessTokenGroups.groupId, groups.id)),
+            projects,
+            alive(projects, eq(accessTokenProjects.projectId, projects.id)),
           )
-          .where(eq(accessTokenGroups.tokenId, t.id));
+          .where(eq(accessTokenProjects.tokenId, t.id));
         return {
           ...t,
-          groups: groupNames.map((g) => g.name),
+          projects: projectNames.map((g) => g.name),
         };
       }),
     );
@@ -151,7 +151,7 @@ export class AccessTokenService {
 
   /**
    * 按 token 查:热路径查询,供 guard 用
-   * 返回 { id, name, status, expiresAt, groupIds }
+   * 返回 { id, name, status, expiresAt, projectIds }
    */
   async findByToken(token: string) {
     const [row] = await this.db
@@ -164,18 +164,18 @@ export class AccessTokenService {
       return null;
     }
 
-    // 查该 token 的所有 groupIds
-    const groupRows = await this.db
-      .select({ groupId: accessTokenGroups.groupId })
-      .from(accessTokenGroups)
-      .where(eq(accessTokenGroups.tokenId, row.id));
+    // 查该 token 的所有 projectIds
+    const projectRows = await this.db
+      .select({ projectId: accessTokenProjects.projectId })
+      .from(accessTokenProjects)
+      .where(eq(accessTokenProjects.tokenId, row.id));
 
     return {
       id: row.id,
       name: row.name,
       status: row.status,
       expiresAt: row.expiresAt,
-      groupIds: groupRows.map((gr) => gr.groupId),
+      projectIds: projectRows.map((gr) => gr.projectId),
     };
   }
 

@@ -7,7 +7,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
-// 手机设备账号(组成员关系走 client_groups)
+// 手机设备账号(project 成员关系走 client_groups)
 export const clients = pgTable(
   'clients',
   {

@@ -6,10 +6,10 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
-// 指标聚合(按 group/action/时间桶)
+// 指标聚合(按 project/action/时间桶)
 export const metrics = pgTable('metrics', {
   id: serial('id').primaryKey(),
-  groupName: varchar('group_name', { length: 128 }).notNull(),
+  projectName: varchar('project_name', { length: 128 }).notNull(),
   actionName: varchar('action_name', { length: 128 }).notNull(),
   bucket: timestamp('bucket', { withTimezone: true }).notNull(),
   total: integer('total').notNull().default(0),

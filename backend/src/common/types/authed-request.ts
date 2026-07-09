@@ -6,7 +6,7 @@ import type { AuthenticatedUser } from '../../application/rbac/entity/model';
 export interface AccessTokenContext {
   id: number;
   name: string;
-  groupIds: number[];
+  projectIds: number[];
 }
 
 export interface AuthedRequest {

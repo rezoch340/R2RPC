@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { AccessTokenService } from '../../application/access-token/access-token.service';
-import { GroupsService } from '../../application/groups/groups.service';
+import { ProjectsService } from '../../application/projects/projects.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
 import type { AuthedRequest } from '../types/authed-request';
 
@@ -16,19 +16,19 @@ type CachedToken = {
   name: string;
   status: string;
   expiresAt: Date | string | null;
-  groupIds: number[];
+  projectIds: number[];
 };
 
 const POSITIVE_TTL_SEC = 60;
 const NEGATIVE_TTL_SEC = 10;
 
-// AccessToken 守卫:校验 Bearer token 有效性(存在/未过期/active)+ 目标设备组作用域。
+// AccessToken 守卫:校验 Bearer token 有效性(存在/未过期/active)+ 目标 project 作用域。
 // redis 仅作缓存,fail-open——任何 redis 异常都当缓存未命中,回落 DB 查询,不阻断鉴权。
 @Injectable()
 export class AccessTokenGuard implements CanActivate {
   constructor(
     private readonly tokens: AccessTokenService,
-    private readonly groups: GroupsService,
+    private readonly projects: ProjectsService,
     private readonly redis: RedisService,
   ) {}
 
@@ -55,12 +55,12 @@ export class AccessTokenGuard implements CanActivate {
     if (t.status !== 'active')
       throw new ForbiddenException('token 已停用/撤销');
 
-    const groupName = req.params.group ?? req.query.group;
-    const gid = groupName ? await this.groups.idByName(groupName) : null;
-    if (!gid || !t.groupIds.includes(gid))
-      throw new ForbiddenException('token 无该设备组权限');
+    const projectName = req.params.project ?? req.query.project;
+    const gid = projectName ? await this.projects.idByName(projectName) : null;
+    if (!gid || !t.projectIds.includes(gid))
+      throw new ForbiddenException('token 无该 project 权限');
 
-    req.accessToken = { id: t.id, name: t.name, groupIds: t.groupIds };
+    req.accessToken = { id: t.id, name: t.name, projectIds: t.projectIds };
     return true;
   }
 

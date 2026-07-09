@@ -9,7 +9,7 @@ export class CreateClientDto {
   @ApiProperty({ type: [String] })
   @IsArray()
   @IsString({ each: true })
-  groups: string[];
+  projects: string[];
 
   @ApiProperty()
   @IsString()

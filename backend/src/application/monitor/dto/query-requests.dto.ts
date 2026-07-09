@@ -4,7 +4,7 @@ import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 // 请求记录列表查询(全为可选过滤)
 export class QueryRequestsDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() group?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() project?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() action?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() clientId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;

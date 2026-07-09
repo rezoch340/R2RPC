@@ -14,7 +14,7 @@ export const requestLogs = pgTable(
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     requestId: varchar('request_id', { length: 64 }).notNull(),
-    groupName: varchar('group_name', { length: 128 }).notNull(),
+    projectName: varchar('project_name', { length: 128 }).notNull(),
     actionName: varchar('action_name', { length: 128 }).notNull(),
     clientId: varchar('client_id', { length: 128 }),
     requesterUserId: integer('requester_user_id'),
@@ -35,15 +35,15 @@ export const requestLogs = pgTable(
   (t) => [
     uniqueIndex('req_logs_request_id_uq').on(t.requestId),
     index('req_logs_gac_created').on(
-      t.groupName,
+      t.projectName,
       t.actionName,
       t.clientId,
       t.createdAt,
     ),
-    index('req_logs_gc_created').on(t.groupName, t.clientId, t.createdAt),
+    index('req_logs_gc_created').on(t.projectName, t.clientId, t.createdAt),
     index('req_logs_client_created').on(t.clientId, t.createdAt),
     index('req_logs_action_created').on(t.actionName, t.createdAt),
-    index('req_logs_created_ga').on(t.createdAt, t.groupName, t.actionName),
+    index('req_logs_created_ga').on(t.createdAt, t.projectName, t.actionName),
     index('req_logs_status').on(t.status),
     index('req_logs_payload_state').on(t.payloadState),
   ],

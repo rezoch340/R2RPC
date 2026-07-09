@@ -15,17 +15,17 @@ async function main() {
   // 用真实 service,只喂它需要的 { db }(不启 Nest DI)
   const logs = new RequestLogsService({ db } as unknown as DbService);
 
-  const TAG = 'retention-smoke'; // 用 group_name 打标,只碰自己造的数据
+  const TAG = 'retention-smoke'; // 用 project_name 打标,只碰自己造的数据
   const now = Date.now();
 
-  await db.delete(requestLogs).where(eq(requestLogs.groupName, TAG)); // 清上轮残留
+  await db.delete(requestLogs).where(eq(requestLogs.projectName, TAG)); // 清上轮残留
 
   const rows: (typeof requestLogs.$inferInsert)[] = [];
   // 2 条超龄(5 天前)-> 预期 cleanup 删掉
   for (let i = 0; i < 2; i++)
     rows.push({
       requestId: `${TAG}-old-${i}`,
-      groupName: TAG,
+      projectName: TAG,
       actionName: 'act',
       clientId: 'cli',
       status: 'ok',
@@ -35,7 +35,7 @@ async function main() {
   for (let i = 0; i < 150; i++)
     rows.push({
       requestId: `${TAG}-fresh-${i}`,
-      groupName: TAG,
+      projectName: TAG,
       actionName: 'act',
       clientId: 'cli',
       status: 'ok',
@@ -58,10 +58,10 @@ async function main() {
   const [{ n }] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(requestLogs)
-    .where(eq(requestLogs.groupName, TAG));
+    .where(eq(requestLogs.projectName, TAG));
   check(n === 100, `scope 最终剩 100 条(实际 ${n})`);
 
-  await db.delete(requestLogs).where(eq(requestLogs.groupName, TAG)); // 清理种子
+  await db.delete(requestLogs).where(eq(requestLogs.projectName, TAG)); // 清理种子
   await pool.end();
   console.log(
     ok
