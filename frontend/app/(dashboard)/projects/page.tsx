@@ -6,16 +6,18 @@ import { Power, PowerOff, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
+import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
 import { PageHeader } from '@/components/page-header';
+import { Pagination } from '@/components/pagination';
 import { PermissionBoundary } from '@/components/permission-boundary';
 import { QueryErrorState } from '@/components/query-state';
-import { SearchInput } from '@/components/search-input';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
 import { getRequestErrorMessage, requestApi } from '@/lib/api-client';
 import { useAuthentication } from '@/lib/auth';
 import { formatDateTime, formatNumber } from '@/lib/format';
 import type { ProjectRecord } from '@/lib/models';
+import { useClientPagination } from '@/lib/use-client-pagination';
 import { ProjectCreateDialog } from './project-create-dialog';
 
 interface ProjectAction {
@@ -23,9 +25,50 @@ interface ProjectAction {
   project: ProjectRecord;
 }
 
+interface ProjectFilters {
+  name: string;
+  status: string;
+  enabled: string;
+}
+
+const EMPTY_FILTERS: ProjectFilters = {
+  name: '',
+  status: '',
+  enabled: '',
+};
+
+const FILTER_FIELDS: Array<FilterFieldDefinition<keyof ProjectFilters>> = [
+  { key: 'name', label: '名称', placeholder: '功能组名称' },
+  {
+    key: 'status',
+    label: '运行态',
+    type: 'select',
+    placeholder: '全部运行态',
+    options: [
+      { value: 'online', label: '在线' },
+      { value: 'offline', label: '离线' },
+    ],
+  },
+  {
+    key: 'enabled',
+    label: '启用状态',
+    type: 'select',
+    placeholder: '全部状态',
+    options: [
+      { value: 'enabled', label: '启用' },
+      { value: 'disabled', label: '停用' },
+    ],
+  },
+];
+
 export default function ProjectsPage() {
-  const [searchText, setSearchText] = useState('');
-  const [pendingAction, setPendingAction] = useState<ProjectAction | null>(null);
+  const [draftFilters, setDraftFilters] =
+    useState<ProjectFilters>(EMPTY_FILTERS);
+  const [appliedFilters, setAppliedFilters] =
+    useState<ProjectFilters>(EMPTY_FILTERS);
+  const [pendingAction, setPendingAction] = useState<ProjectAction | null>(
+    null,
+  );
   const queryClient = useQueryClient();
   const { can } = useAuthentication();
 
@@ -77,18 +120,26 @@ export default function ProjectsPage() {
   });
 
   const filteredProjects = useMemo(() => {
-    const normalizedSearch = searchText.trim().toLowerCase();
-    if (!normalizedSearch) {
-      return projectsQuery.data ?? [];
-    }
-    return (projectsQuery.data ?? []).filter((project) =>
-      [project.name, project.description, project.status]
-        .filter(Boolean)
-        .some((value) =>
-          String(value).toLowerCase().includes(normalizedSearch),
-        ),
-    );
-  }, [projectsQuery.data, searchText]);
+    const normalizedName = appliedFilters.name.trim().toLowerCase();
+    return (projectsQuery.data ?? []).filter((project) => {
+      const matchesName =
+        !normalizedName || project.name.toLowerCase().includes(normalizedName);
+      const matchesStatus =
+        !appliedFilters.status || project.status === appliedFilters.status;
+      const enabledStatus = project.enabled ? 'enabled' : 'disabled';
+      const matchesEnabled =
+        !appliedFilters.enabled || enabledStatus === appliedFilters.enabled;
+      return matchesName && matchesStatus && matchesEnabled;
+    });
+  }, [appliedFilters, projectsQuery.data]);
+  const pagination = useClientPagination(filteredProjects);
+
+  function updateDraftFilter(key: keyof ProjectFilters, value: string) {
+    setDraftFilters((currentFilters) => ({
+      ...currentFilters,
+      [key]: value,
+    }));
+  }
 
   const columns: Array<DataTableColumn<ProjectRecord>> = [
     {
@@ -106,9 +157,7 @@ export default function ProjectsPage() {
     {
       key: 'status',
       header: '运行态',
-      render: (project) => (
-        <StatusBadge status={project.status ?? 'offline'} />
-      ),
+      render: (project) => <StatusBadge status={project.status ?? 'offline'} />,
     },
     {
       key: 'devices',
@@ -188,17 +237,36 @@ export default function ProjectsPage() {
         }
       />
       {projectsQuery.isError ? <QueryErrorState /> : null}
-      <SearchInput
-        value={searchText}
-        onChange={setSearchText}
-        placeholder="搜索名称、说明或状态"
+      <FilterBar
+        fields={FILTER_FIELDS}
+        values={draftFilters}
+        onChange={updateDraftFilter}
+        onSubmit={() => {
+          setAppliedFilters(draftFilters);
+          pagination.resetPage();
+        }}
+        onReset={() => {
+          setDraftFilters(EMPTY_FILTERS);
+          setAppliedFilters(EMPTY_FILTERS);
+          pagination.resetPage();
+        }}
       />
       <DataTable
         columns={columns}
-        rows={filteredProjects}
+        rows={pagination.pageRows}
         isLoading={projectsQuery.isLoading}
         emptyMessage="暂无功能组"
         rowKey={(project) => project.id}
+        footer={
+          <Pagination
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            isFetching={projectsQuery.isFetching}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+          />
+        }
       />
       <ConfirmDialog
         open={pendingAction !== null}

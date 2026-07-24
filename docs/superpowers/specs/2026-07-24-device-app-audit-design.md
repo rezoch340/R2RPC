@@ -3,19 +3,13 @@
 > 状态：✅ 已实施。
 >
 > 日期：2026-07-24。
->
-> 参考实现：`/Users/lpitiless/Documents/FlowCore/backend/src/common/app-audit/` 与
-> `/Users/lpitiless/Documents/FlowCore/frontend/components/request-log-detail.tsx`。
 
 ## 1. 背景
 
 RER0RPC 已能记录整次 RPC 的请求、响应、状态、耗时和错误，但设备内部执行过程对服务端不可见。
-FlowCore 的 `fields.appAudit` 使用通用 `metadata + steps` 描述多段上游调用，适合复用为请求日志详情。
+`appAudit` 使用通用 `metadata + steps` 描述多段设备执行过程，适合作为请求日志详情。
 
-RER0RPC 与 FlowCore 的执行位置不同：
-
-- FlowCore 在后端 App 内执行上游调用，Core 可以直接记录 Step。
-- RER0RPC 在远端设备执行动作，服务端只能看到最终 WS `result`。
+RER0RPC 在远端设备执行动作，服务端只能看到最终 WS `result`，因此 Step 必须由设备随结果上报。
 
 因此，业务 Step 必须由设备采集，并随最终 `result` 一次性上报。
 
@@ -179,7 +173,7 @@ Manticore 新建表直接包含 `app_audit_json text`。已有数据卷由 `Sear
 
 ## 7. 设备侧记录器行为
 
-设备 SDK 应复用 FlowCore 的行为：
+设备 SDK 应实现以下行为：
 
 1. `start({ title, metadata })` 创建一次审计。
 2. `beginStep()` 自动生成连续 `sequence`、`startedAt`，初始 `durationMs = 0`。

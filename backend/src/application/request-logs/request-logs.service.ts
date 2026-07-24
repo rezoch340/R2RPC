@@ -14,6 +14,9 @@ export interface ListFilter {
   action?: string;
   clientId?: string;
   status?: string;
+  payloadState?: string;
+  minimumLatencyMs?: number;
+  maximumLatencyMs?: number;
   from?: Date;
   to?: Date;
   page?: number;
@@ -80,6 +83,25 @@ export class RequestLogsService {
 
   // 监控列表:查脊柱,不返 payload,支持过滤 + 分页
   async list(filter: ListFilter) {
+    const conditions = this.buildListConditions(filter);
+    const whereClause = conditions.length ? and(...conditions) : undefined;
+    const page = Math.max(1, filter.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 10));
+    const requestRecords = await this.database
+      .select(REQUEST_LOG_SPINE_COLUMNS)
+      .from(requestLogs)
+      .where(whereClause)
+      .orderBy(desc(requestLogs.createdAt))
+      .limit(pageSize)
+      .offset((page - 1) * pageSize);
+    const [{ total }] = await this.database
+      .select({ total: sql<number>`count(*)::int` })
+      .from(requestLogs)
+      .where(whereClause);
+    return { rows: requestRecords, page, pageSize, total };
+  }
+
+  private buildListConditions(filter: ListFilter): SQL[] {
     const conditions: SQL[] = [];
     if (filter.project) {
       conditions.push(eq(requestLogs.projectName, filter.project));
@@ -93,27 +115,22 @@ export class RequestLogsService {
     if (filter.status) {
       conditions.push(eq(requestLogs.status, filter.status));
     }
+    if (filter.payloadState) {
+      conditions.push(eq(requestLogs.payloadState, filter.payloadState));
+    }
+    if (filter.minimumLatencyMs !== undefined) {
+      conditions.push(gte(requestLogs.latencyMs, filter.minimumLatencyMs));
+    }
+    if (filter.maximumLatencyMs !== undefined) {
+      conditions.push(lte(requestLogs.latencyMs, filter.maximumLatencyMs));
+    }
     if (filter.from) {
       conditions.push(gte(requestLogs.createdAt, filter.from));
     }
     if (filter.to) {
       conditions.push(lte(requestLogs.createdAt, filter.to));
     }
-    const whereClause = conditions.length ? and(...conditions) : undefined;
-    const page = Math.max(1, filter.page ?? 1);
-    const pageSize = Math.min(200, Math.max(1, filter.pageSize ?? 20));
-    const requestRecords = await this.database
-      .select(REQUEST_LOG_SPINE_COLUMNS)
-      .from(requestLogs)
-      .where(whereClause)
-      .orderBy(desc(requestLogs.createdAt))
-      .limit(pageSize)
-      .offset((page - 1) * pageSize);
-    const [{ total }] = await this.database
-      .select({ total: sql<number>`count(*)::int` })
-      .from(requestLogs)
-      .where(whereClause);
-    return { rows: requestRecords, page, pageSize, total };
+    return conditions;
   }
 
   // 监控筛选下拉选项:从 request_logs 去重取 project/action/client 三类候选,供 UI 下拉。

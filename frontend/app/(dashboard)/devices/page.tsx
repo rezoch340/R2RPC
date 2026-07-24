@@ -4,11 +4,12 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Eye } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
+import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
 import { JsonBlock } from '@/components/json-block';
 import { PageHeader } from '@/components/page-header';
+import { Pagination } from '@/components/pagination';
 import { PermissionBoundary } from '@/components/permission-boundary';
 import { QueryErrorState } from '@/components/query-state';
-import { SearchInput } from '@/components/search-input';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,9 +22,43 @@ import {
 import { requestApi } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import type { DeviceRecord } from '@/lib/models';
+import { useClientPagination } from '@/lib/use-client-pagination';
+
+interface DeviceFilters {
+  clientId: string;
+  platform: string;
+  lastIp: string;
+  status: string;
+}
+
+const EMPTY_FILTERS: DeviceFilters = {
+  clientId: '',
+  platform: '',
+  lastIp: '',
+  status: '',
+};
+
+const FILTER_FIELDS: Array<FilterFieldDefinition<keyof DeviceFilters>> = [
+  { key: 'clientId', label: '设备编号', placeholder: '客户端编号' },
+  { key: 'platform', label: '平台', placeholder: '平台名称' },
+  { key: 'lastIp', label: '最后 IP', placeholder: 'IP 地址' },
+  {
+    key: 'status',
+    label: '状态',
+    type: 'select',
+    placeholder: '全部状态',
+    options: [
+      { value: 'online', label: '在线' },
+      { value: 'offline', label: '离线' },
+    ],
+  },
+];
 
 export default function DevicesPage() {
-  const [searchText, setSearchText] = useState('');
+  const [draftFilters, setDraftFilters] =
+    useState<DeviceFilters>(EMPTY_FILTERS);
+  const [appliedFilters, setAppliedFilters] =
+    useState<DeviceFilters>(EMPTY_FILTERS);
   const [selectedDevice, setSelectedDevice] = useState<DeviceRecord | null>(
     null,
   );
@@ -34,24 +69,34 @@ export default function DevicesPage() {
   });
 
   const filteredDevices = useMemo(() => {
-    const normalizedSearch = searchText.trim().toLowerCase();
-    if (!normalizedSearch) {
-      return devicesQuery.data ?? [];
-    }
-    return (devicesQuery.data ?? []).filter((device) =>
-      [
-        device.clientId,
-        device.platform,
-        device.lastIp,
-        device.status,
-        device.description,
-      ]
-        .filter(Boolean)
-        .some((value) =>
-          String(value).toLowerCase().includes(normalizedSearch),
-        ),
-    );
-  }, [devicesQuery.data, searchText]);
+    const normalizedClientId = appliedFilters.clientId.trim().toLowerCase();
+    const normalizedPlatform = appliedFilters.platform.trim().toLowerCase();
+    const normalizedLastIp = appliedFilters.lastIp.trim().toLowerCase();
+    return (devicesQuery.data ?? []).filter((device) => {
+      const matchesClientId =
+        !normalizedClientId ||
+        device.clientId.toLowerCase().includes(normalizedClientId);
+      const matchesPlatform =
+        !normalizedPlatform ||
+        device.platform?.toLowerCase().includes(normalizedPlatform);
+      const matchesLastIp =
+        !normalizedLastIp ||
+        device.lastIp?.toLowerCase().includes(normalizedLastIp);
+      const matchesStatus =
+        !appliedFilters.status || device.status === appliedFilters.status;
+      return (
+        matchesClientId && matchesPlatform && matchesLastIp && matchesStatus
+      );
+    });
+  }, [appliedFilters, devicesQuery.data]);
+  const pagination = useClientPagination(filteredDevices);
+
+  function updateDraftFilter(key: keyof DeviceFilters, value: string) {
+    setDraftFilters((currentFilters) => ({
+      ...currentFilters,
+      [key]: value,
+    }));
+  }
 
   const columns: Array<DataTableColumn<DeviceRecord>> = [
     {
@@ -116,17 +161,36 @@ export default function DevicesPage() {
         description="查看设备持久态、实时在线状态和最近一次连接信息。"
       />
       {devicesQuery.isError ? <QueryErrorState /> : null}
-      <SearchInput
-        value={searchText}
-        onChange={setSearchText}
-        placeholder="搜索客户端编号、平台、IP 或状态"
+      <FilterBar
+        fields={FILTER_FIELDS}
+        values={draftFilters}
+        onChange={updateDraftFilter}
+        onSubmit={() => {
+          setAppliedFilters(draftFilters);
+          pagination.resetPage();
+        }}
+        onReset={() => {
+          setDraftFilters(EMPTY_FILTERS);
+          setAppliedFilters(EMPTY_FILTERS);
+          pagination.resetPage();
+        }}
       />
       <DataTable
         columns={columns}
-        rows={filteredDevices}
+        rows={pagination.pageRows}
         isLoading={devicesQuery.isLoading}
         emptyMessage="暂无设备，设备首次通过 WebSocket 上线后会自动登记"
         rowKey={(device) => device.id}
+        footer={
+          <Pagination
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            isFetching={devicesQuery.isFetching}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+          />
+        }
       />
 
       <Dialog

@@ -3,16 +3,11 @@
 > 状态：✅ 已实施并验证。
 >
 > 日期：2026-07-24。
->
-> 参考实现：
-> `/Users/lpitiless/Documents/FlowCore/docs/superpowers/specs/2026-07-02-rbac-permission-groups-design.md`
-> 与 `/Users/lpitiless/Documents/FlowCore/backend/src/application/rbac/`。
 
 ## 1. 背景
 
 RER0RPC 已有 `roles`、`permissions`、`role_permissions` 和 `user_roles`，权限计算也已经通过
-CASL 生效。但当前管理 API 更接近底层关联表操作，还缺少 FlowCore 面向管理界面的“权限组”
-契约：
+CASL 生效。但当前管理 API 更接近底层关联表操作，还缺少面向管理界面的“权限组”契约：
 
 - 角色列表不返回组内权限。
 - 角色名称和描述不能编辑。

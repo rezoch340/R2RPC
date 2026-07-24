@@ -30,7 +30,7 @@
 1. 新增不可由 HTTP 修改或删除的 `system_logs` 追加型审计表。
 2. 记录登录成功/失败、后台 JWT 用户的全部控制面读取、Guard/路由阶段拒绝和业务写操作。
 3. 每条日志能直接回答：谁、何时、做了什么、操作对象、结果、来源 IP。
-4. 新增只读 `GET /system-logs`，支持筛选与分页。
+4. 新增只读 `GET /system-logs`，支持事件、操作者、动作、资源、目标、结果、时间筛选与分页。
 5. 使用 `read/system-log` 授权；root 继续由全局权限守卫直通。
 6. 不记录密码、token 明文或完整请求体。
 7. 黑盒测试只通过 HTTP 产生和读取审计日志。
@@ -96,7 +96,7 @@ GET /system-logs
 - `status`
 - `from` / `to`
 - `page`，默认 1
-- `pageSize`，默认 20，最大 200
+- `pageSize`，默认 10，最大 100
 
 响应：
 
@@ -124,7 +124,7 @@ GET /system-logs
     }
   ],
   "page": 1,
-  "pageSize": 20,
+  "pageSize": 10,
   "total": 1
 }
 ```
@@ -156,5 +156,5 @@ GET /system-logs
 - OpenAPI 导出 35 个 HTTP 路径模板。
 - Jest 8 个 suite、24 个测试全部通过。
 - 隔离 PostgreSQL/Redis/Manticore + API + Worker 环境中，完整黑盒
-  `143 passed, 0 failed`。
+  `145 passed, 0 failed`。
 - E2E 边界守卫确认测试只访问 HTTP/WebSocket；build、lint 和 Prettier check 全部通过。

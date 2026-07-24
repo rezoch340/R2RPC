@@ -3,9 +3,6 @@
 > 状态：✅ 已实施。
 >
 > 日期：2026-07-24。
->
-> 参考实现：`/Users/lpitiless/Documents/FlowCore/backend/src/application/user/service.ts`、
-> `controller.ts`、`entity/request.ts` 与 `backend/test/superadmin.spec.ts`。
 
 ## 1. 背景
 
@@ -13,9 +10,7 @@ RER0RPC 当前支持后台账号创建、查询、启停、软删除和 RBAC 角
 HTTP 接口。拥有 `update/user`、`delete/user` 或 `manage/rbac` 的账号还可以修改种子管理员，
 包括停用、删除和变更角色关系。
 
-FlowCore 已采用一条简单边界：`User.isRoot` 标记的种子管理员账号只有本人能修改，其他调用方
-即使具有管理权限也返回 403。RER0RPC 复用该边界，并将检查覆盖到全部直接以用户为目标的写
-入口，而不是只保护改密接口。
+`User.isRoot` 标记的种子管理员账号只有本人能修改，其他调用方即使具有管理权限也返回 403。检查覆盖全部直接以用户为目标的写入口，而不是只保护改密接口。
 
 ## 2. 术语
 

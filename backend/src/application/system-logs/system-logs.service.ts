@@ -21,7 +21,7 @@ export class SystemLogsService {
     const conditions = this.buildConditions(query);
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
+    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 10));
     const rows = await this.database
       .select()
       .from(systemLogs)
@@ -38,6 +38,9 @@ export class SystemLogsService {
 
   private buildConditions(query: QuerySystemLogsDto): SQL[] {
     const conditions: SQL[] = [];
+    if (query.name) {
+      conditions.push(eq(systemLogs.name, query.name));
+    }
     if (query.actorUsername) {
       conditions.push(eq(systemLogs.actorUsername, query.actorUsername));
     }
@@ -46,6 +49,12 @@ export class SystemLogsService {
     }
     if (query.subject) {
       conditions.push(eq(systemLogs.subject, query.subject));
+    }
+    if (query.targetType) {
+      conditions.push(eq(systemLogs.targetType, query.targetType));
+    }
+    if (query.targetName) {
+      conditions.push(eq(systemLogs.targetName, query.targetName));
     }
     if (query.status) {
       conditions.push(eq(systemLogs.status, query.status));

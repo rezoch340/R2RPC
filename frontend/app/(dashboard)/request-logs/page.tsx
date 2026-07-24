@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Eye, RotateCcw, Search } from 'lucide-react';
+import { Eye } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
+import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { PermissionBoundary } from '@/components/permission-boundary';
@@ -11,21 +12,12 @@ import { QueryErrorState } from '@/components/query-state';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { buildQueryString, requestApi } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import type { PaginatedResponse, RequestLogRecord } from '@/lib/models';
@@ -36,6 +28,9 @@ interface RequestFilters {
   action: string;
   clientId: string;
   status: string;
+  payloadState: string;
+  minimumLatencyMs: string;
+  maximumLatencyMs: string;
   from: string;
   to: string;
 }
@@ -45,9 +40,55 @@ const EMPTY_FILTERS: RequestFilters = {
   action: '',
   clientId: '',
   status: '',
+  payloadState: '',
+  minimumLatencyMs: '',
+  maximumLatencyMs: '',
   from: '',
   to: '',
 };
+
+const FILTER_FIELDS: Array<FilterFieldDefinition<keyof RequestFilters>> = [
+  { key: 'project', label: '功能组', placeholder: '功能组名称' },
+  { key: 'action', label: '动作', placeholder: '动作名称' },
+  { key: 'clientId', label: '设备编号', placeholder: '客户端编号' },
+  {
+    key: 'status',
+    label: '状态',
+    type: 'select',
+    placeholder: '全部状态',
+    options: [
+      { value: 'ok', label: '成功' },
+      { value: 'failed', label: '失败' },
+      { value: 'timeout', label: '超时' },
+    ],
+  },
+  {
+    key: 'payloadState',
+    label: '载荷索引',
+    type: 'select',
+    placeholder: '全部索引状态',
+    options: [
+      { value: 'pending', label: '等待索引' },
+      { value: 'indexed', label: '已索引' },
+      { value: 'failed', label: '索引失败' },
+      { value: 'unavailable', label: '不可用' },
+    ],
+  },
+  {
+    key: 'minimumLatencyMs',
+    label: '最小耗时',
+    type: 'number',
+    placeholder: '毫秒',
+  },
+  {
+    key: 'maximumLatencyMs',
+    label: '最大耗时',
+    type: 'number',
+    placeholder: '毫秒',
+  },
+  { key: 'from', label: '起始时间', type: 'datetime-local' },
+  { key: 'to', label: '结束时间', type: 'datetime-local' },
+];
 
 export default function RequestLogsPage() {
   const [draftFilters, setDraftFilters] =
@@ -55,7 +96,7 @@ export default function RequestLogsPage() {
   const [appliedFilters, setAppliedFilters] =
     useState<RequestFilters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(10);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(
     null,
   );
@@ -87,8 +128,7 @@ export default function RequestLogsPage() {
     }));
   }
 
-  function applyFilters(formEvent: React.FormEvent<HTMLFormElement>) {
-    formEvent.preventDefault();
+  function applyFilters() {
     setAppliedFilters(draftFilters);
     setPage(1);
   }
@@ -138,9 +178,7 @@ export default function RequestLogsPage() {
     {
       key: 'payload',
       header: '载荷索引',
-      render: (requestLog) => (
-        <StatusBadge status={requestLog.payloadState} />
-      ),
+      render: (requestLog) => <StatusBadge status={requestLog.payloadState} />,
     },
     {
       key: 'latency',
@@ -179,72 +217,13 @@ export default function RequestLogsPage() {
         title="请求日志"
         description="列表读取 PostgreSQL 取证脊柱；打开详情后再通过接口懒加载 Manticore 载荷与 AppAudit Step。"
       />
-      <form
-        className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-2 xl:grid-cols-6"
+      <FilterBar
+        fields={FILTER_FIELDS}
+        values={draftFilters}
+        onChange={updateDraftFilter}
         onSubmit={applyFilters}
-      >
-        <FilterInput
-          label="功能组"
-          value={draftFilters.project}
-          onChange={(value) => updateDraftFilter('project', value)}
-        />
-        <FilterInput
-          label="动作"
-          value={draftFilters.action}
-          onChange={(value) => updateDraftFilter('action', value)}
-        />
-        <FilterInput
-          label="设备编号"
-          value={draftFilters.clientId}
-          onChange={(value) => updateDraftFilter('clientId', value)}
-        />
-        <div className="space-y-2">
-          <Label>状态</Label>
-          <Select
-            value={draftFilters.status || null}
-            onValueChange={(value) =>
-              updateDraftFilter(
-                'status',
-                typeof value === 'string' ? value : '',
-              )
-            }
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="全部状态" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={null}>全部状态</SelectItem>
-              {['ok', 'failed', 'timeout'].map((status) => (
-                <SelectItem key={status} value={status}>
-                  {status}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <FilterInput
-          label="起始时间"
-          type="datetime-local"
-          value={draftFilters.from}
-          onChange={(value) => updateDraftFilter('from', value)}
-        />
-        <FilterInput
-          label="结束时间"
-          type="datetime-local"
-          value={draftFilters.to}
-          onChange={(value) => updateDraftFilter('to', value)}
-        />
-        <div className="col-span-full flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={resetFilters}>
-            <RotateCcw />
-            重置
-          </Button>
-          <Button type="submit">
-            <Search />
-            查询
-          </Button>
-        </div>
-      </form>
+        onReset={resetFilters}
+      />
       {requestsQuery.isError ? <QueryErrorState /> : null}
       <DataTable
         columns={columns}
@@ -252,20 +231,22 @@ export default function RequestLogsPage() {
         isLoading={requestsQuery.isLoading}
         emptyMessage="暂无请求日志"
         rowKey={(requestLog) => requestLog.requestId}
-      />
-      <Pagination
-        page={requestsQuery.data?.page ?? page}
-        pageSize={requestsQuery.data?.pageSize ?? pageSize}
-        total={requestsQuery.data?.total ?? 0}
-        isFetching={requestsQuery.isFetching}
-        onPageChange={setPage}
-        onPageSizeChange={(newPageSize) => {
-          setPageSize(newPageSize);
-          setPage(1);
-        }}
+        footer={
+          <Pagination
+            page={requestsQuery.data?.page ?? page}
+            pageSize={requestsQuery.data?.pageSize ?? pageSize}
+            total={requestsQuery.data?.total ?? 0}
+            isFetching={requestsQuery.isFetching}
+            onPageChange={setPage}
+            onPageSizeChange={(newPageSize) => {
+              setPageSize(newPageSize);
+              setPage(1);
+            }}
+          />
+        }
       />
 
-      <Dialog
+      <Sheet
         open={selectedRequestId !== null}
         onOpenChange={(open) => {
           if (!open) {
@@ -273,41 +254,24 @@ export default function RequestLogsPage() {
           }
         }}
       >
-        <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-5xl">
-          <DialogHeader>
-            <DialogTitle>请求详情</DialogTitle>
-            <DialogDescription className="font-mono text-xs">
+        <SheetContent
+          side="right"
+          className="max-w-none gap-0 p-0"
+          style={{ width: '96rem', maxWidth: '96vw' }}
+        >
+          <SheetHeader className="border-b pr-12">
+            <SheetTitle>请求详情</SheetTitle>
+            <SheetDescription className="font-mono text-xs">
               {selectedRequestId ?? ''}
-            </DialogDescription>
-          </DialogHeader>
-          {selectedRequestId ? (
-            <RequestLogDetailContent requestId={selectedRequestId} />
-          ) : null}
-        </DialogContent>
-      </Dialog>
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+            {selectedRequestId ? (
+              <RequestLogDetailContent requestId={selectedRequestId} />
+            ) : null}
+          </div>
+        </SheetContent>
+      </Sheet>
     </PermissionBoundary>
-  );
-}
-
-function FilterInput({
-  label,
-  value,
-  type = 'text',
-  onChange,
-}: {
-  label: string;
-  value: string;
-  type?: 'text' | 'datetime-local';
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <Input
-        type={type}
-        value={value}
-        onChange={(changeEvent) => onChange(changeEvent.target.value)}
-      />
-    </div>
   );
 }

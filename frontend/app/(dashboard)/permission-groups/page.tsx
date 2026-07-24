@@ -1,31 +1,79 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
+import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
 import { PageHeader } from '@/components/page-header';
+import { Pagination } from '@/components/pagination';
 import { PermissionBoundary } from '@/components/permission-boundary';
 import { QueryErrorState } from '@/components/query-state';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getRequestErrorMessage, requestApi } from '@/lib/api-client';
 import { useAuthentication } from '@/lib/auth';
-import type {
-  CatalogPermission,
-  PermissionGroup,
-} from '@/lib/models';
+import type { CatalogPermission, PermissionGroup } from '@/lib/models';
+import { useClientPagination } from '@/lib/use-client-pagination';
 import { PermissionCreateDialog } from './permission-create-dialog';
 import {
   PermissionGroupDialog,
   type PermissionGroupFormValues,
 } from './permission-group-dialog';
 
+interface PermissionGroupFilters {
+  name: string;
+  permission: string;
+}
+
+interface PermissionFilters {
+  action: string;
+  subject: string;
+}
+
+const EMPTY_GROUP_FILTERS: PermissionGroupFilters = {
+  name: '',
+  permission: '',
+};
+
+const EMPTY_PERMISSION_FILTERS: PermissionFilters = {
+  action: '',
+  subject: '',
+};
+
+const GROUP_FILTER_FIELDS: Array<
+  FilterFieldDefinition<keyof PermissionGroupFilters>
+> = [
+  { key: 'name', label: '权限组', placeholder: '权限组名称' },
+  {
+    key: 'permission',
+    label: '所含权限',
+    placeholder: 'action/subject',
+  },
+];
+
+const PERMISSION_FILTER_FIELDS: Array<
+  FilterFieldDefinition<keyof PermissionFilters>
+> = [
+  { key: 'action', label: '动作', placeholder: 'read、manage…' },
+  { key: 'subject', label: '资源', placeholder: 'device、user…' },
+];
+
 export default function PermissionGroupsPage() {
+  const [draftGroupFilters, setDraftGroupFilters] =
+    useState<PermissionGroupFilters>(EMPTY_GROUP_FILTERS);
+  const [appliedGroupFilters, setAppliedGroupFilters] =
+    useState<PermissionGroupFilters>(EMPTY_GROUP_FILTERS);
+  const [draftPermissionFilters, setDraftPermissionFilters] =
+    useState<PermissionFilters>(EMPTY_PERMISSION_FILTERS);
+  const [appliedPermissionFilters, setAppliedPermissionFilters] =
+    useState<PermissionFilters>(EMPTY_PERMISSION_FILTERS);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<PermissionGroup | null>(null);
+  const [editingGroup, setEditingGroup] = useState<PermissionGroup | null>(
+    null,
+  );
   const [deletingGroup, setDeletingGroup] = useState<PermissionGroup | null>(
     null,
   );
@@ -149,6 +197,65 @@ export default function PermissionGroupsPage() {
       toast.error(getRequestErrorMessage(error, '删除权限失败')),
   });
 
+  const filteredPermissionGroups = useMemo(() => {
+    const normalizedName = appliedGroupFilters.name.trim().toLowerCase();
+    const normalizedPermission = appliedGroupFilters.permission
+      .trim()
+      .toLowerCase();
+    return (permissionGroupsQuery.data ?? []).filter((permissionGroup) => {
+      const matchesName =
+        !normalizedName ||
+        permissionGroup.name.toLowerCase().includes(normalizedName);
+      const matchesPermission =
+        !normalizedPermission ||
+        permissionGroup.permissions.some((permission) =>
+          `${permission.action}/${permission.subject}`
+            .toLowerCase()
+            .includes(normalizedPermission),
+        );
+      return matchesName && matchesPermission;
+    });
+  }, [appliedGroupFilters, permissionGroupsQuery.data]);
+  const filteredPermissions = useMemo(() => {
+    const normalizedAction = appliedPermissionFilters.action
+      .trim()
+      .toLowerCase();
+    const normalizedSubject = appliedPermissionFilters.subject
+      .trim()
+      .toLowerCase();
+    return (permissionsQuery.data ?? []).filter((permission) => {
+      const matchesAction =
+        !normalizedAction ||
+        permission.action.toLowerCase().includes(normalizedAction);
+      const matchesSubject =
+        !normalizedSubject ||
+        permission.subject.toLowerCase().includes(normalizedSubject);
+      return matchesAction && matchesSubject;
+    });
+  }, [appliedPermissionFilters, permissionsQuery.data]);
+  const groupPagination = useClientPagination(filteredPermissionGroups);
+  const permissionPagination = useClientPagination(filteredPermissions);
+
+  function updateDraftGroupFilter(
+    key: keyof PermissionGroupFilters,
+    value: string,
+  ) {
+    setDraftGroupFilters((currentFilters) => ({
+      ...currentFilters,
+      [key]: value,
+    }));
+  }
+
+  function updateDraftPermissionFilter(
+    key: keyof PermissionFilters,
+    value: string,
+  ) {
+    setDraftPermissionFilters((currentFilters) => ({
+      ...currentFilters,
+      [key]: value,
+    }));
+  }
+
   const groupColumns: Array<DataTableColumn<PermissionGroup>> = [
     {
       key: 'name',
@@ -271,12 +378,36 @@ export default function PermissionGroupsPage() {
       ) : null}
       <section className="space-y-3">
         <h2 className="font-heading text-lg font-semibold">权限组列表</h2>
+        <FilterBar
+          fields={GROUP_FILTER_FIELDS}
+          values={draftGroupFilters}
+          onChange={updateDraftGroupFilter}
+          onSubmit={() => {
+            setAppliedGroupFilters(draftGroupFilters);
+            groupPagination.resetPage();
+          }}
+          onReset={() => {
+            setDraftGroupFilters(EMPTY_GROUP_FILTERS);
+            setAppliedGroupFilters(EMPTY_GROUP_FILTERS);
+            groupPagination.resetPage();
+          }}
+        />
         <DataTable
           columns={groupColumns}
-          rows={permissionGroupsQuery.data ?? []}
+          rows={groupPagination.pageRows}
           isLoading={permissionGroupsQuery.isLoading}
           emptyMessage="暂无权限组"
           rowKey={(permissionGroup) => permissionGroup.id}
+          footer={
+            <Pagination
+              page={groupPagination.page}
+              pageSize={groupPagination.pageSize}
+              total={groupPagination.total}
+              isFetching={permissionGroupsQuery.isFetching}
+              onPageChange={groupPagination.setPage}
+              onPageSizeChange={groupPagination.setPageSize}
+            />
+          }
         />
       </section>
       <section className="space-y-3">
@@ -286,12 +417,36 @@ export default function PermissionGroupsPage() {
             权限目录使用自由 action/subject 组合，新资源无需修改授权框架。
           </p>
         </div>
+        <FilterBar
+          fields={PERMISSION_FILTER_FIELDS}
+          values={draftPermissionFilters}
+          onChange={updateDraftPermissionFilter}
+          onSubmit={() => {
+            setAppliedPermissionFilters(draftPermissionFilters);
+            permissionPagination.resetPage();
+          }}
+          onReset={() => {
+            setDraftPermissionFilters(EMPTY_PERMISSION_FILTERS);
+            setAppliedPermissionFilters(EMPTY_PERMISSION_FILTERS);
+            permissionPagination.resetPage();
+          }}
+        />
         <DataTable
           columns={permissionColumns}
-          rows={permissionsQuery.data ?? []}
+          rows={permissionPagination.pageRows}
           isLoading={permissionsQuery.isLoading}
           emptyMessage="暂无权限"
           rowKey={(permission) => permission.id}
+          footer={
+            <Pagination
+              page={permissionPagination.page}
+              pageSize={permissionPagination.pageSize}
+              total={permissionPagination.total}
+              isFetching={permissionsQuery.isFetching}
+              onPageChange={permissionPagination.setPage}
+              onPageSizeChange={permissionPagination.setPageSize}
+            />
+          }
         />
       </section>
 

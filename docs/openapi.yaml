@@ -784,6 +784,21 @@ paths:
           in: query
           schema:
             type: string
+        - name: payloadState
+          required: false
+          in: query
+          schema:
+            type: string
+        - name: minimumLatencyMs
+          required: false
+          in: query
+          schema:
+            type: number
+        - name: maximumLatencyMs
+          required: false
+          in: query
+          schema:
+            type: number
         - name: from
           required: false
           in: query
@@ -806,7 +821,8 @@ paths:
           required: false
           in: query
           schema:
-            default: 20
+            maximum: 100
+            default: 10
             type: number
       responses:
         '200':
@@ -864,6 +880,11 @@ paths:
     get:
       operationId: SystemLogsController_list
       parameters:
+        - name: name
+          required: false
+          in: query
+          schema:
+            type: string
         - name: actorUsername
           required: false
           in: query
@@ -875,6 +896,16 @@ paths:
           schema:
             type: string
         - name: subject
+          required: false
+          in: query
+          schema:
+            type: string
+        - name: targetType
+          required: false
+          in: query
+          schema:
+            type: string
+        - name: targetName
           required: false
           in: query
           schema:
@@ -909,8 +940,8 @@ paths:
           required: false
           in: query
           schema:
-            maximum: 200
-            default: 20
+            maximum: 100
+            default: 10
             type: number
       responses:
         '200':
