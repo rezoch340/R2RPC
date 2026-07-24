@@ -4,12 +4,13 @@
 
 ## 状态
 
-- 后端 backlog #1–#12：全部完成
-- 31 个 HTTP 路径模板 + `/api/client/ws`
+- 后端 backlog #1–#13：全部完成
+- 32 个 HTTP 路径模板 + `/api/client/ws`
 - NestJS API / Worker 双进程
 - PostgreSQL + Redis/BullMQ + Manticore
 - 设备可随 WS `result` 上报 AppAudit V1 结构化日志 Step
-- 121 项纯 HTTP/WS 黑盒冒烟
+- 后台账号支持资料修改与改密；`isRoot` 管理员账号只能由本人修改
+- 131 项纯 HTTP/WS 黑盒冒烟
 - 管理前端与设备 SDK：不在本仓库范围
 
 ## 快速开始
@@ -58,5 +59,6 @@ docs/      当前文档、OpenAPI、历史设计与归档
 - [部署与本地基础设施](deploy/README.md)
 - [工程规范](docs/design-conventions.md)
 - [设备 AppAudit V1 接入协议](docs/device-app-audit.md)
+- [管理员账号隔离与改密设计](docs/superpowers/specs/2026-07-24-administrator-account-isolation-design.md)
 - [OpenAPI](docs/openapi.yaml)
 - [Changelog](CHANGELOG.md)

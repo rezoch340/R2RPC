@@ -405,34 +405,6 @@ paths:
       summary: 用户移除角色
       tags:
         - rbac
-  /auth/login:
-    post:
-      operationId: AuthController_login
-      parameters: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LoginDto'
-      responses:
-        '201':
-          description: ''
-      summary: 管理员登录,返回 JWT
-      tags:
-        - auth
-  /auth/me:
-    get:
-      operationId: AuthController_me
-      parameters: []
-      responses:
-        '200':
-          description: ''
-      security:
-        - bearer: []
-      summary: 当前登录用户
-      tags:
-        - auth
   /users:
     get:
       operationId: UsersController_list
@@ -479,6 +451,28 @@ paths:
       summary: 用户详情
       tags:
         - users
+    patch:
+      operationId: UsersController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserDto'
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 修改用户资料(管理员账号只能由本人修改)
+      tags:
+        - users
     delete:
       operationId: UsersController_remove
       parameters:
@@ -492,7 +486,30 @@ paths:
           description: ''
       security:
         - bearer: []
-      summary: 删除用户
+      summary: 删除用户(管理员账号只能由本人修改)
+      tags:
+        - users
+  /users/{id}/password:
+    patch:
+      operationId: UsersController_setPassword
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePasswordDto'
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 修改用户密码(管理员账号只能由本人修改)
       tags:
         - users
   /users/{id}/enabled:
@@ -518,6 +535,34 @@ paths:
       summary: 启用/停用用户(停用后禁止登录且立即吊销现有会话)
       tags:
         - users
+  /auth/login:
+    post:
+      operationId: AuthController_login
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginDto'
+      responses:
+        '201':
+          description: ''
+      summary: 管理员登录,返回 JWT
+      tags:
+        - auth
+  /auth/me:
+    get:
+      operationId: AuthController_me
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 当前登录用户
+      tags:
+        - auth
   /access-tokens:
     post:
       operationId: AccessTokenController_create
@@ -796,29 +841,55 @@ components:
       required:
         - action
         - subject
-    LoginDto:
-      type: object
-      properties:
-        username:
-          type: string
-        password:
-          type: string
-      required:
-        - username
-        - password
     CreateUserDto:
       type: object
       properties:
         username:
           type: string
+          maxLength: 64
         password:
           type: string
+          minLength: 6
+          maxLength: 128
         role:
           type: string
           enum:
             - admin
             - operator
           default: admin
+        description:
+          type: string
+          maxLength: 255
+      required:
+        - username
+        - password
+    UpdateUserDto:
+      type: object
+      properties:
+        description:
+          type: string
+          maxLength: 255
+      required:
+        - description
+    UpdatePasswordDto:
+      type: object
+      properties:
+        password:
+          type: string
+          minLength: 6
+          maxLength: 128
+      required:
+        - password
+    LoginDto:
+      type: object
+      properties:
+        username:
+          type: string
+          maxLength: 64
+        password:
+          type: string
+          minLength: 6
+          maxLength: 128
       required:
         - username
         - password

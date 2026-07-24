@@ -41,7 +41,7 @@ cd backend
 pnpm smoke
 ```
 
-该命令执行 121 项纯 HTTP/WebSocket 黑盒检查，覆盖全部 HTTP controller 方法、WS 协议和设备 AppAudit Step 冷路径，不直接连接数据库、Redis 或 Manticore。可用 `BASE_URL` 指向其他运行实例：
+该命令执行 131 项纯 HTTP/WebSocket 黑盒检查，覆盖全部 HTTP controller 方法、管理员账号隔离与改密、WS 协议和设备 AppAudit Step 冷路径，不直接连接数据库、Redis 或 Manticore。可用 `BASE_URL` 指向其他运行实例：
 
 ```bash
 BASE_URL=http://127.0.0.1:3000 pnpm smoke

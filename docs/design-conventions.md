@@ -79,6 +79,17 @@ nest g resource application/{module} --no-spec
 - 单函数圈复杂度不得超过 10、嵌套深度不得超过 3、语句数不得超过 40；所有条件分支必须使用花括号，能提前返回时不得保留多余 `else`。
 - `pnpm lint` 和 `pnpm lint:check` 会先执行 `test/assert-readable-source.js`，再由 ESLint 检查复杂度、深度、函数长度和控制流；规则覆盖 `src/` 及测试中的变量命名。
 
+### 后台管理员账号隔离
+
+- `users.isRoot=true` 是受保护种子管理员，只能由该账号本人修改；其他请求者即使拥有
+  `update/user`、`delete/user` 或 `manage/rbac` 也必须返回 403。
+- 请求者编号只能从 JWT 鉴权后的 `request.user.id` 读取，禁止由请求体声明。
+- 所有直接以用户为目标的写路径共用 `AdministratorAccountPolicyService`，当前包括资料、密码、
+  enabled、软删除和 RBAC 用户角色绑定/解绑；新增用户写入口时必须接入同一策略。
+- `isRoot` 只能由种子流程维护，任何 HTTP API 均不得授予、撤销或修改。
+- `users.role` 是遗留展示字段，不参与 CASL 授权，也不作为受保护管理员判据。
+- 用户管理响应必须显式选择安全字段，禁止返回 `passwordHash`。
+
 ### 架构原则:分布式 + 冷热路径
 
 **可分布式部署**:app 实例**无状态**,可水平扩容;状态只放共享存储。

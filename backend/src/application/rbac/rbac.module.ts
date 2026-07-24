@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { UsersModule } from '../users/users.module';
 import { RbacService } from './rbac.service';
 import { RbacController } from './rbac.controller';
 
@@ -6,6 +7,7 @@ import { RbacController } from './rbac.controller';
 // 用 @Global 避免各处重复 import
 @Global()
 @Module({
+  imports: [UsersModule],
   controllers: [RbacController],
   providers: [RbacService],
   exports: [RbacService],
