@@ -46,9 +46,13 @@
 ## 5. 组件边界
 
 复用 `PageHeader`、`DataTable`、`FilterBar`、`PermissionBoundary`、`FormDialog`、
-`ConfirmDialog`、`Pagination`、`RowActions`、`JsonBlock`。
+`ConfirmDialog`、`Pagination`、`RowActions`、`JsonBlock`、`CopyButton`。
 两类令牌共用同一个领域组件；功能组权限矩阵、用户分组和 AppAudit Step 保持专用组件，
 不抽象为充满条件分支的通用 CRUD 配置层。
+
+复制能力由 `CopyButton` 统一管理图标状态和提示，底层优先使用 Clipboard API；在局域网
+HTTP 等非安全上下文中自动回退到隐藏文本框复制，不允许页面直接调用
+`navigator.clipboard.writeText`。
 
 ## 6. 测试
 
@@ -60,5 +64,5 @@
 - 后端 155 项 HTTP/WebSocket 黑盒继续复跑，确认 CORS、访问审计与令牌作用域更新不影响设备 WS 和 Worker 冷路径。
 
 验证结果：前端变量名门禁与 ESLint 通过、Next.js 生产构建通过、Playwright
-**9 passed**；后端 Jest **8 suites / 24 tests passed**，HTTP/WebSocket 黑盒
+**10 passed**；后端 Jest **8 suites / 24 tests passed**，HTTP/WebSocket 黑盒
 **155 passed, 0 failed**。

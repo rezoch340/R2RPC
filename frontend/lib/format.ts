@@ -24,7 +24,3 @@ export function formatNumber(value: number | null | undefined): string {
 export function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
-
-export function copyText(value: string): Promise<void> {
-  return navigator.clipboard.writeText(value);
-}

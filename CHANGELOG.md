@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 复制兼容性
+- 新增公共 `CopyButton` 与剪贴板工具，令牌和 JSON 载荷统一复用复制状态与提示。
+- 优先使用 Clipboard API；局域网 HTTP 等非安全上下文缺少 `navigator.clipboard` 或权限被拒绝时，自动回退到隐藏文本框复制，避免运行时异常。
+
 ### 令牌功能组二次编辑
 - 新增 `PATCH /access-tokens/:id/projects` 与 `PATCH /device-tokens/:id/projects`，以事务替换两类令牌的完整功能组作用域，拒绝空选择和不存在的功能组。
 - Access Token 更新后立即清除 Guard 正缓存，删除和新增的调用作用域随下一次请求生效。
@@ -30,7 +34,7 @@
 - 修复通过局域网 IP 打开开发前端时 HMR WebSocket 被 Next.js 来源检查拒绝的问题；自动加入本机 IPv4 地址，并支持 `NEXT_ALLOWED_DEV_ORIGINS` 补充自定义开发域名。
 - 修复请求日志与系统日志翻页时短暂清空表格造成的闪屏；新页请求期间保留上一页数据，响应完成后原位替换。侧栏切换全部管理页面时先按权限预取公开接口，再提交路由切换，避免首次进入页面闪加载骨架。
 - 系统日志扩展为完整控制面访问审计：记录登录成功/失败、全部 JWT 读取和 Guard/路由阶段拒绝；RPC/WS 数据面继续使用独立日志链路。
-- 最终验证：前端 Playwright **9 passed**，前端 lint 与生产构建通过；后端 Jest **8 suites / 24 tests**、完整 HTTP/WebSocket 黑盒 **155 passed、0 failed**。
+- 最终验证：前端 Playwright **10 passed**，前端 lint 与生产构建通过；后端 Jest **8 suites / 24 tests**、完整 HTTP/WebSocket 黑盒 **155 passed、0 failed**。
 
 ### 系统操作审计日志
 - 盘点全部 14 张旧表：业务实体均具有语义名称与 `description`；关系表名称由复合外键表达，请求日志/聚合表按日志规则豁免，不机械增加无意义的 `name`。

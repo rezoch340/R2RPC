@@ -1,9 +1,7 @@
 'use client';
 
-import { Check, Copy } from 'lucide-react';
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { copyText, formatJson } from '@/lib/format';
+import { CopyButton } from '@/components/copy-button';
+import { formatJson } from '@/lib/format';
 
 export function JsonBlock({
   title,
@@ -12,14 +10,7 @@ export function JsonBlock({
   title: string;
   value: unknown;
 }) {
-  const [isCopied, setIsCopied] = useState(false);
   const formattedValue = formatJson(value);
-
-  async function copyFormattedValue() {
-    await copyText(formattedValue);
-    setIsCopied(true);
-    window.setTimeout(() => setIsCopied(false), 1500);
-  }
 
   return (
     <section className="overflow-hidden rounded-xl border bg-[#0a1419] text-slate-200">
@@ -27,15 +18,12 @@ export function JsonBlock({
         <p className="font-mono text-[11px] font-semibold tracking-wider text-cyan-300 uppercase">
           {title}
         </p>
-        <Button
-          variant="ghost"
-          size="icon-xs"
+        <CopyButton
+          value={formattedValue}
+          label={`复制${title}`}
+          successMessage={`${title}已复制`}
           className="text-slate-300 hover:bg-white/10 hover:text-white"
-          aria-label={`复制${title}`}
-          onClick={copyFormattedValue}
-        >
-          {isCopied ? <Check /> : <Copy />}
-        </Button>
+        />
       </header>
       <pre className="max-h-80 overflow-auto p-4 font-mono text-xs leading-6">
         {formattedValue}

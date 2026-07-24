@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, Pencil, ShieldX, Trash2 } from 'lucide-react';
+import { Pencil, ShieldX, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { CopyButton } from '@/components/copy-button';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
 import { PageHeader } from '@/components/page-header';
@@ -68,7 +69,6 @@ export function TokenManagementPage({
   const [draftFilters, setDraftFilters] = useState<TokenFilters>(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] =
     useState<TokenFilters>(EMPTY_FILTERS);
-  const [copiedTokenId, setCopiedTokenId] = useState<number | null>(null);
   const [editingToken, setEditingToken] = useState<TokenRecord | null>(null);
   const [pendingAction, setPendingAction] = useState<TokenAction | null>(null);
   const queryClient = useQueryClient();
@@ -179,13 +179,6 @@ export function TokenManagementPage({
     }));
   }
 
-  async function copyToken(token: TokenRecord) {
-    await navigator.clipboard.writeText(token.token);
-    setCopiedTokenId(token.id);
-    toast.success('令牌已复制');
-    window.setTimeout(() => setCopiedTokenId(null), 1500);
-  }
-
   const columns: Array<DataTableColumn<TokenRecord>> = [
     {
       key: 'name',
@@ -214,14 +207,11 @@ export function TokenManagementPage({
           >
             {token.token}
           </code>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="复制令牌"
-            onClick={() => void copyToken(token)}
-          >
-            {copiedTokenId === token.id ? <Check /> : <Copy />}
-          </Button>
+          <CopyButton
+            value={token.token}
+            label="复制令牌"
+            successMessage="令牌已复制"
+          />
         </div>
       ),
     },
