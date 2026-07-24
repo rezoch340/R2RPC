@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+### Docker 性能测试与 4 核 4 GiB 预算
+- 新增统一配置驱动的固定速率性能执行器，使用种子管理员登录、通过公开 API 创建临时令牌，
+  并挂载 4 台真实 WebSocket 虚拟设备；结束后关闭连接并删除令牌。
+- 10 个场景包含 7 个控制面读取、手动 RPC 自动路由 Hello、Access Token 自动轮询 Hello 和
+  Access Token 随机指定设备 Hello；响应契约和全部设备覆盖均纳入强制阈值。
+- 新增 Compose `performance` profile 和 JSON 结果卷；预热、持续时间、并发、目标速率、
+  请求超时、错误率、P95 延迟与最小吞吐阈值均由 `config.yaml` 校验。
+- 全部 9 个 Compose 服务声明 CPU、内存和 PID 硬限制；最坏情况 CPU 上限合计
+  **4.00 核**，内存上限合计 **3840 MiB**，低于 **4 GiB**。
+- 隔离受限全栈实测 **4 devices、1600 requests、0 failures、80.03 req/s、P95 7.50 ms、
+  P99 10.31 ms**；3 个 Hello 场景各 160 次且 4 台设备全部收到任务。
+
 ### 前后端统一配置与完整 Docker Compose
 - 新增根级统一 `config.yaml` 契约，API、Worker、Drizzle、迁移、种子和前端共同读取；
   `CONFIG_FILE` 只保留为文件位置选择器。

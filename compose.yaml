@@ -7,8 +7,54 @@ x-application-config: &application-config
   volumes:
     - ./deploy/config.yaml:/app/config.yaml:ro
 
+x-postgres-resources: &postgres-resources
+  cpus: "0.65"
+  mem_limit: 640m
+  pids_limit: 128
+
+x-redis-resources: &redis-resources
+  cpus: "0.25"
+  mem_limit: 256m
+  pids_limit: 64
+
+x-manticore-resources: &manticore-resources
+  cpus: "0.65"
+  mem_limit: 640m
+  pids_limit: 128
+
+x-migration-resources: &migration-resources
+  cpus: "0.15"
+  mem_limit: 192m
+  pids_limit: 64
+
+x-seed-resources: &seed-resources
+  cpus: "0.15"
+  mem_limit: 192m
+  pids_limit: 64
+
+x-api-resources: &api-resources
+  cpus: "0.85"
+  mem_limit: 704m
+  pids_limit: 256
+
+x-worker-resources: &worker-resources
+  cpus: "0.40"
+  mem_limit: 384m
+  pids_limit: 192
+
+x-frontend-resources: &frontend-resources
+  cpus: "0.30"
+  mem_limit: 320m
+  pids_limit: 128
+
+x-performance-resources: &performance-resources
+  cpus: "0.60"
+  mem_limit: 512m
+  pids_limit: 128
+
 services:
   postgres:
+    <<: *postgres-resources
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -26,6 +72,7 @@ services:
       retries: 12
 
   redis:
+    <<: *redis-resources
     image: redis:7-alpine
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
@@ -40,6 +87,7 @@ services:
       retries: 12
 
   manticore:
+    <<: *manticore-resources
     image: manticoresearch/manticore:latest
     restart: unless-stopped
     ports:
@@ -59,7 +107,7 @@ services:
       retries: 20
 
   migration:
-    <<: [*backend-image, *application-config]
+    <<: [*backend-image, *application-config, *migration-resources]
     command: ["node", "dist/scripts/migrate.js"]
     restart: "no"
     depends_on:
@@ -67,7 +115,7 @@ services:
         condition: service_healthy
 
   seed:
-    <<: [*backend-image, *application-config]
+    <<: [*backend-image, *application-config, *seed-resources]
     command: ["node", "dist/scripts/seed-admin.js"]
     restart: "no"
     depends_on:
@@ -75,7 +123,7 @@ services:
         condition: service_completed_successfully
 
   api:
-    <<: [*backend-image, *application-config]
+    <<: [*backend-image, *application-config, *api-resources]
     command: ["node", "dist/main.js"]
     restart: unless-stopped
     ports:
@@ -101,7 +149,7 @@ services:
       start_period: 10s
 
   worker:
-    <<: [*backend-image, *application-config]
+    <<: [*backend-image, *application-config, *worker-resources]
     command: ["node", "dist/worker.js"]
     restart: unless-stopped
     depends_on:
@@ -113,6 +161,7 @@ services:
         condition: service_healthy
 
   frontend:
+    <<: *frontend-resources
     build:
       context: ./frontend
     image: rer0rpc-frontend:local
@@ -136,6 +185,21 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
+
+  performance:
+    <<: [*backend-image, *performance-resources]
+    profiles:
+      - performance
+    command: ["node", "dist/scripts/performance.js"]
+    restart: "no"
+    volumes:
+      - ./deploy/config.yaml:/app/config.yaml:ro
+      - ./performance-results:/app/performance-results
+    depends_on:
+      api:
+        condition: service_healthy
+      worker:
+        condition: service_started
 
 volumes:
   postgres-data:

@@ -19,6 +19,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "ts-node -r tsconfig-paths/register src/scripts/migrate.ts",
     "seed:admin": "ts-node -r tsconfig-paths/register src/scripts/seed-admin.ts",
+    "performance": "ts-node -r tsconfig-paths/register src/scripts/performance.ts",
     "test": "jest",
     "test:e2e": "node test/assert-blackbox-e2e.js && node test/smoke.e2e.js",
     "smoke": "node test/assert-blackbox-e2e.js && node test/smoke.e2e.js",

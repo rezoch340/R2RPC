@@ -1,8 +1,19 @@
-// 防回退守卫:任何 E2E/冒烟测试都只能从公共 HTTP/WS 接口观察系统。
+// 防回退守卫:E2E、冒烟和性能测试都只能从公共 HTTP/WS 接口观察系统。
 const fileSystem = require('node:fs');
 const path = require('node:path');
 
 const TEST_DIR = __dirname;
+const PERFORMANCE_FILES = fileSystem
+  .readdirSync(path.join(TEST_DIR, '..', 'src', 'scripts'), {
+    withFileTypes: true,
+  })
+  .filter(
+    (entry) =>
+      entry.isFile() &&
+      entry.name.startsWith('performance') &&
+      entry.name.endsWith('.ts'),
+  )
+  .map((entry) => path.join(TEST_DIR, '..', 'src', 'scripts', entry.name));
 const forbidden = [
   ['drizzle-orm', /(?:from|require\()\s*['"]drizzle-orm/],
   ['node-postgres/pg', /(?:from\s*['"]pg['"]|require\(['"]pg['"]\))/],
@@ -12,7 +23,7 @@ const forbidden = [
   ['应用 src 导入', /(?:from|require\()\s*['"]\.\.\/src\//],
 ];
 
-const files = fileSystem
+const blackBoxTestFiles = fileSystem
   .readdirSync(TEST_DIR, { withFileTypes: true, recursive: true })
   .filter(
     (entry) =>
@@ -22,6 +33,7 @@ const files = fileSystem
   )
   .map((entry) => path.join(entry.parentPath, entry.name))
   .filter((file) => path.basename(file) !== path.basename(__filename));
+const files = [...blackBoxTestFiles, ...PERFORMANCE_FILES];
 
 const violations = [];
 for (const file of files) {
@@ -36,4 +48,4 @@ if (violations.length) {
   process.exit(1);
 }
 
-console.log(`E2E 黑盒边界检查通过: ${files.length} 个测试文件仅使用公共接口`);
+console.log(`黑盒边界检查通过: ${files.length} 个测试/性能文件仅使用公共接口`);

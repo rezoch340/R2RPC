@@ -47,6 +47,31 @@ export const configSchema = z.object({
         .prefault({}),
     })
     .prefault({}),
+  performance: z
+    .object({
+      baseUrl: z.string().url().default('http://127.0.0.1:3000'),
+      projectName: z.string().min(1).max(128).default('cn-nodes'),
+      virtualDeviceCount: z.number().int().min(2).max(32).default(4),
+      durationSeconds: z.number().int().min(5).max(600).default(20),
+      warmupSeconds: z.number().int().min(0).max(60).default(3),
+      concurrency: z.number().int().min(1).max(512).default(16),
+      targetRequestsPerSecond: z.number().int().min(1).max(5000).default(80),
+      requestTimeoutMilliseconds: z
+        .number()
+        .int()
+        .min(100)
+        .max(60000)
+        .default(5000),
+      maximumErrorRate: z.number().min(0).max(1).default(0.01),
+      maximum95thPercentileLatencyMilliseconds: z
+        .number()
+        .int()
+        .positive()
+        .default(750),
+      minimumThroughputRequestsPerSecond: z.number().positive().default(60),
+      resultFile: z.string().min(1).default('performance-results/latest.json'),
+    })
+    .prefault({}),
   // 日志保留(request_logs);非法值(≤0)直接校验失败终止,不静默兜底
   retention: z
     .object({

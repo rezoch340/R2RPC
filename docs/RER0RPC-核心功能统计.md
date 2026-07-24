@@ -5,7 +5,7 @@
 ## 1. 完成度
 
 后端既定 backlog #1–#15 与管理前端 #16、手动 RPC 调试 #17、后台授权缓存 #18、统一配置与
-完整 Compose #19 全部完成。代码包含 39 个 HTTP
+完整 Compose #19、容器性能测试 #20 全部完成。代码包含 39 个 HTTP
 路径模板、1 个设备 WebSocket 网关、API/Worker 双进程、15 张 PostgreSQL 表、9 个数据库
 迁移和 10 个管理页面。
 
@@ -32,6 +32,7 @@
 | 管理前端 | Next.js + shadcn，完整后台公开面 | ✅ | Playwright 12 项 + HTTP |
 | 前端质量 | 页面/组件/E2E 完整变量名门禁、ESLint、生产构建 | ✅ | `frontend/pnpm lint` |
 | 配置与部署 | 前后端统一 YAML、API/Worker/frontend 镜像、完整 Compose | ✅ | loader 单测 + Compose/build |
+| 性能验收 | 4 台在线虚拟设备、真实 WS Hello、自动/随机路由、质量阈值、JSON 报告 | ✅ | 受限 Compose 实测 |
 
 ## 2. HTTP API
 
@@ -161,6 +162,8 @@ Payload，并排查看原始请求、响应、业务状态和耗时；重复调�
 - 根目录 `compose.yaml` 编排 PostgreSQL、Redis、Manticore、migration、seed、API、
   Worker 与 frontend，并使用健康检查和一次性任务完成条件控制启动顺序。
 - `backend/Dockerfile` 与 `frontend/Dockerfile` 均生成非 root 生产镜像；统一配置只读挂载。
+- `performance` profile 使用同一后端镜像挂载虚拟 WS 设备并执行一次性公开接口压测；全部
+  Compose 服务声明 CPU/内存/PID 上限，合计 4.00 核和 3840 MiB。
 
 ## 3. WebSocket 协议
 
@@ -325,7 +328,7 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 - 覆盖设备上报成功/失败 Step、非法 sequence 隔离和 Monitor API 读取。
 - 通过 monitor/metrics API 验证 Worker 冷路径结果。
 
-`test/assert-blackbox-e2e.js` 会静态拒绝 E2E 导入持久层客户端或应用内部服务。
+`test/assert-blackbox-e2e.js` 会静态拒绝 E2E 或性能执行器导入持久层客户端或应用内部服务。
 
 前端 `test/assert-blackbox-e2e.cjs` 使用同一口径，Playwright 当前 12 项，只操作浏览器和公开
 HTTP API；覆盖全部管理页、手动 RPC 调试、字段筛选与分页、两类令牌作用域编辑、非安全上下文
@@ -346,8 +349,19 @@ RootGuard 的 root、非 root `manage/rbac` 和缺失身份分支。
 - `pnpm test:integration:metrics`
 - `pnpm test:integration:max-inflight`
 
+### 性能测试
+
+- `pnpm performance` 在宿主机读取统一配置并只访问公开 HTTP/WebSocket。
+- `docker compose --profile performance run --rm performance` 在受限容器内执行相同测试。
+- 默认挂载 4 台设备；10 个混合场景覆盖 7 个控制面读取、手动自动路由 Hello、
+  Access Token 自动轮询 Hello 和随机指定设备 Hello。
+- 默认 3 秒预热、20 秒计量、16 并发、80 req/s；错误率、P95、最小吞吐和全部设备覆盖均为
+  强制阈值。
+- 隔离 Compose 实测 1600 请求、0 失败、80.03 req/s、P95 7.50 ms、P99 10.31 ms；
+  3 个 Hello 场景各 160 次，4 台设备全部收到任务。
+
 ## 8. 剩余工作
 
 - CI
-- 生产 API/Worker 镜像与编排
-- 健康检查/readiness
+- 专用健康检查/readiness
+- Kubernetes、生产 secret 与统一反向代理

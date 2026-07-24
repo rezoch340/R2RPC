@@ -33,6 +33,7 @@ RER0RPC 解决“服务端需要调用位于 NAT、移动网络或客户现场�
 - **独立控制面**：管理前端覆盖功能组、设备、令牌、账号、权限组、日志和手动调试。
 - **冷热路径分离**：API 负责 RPC 热路径，Worker 异步处理索引、聚合与维护任务。
 - **可重复部署**：统一 `config.yaml` 契约和完整 Docker Compose 编排覆盖全部运行组件。
+- **受限性能验收**：Docker 内置公开 API 混合压测，并把完整 Compose 硬限制在 4 核、4 GiB 内。
 
 ## 核心能力
 
@@ -48,6 +49,7 @@ RER0RPC 解决“服务端需要调用位于 NAT、移动网络或客户现场�
 | 系统审计 | 登录、控制面读取、Guard 拒绝和业务写操作审计，不记录密码或 Token 明文 |
 | 管理控制台 | Next.js + shadcn 响应式后台，全部实体表支持筛选与分页 |
 | 部署运维 | 统一 YAML、独立迁移/种子、健康检查、非 root 应用容器、持久化卷 |
+| 性能验收 | 4 台虚拟在线设备、真实 WS Hello、自动轮询/随机指定设备、质量阈值和 JSON 报告 |
 
 ## 管理面板样例
 
@@ -271,6 +273,18 @@ docker compose logs -f api worker frontend
 docker compose logs migration seed
 ```
 
+在同一套容器中执行性能测试：
+
+```bash
+docker compose --profile performance run --rm performance
+cat performance-results/latest.json
+```
+
+性能服务会挂载 4 台虚拟在线设备，通过公开 HTTP/WebSocket 完成手动自动路由、
+Access Token 自动轮询和随机指定设备 `hello`；不会直连 PostgreSQL、Redis 或 Manticore。
+Compose 对全部服务声明的 CPU 上限合计 **4.00 核**，内存上限合计 **3840 MiB**，低于
+**4 GiB** 硬预算。
+
 ### 方式二：本地开发
 
 需要 Node.js 24、pnpm 11 和 Docker Compose。
@@ -328,9 +342,20 @@ db:
 redis:
   host: 127.0.0.1
   port: 6379
+
+performance:
+  baseUrl: http://127.0.0.1:3000
+  projectName: cn-nodes
+  virtualDeviceCount: 4
+  durationSeconds: 20
+  concurrency: 16
+  targetRequestsPerSecond: 80
+  maximumErrorRate: 0.01
+  maximum95thPercentileLatencyMilliseconds: 750
+  minimumThroughputRequestsPerSecond: 60
 ```
 
-完整配置还包括 JWT、授权缓存 TTL、Manticore、种子管理员和日志保留策略。真实
+完整配置还包括 JWT、授权缓存 TTL、Manticore、种子管理员、性能阈值和日志保留策略。真实
 `config.yaml` 已被 Git 忽略；仓库只提交不包含生产秘密的 example。
 
 只保留 `CONFIG_FILE` 作为可选的配置文件位置选择器，业务配置值不再分散到前后端 `.env`
@@ -393,6 +418,9 @@ Redis、JWT 或管理员配置。
 | 后端 Jest | 10 suites / 35 tests |
 | 前端 Playwright | 12 passed |
 | OpenAPI | 39 paths |
+| 受限 Compose 性能测试 | 4 devices / 1600 requests / 0 failures / 80.03 req/s / P95 7.50 ms |
+
+> 该测试结果仅代表 RER0RPC 后台服务性能，不代表真实设备端侧的执行性能。
 
 ```bash
 # 后端
@@ -412,10 +440,12 @@ pnpm test:e2e
 cd ..
 docker compose config --quiet
 docker compose build api frontend
+docker compose --profile performance run --rm performance
 ```
 
 `pnpm smoke` 和 `pnpm test:e2e` 只通过公开 HTTP、WebSocket 和浏览器 UI 验证系统，不直接
-连接数据库、Redis 或 Manticore。源码门禁同时禁止含糊缩写变量名，并限制控制流复杂度。
+连接数据库、Redis 或 Manticore；性能执行器遵守同一黑盒边界，并校验所有虚拟设备都实际
+收到 Hello。源码门禁同时禁止含糊缩写变量名，并限制控制流复杂度。
 
 ## 项目结构
 
@@ -434,7 +464,7 @@ RER0RPC/
 ## 项目状态
 
 - 后端功能 backlog #1–#15 已完成。
-- 设备 RPC、后台控制面、权限、审计、管理前端和完整 Compose 已形成闭环。
+- 设备 RPC、后台控制面、权限、审计、管理前端、完整 Compose 和容器性能验收已形成闭环。
 - 设备 SDK 不在本仓库范围；设备按照 WebSocket 与
   [AppAudit V1 协议](docs/device-app-audit.md)接入。
 - 发布阶段待办以[`docs/下一步-后端待办.md`](docs/下一步-后端待办.md)为准。
@@ -463,6 +493,7 @@ RER0RPC/
 - [管理前端设计](docs/superpowers/specs/2026-07-24-management-frontend-design.md)
 - [手动 RPC 调试设计](docs/superpowers/specs/2026-07-24-manual-rpc-debugger-design.md)
 - [统一配置与 Docker Compose 设计](docs/superpowers/specs/2026-07-24-unified-configuration-compose-design.md)
+- [容器性能测试与资源预算设计](docs/superpowers/specs/2026-07-24-container-performance-suite-design.md)
 
 ## 生产部署提示
 

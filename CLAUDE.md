@@ -32,6 +32,7 @@ pnpm test:e2e              # 与 smoke 相同；先执行黑盒边界守卫
 pnpm test:integration:retention | test:integration:device-stale
 pnpm test:integration:metrics | test:integration:max-inflight # 内部直连检查，明确不是 E2E
 pnpm test                  # Jest 单测(*.spec.ts)
+pnpm performance           # 公开 HTTP/WS 性能测试，挂虚拟设备并打真实 Hello
 ```
 
 ## 前端命令(在 `frontend/` 下跑)
@@ -55,6 +56,10 @@ pnpm test:e2e              # 12 项浏览器黑盒,只访问 UI 与公开 HTTP A
   `localhost:5432/6379/9308`)须已在跑；仓库提供根目录 `compose.yaml` 与
   `deploy/dev-up.sh`。前后端默认读取同一 schema，`CONFIG_FILE` 只用于选择文件，
   zod 校验失败即启动失败。
+- **容器性能验收**:`docker compose --profile performance run --rm performance`。执行器通过
+  公开 API 创建临时令牌，默认挂 4 台 WS 设备并覆盖自动轮询/随机指定设备 Hello；报告写入
+  `performance-results/latest.json`。Compose 全部服务 CPU 上限合计 4.00 核、内存
+  3840 MiB，不得取消或绕过资源硬限制。
 - **drizzle 迁移坑**:`db:generate` 在**同一次同时 drop 旧表 + 建新表**时,会交互式问"rename vs create"——非交互环境会卡住,须明确回答(拆表/新表通常选 **create**)。纯 ADD COLUMN / 只新增表不问。改破坏式迁移前确认 `docs/后端进度.md` 里该阶段允许破坏。
 
 ## 双进程架构(关键)
@@ -122,6 +127,9 @@ AppAudit 继续走各自日志链路，不重复写 `system_logs`。系统操作
 - **并发读-改-写**优先级:原子语句(`UPDATE ... SET n=n+1`,drizzle 用 `sql` 自增)> 行锁事务(`.for('update')`)> Redis 分布式锁(fail-open)。
 - **命名与控制流**:变量/参数写完整语义，禁止单/双字母和 `cfg/ctx/req/res/dto/tx/svc` 等含糊缩写；优先保护子句和职责拆分，圈复杂度 ≤ 10、嵌套 ≤ 3、单函数语句 ≤ 40。`pnpm lint:check` 是强制门禁。
 - **事务**:写库方法收可选 `transaction?` 句柄(传了复用调用方事务、没传自开);执行函数内所有写一律走 `transaction`,**绝不**用全局 `this.database`。
-- **E2E 只走公开接口**:`test/smoke.e2e.js` 只能使用 HTTP/WS；禁止导入应用模块、数据库/Redis 客户端或执行 SQL。Worker 冷路径通过 monitor/metrics API 观察；`test/assert-blackbox-e2e.js` 防止边界回退。
+- **E2E 只走公开接口**:`test/smoke.e2e.js` 只能使用 HTTP/WS；禁止导入应用模块、数据库/Redis 客户端或执行 SQL。Worker 冷路径通过 monitor/metrics API 观察；`test/assert-blackbox-e2e.js` 同时扫描 E2E 和性能执行器，防止边界回退。
+- **性能测试也只走公开接口**:`src/scripts/performance*.ts` 只能通过 HTTP/WS 测量真实系统，
+  禁止直连持久层；场景、设备数、速率和阈值从统一配置读取。Hello 业务响应或全部设备覆盖
+  不合格也必须返回非零退出码并保留 JSON 报告。
 - retention/stale/metrics/maxInFlight 的底层直连脚本统一命名 `*.integration.ts`，只能作为 `test:integration:*` 内部算法检查，**不得称为 E2E/冒烟**。
 - 别默认建 `repository.ts`;新模块用 `nest g`(不手写样板),schema 用 Drizzle 替掉 CLI 的 `entities/`。
