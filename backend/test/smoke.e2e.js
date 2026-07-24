@@ -579,6 +579,20 @@ async function main() {
     const roleId = createRole.json.id;
     cleanup.roleIds.push(roleId);
 
+    const updateRole = await httpRequest(
+      'PATCH',
+      `/rbac/roles/${roleId}`,
+      { description: 'updated permission group' },
+      administratorAccessToken,
+    );
+    assert(
+      updateRole.status === 200 &&
+        updateRole.json.description === 'updated permission group' &&
+        Array.isArray(updateRole.json.permissions) &&
+        updateRole.json.permissions.length === 0,
+      'PATCH /rbac/roles/:id 编辑空权限组',
+    );
+
     const customPermission = await httpRequest(
       'POST',
       '/rbac/permissions',
@@ -608,7 +622,7 @@ async function main() {
       (permission) =>
         permission.action === 'read' && permission.subject === 'user',
     );
-    const administratorProtectionPermissions = [
+    const delegatedManagementPermissions = [
       permissionsList.json.find(
         (permission) =>
           permission.action === 'update' && permission.subject === 'user',
@@ -621,19 +635,23 @@ async function main() {
         (permission) =>
           permission.action === 'manage' && permission.subject === 'rbac',
       ),
+      permissionsList.json.find(
+        (permission) =>
+          permission.action === 'read' && permission.subject === 'rbac',
+      ),
     ];
     requireValue(
       permissionsList.status === 200 &&
         !!readUserPermission &&
-        administratorProtectionPermissions.every(Boolean),
-      'GET /rbac/permissions 含管理员隔离测试所需的种子权限',
+        delegatedManagementPermissions.every(Boolean),
+      'GET /rbac/permissions 含权限组与管理员隔离测试所需的种子权限',
       readUserPermission,
     );
 
     const attachCustom = await httpRequest(
       'POST',
-      `/rbac/roles/${roleId}/permissions/${customPermissionId}`,
-      undefined,
+      `/rbac/roles/${roleId}/permissions`,
+      { permissionId: customPermissionId },
       administratorAccessToken,
     );
     assert(
@@ -659,9 +677,9 @@ async function main() {
     );
     assert(attachReadUser.status < 300, '角色绑定 read/user 权限');
 
-    const administratorPermissionAttachmentResponses = [];
-    for (const permission of administratorProtectionPermissions) {
-      administratorPermissionAttachmentResponses.push(
+    const delegatedPermissionAttachmentResponses = [];
+    for (const permission of delegatedManagementPermissions) {
+      delegatedPermissionAttachmentResponses.push(
         await httpRequest(
           'POST',
           `/rbac/roles/${roleId}/permissions/${permission.id}`,
@@ -671,16 +689,16 @@ async function main() {
       );
     }
     assert(
-      administratorPermissionAttachmentResponses.every(
+      delegatedPermissionAttachmentResponses.every(
         (response) => response.status < 300,
       ),
-      '角色绑定 update/user、delete/user 与 manage/rbac 权限',
+      '权限组绑定 read/rbac、update/user、delete/user 与 manage/rbac 权限',
     );
 
     const assignRole = await httpRequest(
       'POST',
-      `/rbac/users/${userId}/roles/${roleId}`,
-      undefined,
+      `/rbac/users/${userId}/roles`,
+      { roleId },
       administratorAccessToken,
     );
     assert(
@@ -730,6 +748,66 @@ async function main() {
             permission.action === 'read' && permission.subject === 'user',
         ),
       '用户 /auth/me 返回实时 RBAC 权限',
+    );
+
+    const readablePermissionGroups = await httpRequest(
+      'GET',
+      '/rbac/roles',
+      undefined,
+      userAuthenticationToken,
+    );
+    const readablePermissionGroup = readablePermissionGroups.json.find(
+      (permissionGroup) => permissionGroup.id === roleId,
+    );
+    assert(
+      readablePermissionGroups.status === 200 &&
+        !!readablePermissionGroup &&
+        readablePermissionGroup.description === 'updated permission group' &&
+        readablePermissionGroup.permissions.some(
+          (permission) =>
+            permission.action === 'read' && permission.subject === 'user',
+        ),
+      '具有 read/rbac 的用户可读取带嵌套权限的权限组',
+    );
+    const readablePermissions = await httpRequest(
+      'GET',
+      '/rbac/permissions',
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      readablePermissions.status === 200 &&
+        readablePermissions.json.some(
+          (permission) =>
+            permission.action === 'read' && permission.subject === 'rbac',
+        ),
+      '具有 read/rbac 的用户可读取权限目录',
+    );
+    const assignedPermissionGroups = await httpRequest(
+      'GET',
+      `/rbac/users/${userId}/roles`,
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      assignedPermissionGroups.status === 200 &&
+        assignedPermissionGroups.json.some(
+          (permissionGroup) => permissionGroup.id === roleId,
+        ),
+      'GET /rbac/users/:userId/roles 返回用户已分配权限组',
+    );
+    const forbiddenPermissionGroupCreation = await httpRequest(
+      'POST',
+      '/rbac/roles',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-forbidden-group`,
+        description: 'must be blocked by RootGuard',
+      },
+      userAuthenticationToken,
+    );
+    assert(
+      forbiddenPermissionGroupCreation.status === 403,
+      '非 root 即使具有 manage/rbac 也不能修改权限组',
     );
 
     const administratorUserId = administratorProfile.json.id;

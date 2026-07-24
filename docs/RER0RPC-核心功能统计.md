@@ -4,12 +4,13 @@
 
 ## 1. 完成度
 
-后端既定 backlog #1–#13 全部完成。代码包含 32 个 HTTP 路径模板、1 个设备 WebSocket 网关、API/Worker 双进程和 8 个数据库迁移。
+后端既定 backlog #1–#14 全部完成。代码包含 34 个 HTTP 路径模板、1 个设备 WebSocket
+网关、API/Worker 双进程和 8 个数据库迁移。
 
 | 领域 | 能力 | 状态 | 黑盒覆盖 |
 |---|---|---|---|
 | 认证 | 登录、JWT、`/auth/me` | ✅ | ✅ |
-| RBAC | role/permission CRUD 与双向解绑 | ✅ | ✅ |
+| RBAC | 权限组、嵌套权限、用户分组、root-only 写隔离 | ✅ | ✅ |
 | 用户 | CRUD、资料、改密、enabled、管理员隔离、旧 JWT 吊销 | ✅ | ✅ |
 | Project | CRUD、enabled、GroupInfo | ✅ | ✅ |
 | Access token | `rk_`、project 作用域、过期/撤销/软删 | ✅ | ✅ |
@@ -43,17 +44,23 @@
 - `DELETE /users/:id`
 - `POST /users/:id/enabled`
 
-`isRoot` 种子管理员账号只能由本人修改。该保护同时覆盖资料、密码、启停、软删除和
-`/rbac/users/:userId/roles/:roleId` 的绑定/解绑。`users.role` 不参与授权或管理员保护。
+`isRoot` 种子管理员账号只能由本人修改。该保护同时覆盖资料、密码、启停、软删除以及两种
+用户权限组绑定/解绑入口。`users.role` 不参与授权或管理员保护。
 
 ### RBAC
 
 - `GET|POST /rbac/roles`
-- `DELETE /rbac/roles/:id`
+- `PATCH|DELETE /rbac/roles/:id`
 - `GET|POST /rbac/permissions`
 - `DELETE /rbac/permissions/:id`
+- `POST /rbac/roles/:roleId/permissions`（请求体形式）
 - `POST|DELETE /rbac/roles/:roleId/permissions/:permissionId`
+- `GET|POST /rbac/users/:userId/roles`（查询/请求体分配）
 - `POST|DELETE /rbac/users/:userId/roles/:roleId`
+
+`roles` 即权限组，一个用户可拥有多个权限组，最终权限取所有有效组的并集。三个读入口要求
+`read/rbac`；所有 RBAC 写入口要求 `manage/rbac` 并叠加 `RootGuard`，只有种子管理员可执行。
+普通账号即使被授予 `manage/rbac` 仍不能修改权限组、权限目录或用户分组。
 
 ### Project
 
@@ -227,8 +234,9 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 `pnpm smoke` 与 `pnpm test:e2e` 执行同一套完整性测试：
 
-- 131 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
+- 136 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
 - 覆盖全部 HTTP controller 方法。
+- 覆盖权限组编辑、嵌套权限、用户已分配组、新旧关联入口和 root-only 写隔离。
 - 覆盖资料修改、改密新旧密码登录，以及管理员资料/密码/启停/删除/RBAC 关系隔离。
 - 覆盖 WS 鉴权、心跳、ping、读超时、分片/超大帧拒绝。
 - 使用 256 个并发 HTTP invoke 真实占满 WS 设备在途槽。
@@ -238,7 +246,8 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 `test/assert-blackbox-e2e.js` 会静态拒绝 E2E 导入持久层客户端或应用内部服务。
 
-Jest 当前为 5 个 suite、11 个测试，包含管理员策略的本人 root、他人 root 和普通目标分支。
+Jest 当前为 6 个 suite、14 个测试，包含管理员策略分支以及 RootGuard 的 root、非 root
+`manage/rbac` 和缺失身份分支。
 
 ### 内部集成
 

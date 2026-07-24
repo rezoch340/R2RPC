@@ -242,7 +242,7 @@ paths:
           description: ''
       security:
         - bearer: []
-      summary: 创建角色
+      summary: 创建权限组(仅种子管理员)
       tags:
         - rbac
     get:
@@ -253,10 +253,32 @@ paths:
           description: ''
       security:
         - bearer: []
-      summary: 列表:所有角色
+      summary: 权限组列表(包含权限)
       tags:
         - rbac
   /rbac/roles/{id}:
+    patch:
+      operationId: RbacController_updateRole
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleDto'
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 编辑权限组(仅种子管理员)
+      tags:
+        - rbac
     delete:
       operationId: RbacController_deleteRole
       parameters:
@@ -270,7 +292,7 @@ paths:
           description: ''
       security:
         - bearer: []
-      summary: 删除角色
+      summary: 删除权限组(仅种子管理员)
       tags:
         - rbac
   /rbac/permissions:
@@ -288,7 +310,7 @@ paths:
           description: ''
       security:
         - bearer: []
-      summary: 创建权限
+      summary: 创建权限(仅种子管理员)
       tags:
         - rbac
     get:
@@ -316,7 +338,30 @@ paths:
           description: ''
       security:
         - bearer: []
-      summary: 删除权限
+      summary: 删除权限(仅种子管理员)
+      tags:
+        - rbac
+  /rbac/roles/{roleId}/permissions:
+    post:
+      operationId: RbacController_attachPermissionFromBody
+      parameters:
+        - name: roleId
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttachPermissionDto'
+      responses:
+        '201':
+          description: ''
+      security:
+        - bearer: []
+      summary: 权限组配置权限(请求体形式,仅种子管理员)
       tags:
         - rbac
   /rbac/roles/{roleId}/permissions/{permissionId}:
@@ -338,7 +383,7 @@ paths:
           description: ''
       security:
         - bearer: []
-      summary: 角色绑定权限
+      summary: 权限组配置权限(兼容 URL 形式,仅种子管理员)
       tags:
         - rbac
     delete:
@@ -359,7 +404,46 @@ paths:
           description: ''
       security:
         - bearer: []
-      summary: 角色移除权限
+      summary: 权限组移除权限(仅种子管理员)
+      tags:
+        - rbac
+  /rbac/users/{userId}/roles:
+    get:
+      operationId: RbacController_listUserRoles
+      parameters:
+        - name: userId
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 用户已分配的权限组
+      tags:
+        - rbac
+    post:
+      operationId: RbacController_assignRoleFromBody
+      parameters:
+        - name: userId
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignRoleDto'
+      responses:
+        '201':
+          description: ''
+      security:
+        - bearer: []
+      summary: 用户分配权限组(请求体形式,仅种子管理员)
       tags:
         - rbac
   /rbac/users/{userId}/roles/{roleId}:
@@ -381,7 +465,7 @@ paths:
           description: ''
       security:
         - bearer: []
-      summary: 用户分配角色
+      summary: 用户分配权限组(兼容 URL 形式,仅种子管理员)
       tags:
         - rbac
     delete:
@@ -402,7 +486,7 @@ paths:
           description: ''
       security:
         - bearer: []
-      summary: 用户移除角色
+      summary: 用户移除权限组(仅种子管理员)
       tags:
         - rbac
   /users:
@@ -825,22 +909,56 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
+          maxLength: 64
         description:
           type: string
+          maxLength: 255
       required:
         - name
+    UpdateRoleDto:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        description:
+          type: string
+          maxLength: 255
     CreatePermissionDto:
       type: object
       properties:
         action:
           type: string
+          minLength: 1
+          maxLength: 64
         subject:
           type: string
+          minLength: 1
+          maxLength: 64
         description:
           type: string
+          maxLength: 255
       required:
         - action
         - subject
+    AttachPermissionDto:
+      type: object
+      properties:
+        permissionId:
+          type: number
+          minimum: 1
+      required:
+        - permissionId
+    AssignRoleDto:
+      type: object
+      properties:
+        roleId:
+          type: number
+          minimum: 1
+      required:
+        - roleId
     CreateUserDto:
       type: object
       properties:

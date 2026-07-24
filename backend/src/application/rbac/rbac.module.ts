@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { RootGuard } from '../../common/guards/root.guard';
 import { UsersModule } from '../users/users.module';
 import { RbacService } from './rbac.service';
 import { RbacController } from './rbac.controller';
@@ -9,7 +10,7 @@ import { RbacController } from './rbac.controller';
 @Module({
   imports: [UsersModule],
   controllers: [RbacController],
-  providers: [RbacService],
+  providers: [RbacService, RootGuard],
   exports: [RbacService],
 })
 export class RbacModule {}

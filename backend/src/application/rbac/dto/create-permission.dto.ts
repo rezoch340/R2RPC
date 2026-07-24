@@ -1,17 +1,22 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class CreatePermissionDto {
-  @ApiProperty()
+  @ApiProperty({ minLength: 1, maxLength: 64 })
   @IsString()
+  @MinLength(1)
+  @MaxLength(64)
   action: string;
 
-  @ApiProperty()
+  @ApiProperty({ minLength: 1, maxLength: 64 })
   @IsString()
+  @MinLength(1)
+  @MaxLength(64)
   subject: string;
 
-  @ApiProperty({ required: false })
+  @ApiPropertyOptional({ maxLength: 255 })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   description?: string;
 }

@@ -27,7 +27,7 @@ pnpm start:worker          # Worker 进程(独立!--entryFile worker)
 pnpm db:generate           # drizzle-kit 从 src/**/*.schema.ts 生成迁移(见坑)
 pnpm db:migrate            # 应用迁移(独立步骤,绝不在 app 启动时跑)
 pnpm seed:admin            # 种子 admin + demo projects + RBAC 权限(幂等,可重跑)
-pnpm smoke                 # 131 项纯 HTTP/WS 黑盒完整性冒烟，需 API+Worker 在跑
+pnpm smoke                 # 136 项纯 HTTP/WS 黑盒完整性冒烟，需 API+Worker 在跑
 pnpm test:e2e              # 与 smoke 相同；先执行黑盒边界守卫
 pnpm test:integration:retention | test:integration:device-stale
 pnpm test:integration:metrics | test:integration:max-inflight # 内部直连检查，明确不是 E2E
@@ -71,6 +71,12 @@ project→id → `PresenceService.pickOnlineAcquire` 从 Redis `project:clients:
 ## RBAC
 
 CASL;权限是 DB `permissions` 行,`(action, subject)` **free-form**(新 subject 无需代码注册)。controller 上加 `@RequirePermission('read','device')`;`PermissionGuard` 里 `user.isRoot` 直通全部。加权限 = 往 `src/scripts/seed-admin.ts` 的 `ALL_PERMISSIONS` 加一行再 `seed:admin`。
+
+`roles` 就是权限组：用户可属于多个权限组，权限取有效组的并集。权限组/权限目录/用户分组的
+读接口使用 `read/rbac`；所有 `/rbac/*` 写接口必须同时挂 `RootGuard`，只有
+`request.user.isRoot=true` 的种子管理员可写，`manage/rbac` 不能替代身份闸。权限组列表和用户
+权限组列表返回嵌套 `permissions`，批量组装，不得写成 N+1。设计见
+`docs/superpowers/specs/2026-07-24-permission-groups-design.md`。
 
 `users.isRoot=true` 的种子管理员账号只有本人能写。所有以用户为目标的资料、密码、enabled、软删除和
 RBAC 角色绑定/解绑都必须先调用 `AdministratorAccountPolicyService`，请求者编号只取

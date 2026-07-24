@@ -9,6 +9,7 @@
 - `design-conventions.md`：工程规范
 - `device-app-audit.md`：设备上报结构化日志 Step 的当前协议
 - `superpowers/specs/2026-07-24-administrator-account-isolation-design.md`：管理员账号隔离与改密设计
+- `superpowers/specs/2026-07-24-permission-groups-design.md`：FlowCore 风格权限组设计
 - `RER0RPC-新版开工提示词.md`：新任务交接提示
 - `openapi.yaml`：HTTP OpenAPI
 
