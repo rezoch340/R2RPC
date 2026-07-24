@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### 管理员账号隔离与改密
+- 参考 FlowCore 增加 `PATCH /users/:id` 资料修改和 `PATCH /users/:id/password` 改密接口；创建、列表、详情和写响应统一显式选择安全用户字段，不返回 `passwordHash`。
+- 新增共享 `AdministratorAccountPolicyService`：目标为 `isRoot` 管理员且请求者不是本人时返回 403；请求者编号只从 JWT 鉴权上下文读取。
+- 统一保护资料、密码、enabled、软删除以及 RBAC 用户角色绑定/解绑，避免通过其他写入口绕过管理员隔离；`users.role` 继续只作遗留展示，不参与授权或保护。
+- 密码、用户名和 description 输入补齐数据库对应的长度上限；密码修改后旧密码登录返回 401，新密码可登录。
+- 新增策略单元测试和纯 HTTP 黑盒隔离场景；完整套件现为 **131 passed、0 failed**，且继续由边界守卫禁止直连持久层。
+- 新增 SDD 规格与实现计划，重新导出 32 个路径模板的 OpenAPI，并同步全部当前项目文档。
+
 ### 可读命名与控制流硬化
 - 全量审计 `backend/src` 与 `backend/test`：清除单字母、双字母和 `cfg/ctx/req/res/dto/tx/svc` 等含糊变量名，测试与内部集成脚本同样纳入。
 - 拆分 RPC 调度、WebSocket 上线、指标趋势、项目汇总、AccessToken Guard 和集成检查中的高复杂度流程，使用保护子句和单职责私有方法替代长分支。
@@ -14,7 +22,7 @@
 - 复用 FlowCore 的 AppAudit V1 数据模型，WS `result` 新增可选 `appAudit`；设备一次性上报 metadata 和成功/失败 Step。
 - 服务端使用 zod 校验 schemaVersion、ISO 时间、连续 sequence、字段长度、最多 64 metadata/128 Step 和 512 KiB 体积；非法审计整体丢弃但不影响 RPC 业务结果。
 - `RequestLogJob`、Manticore `app_audit_json` 和 Monitor 详情完成冷路径；PostgreSQL 脊柱与日志列表不存/不返审计。已有 Manticore 表启动时自动补列。
-- 黑盒新增真实 HTTP invoke → WS result+AppAudit → Worker → Monitor API 验证和非法审计隔离，完整套件现为 121 passed、0 failed，仍不直连持久层。
+- 黑盒新增真实 HTTP invoke → WS result+AppAudit → Worker → Monitor API 验证和非法审计隔离，该阶段基线为 121 passed、0 failed，仍不直连持久层。
 - 新增当前设备接入协议 `docs/device-app-audit.md`、SDD 规格和实现计划，并同步全部当前项目文档。
 
 ### 完整性黑盒冒烟与文档统一

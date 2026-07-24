@@ -65,6 +65,18 @@ node dist/worker.js
 
 Swagger 位于 `/docs`，设备 WebSocket 位于 `/api/client/ws`。
 
+## 后台账号写保护
+
+- `PATCH /users/:id` 修改 `description`。
+- `PATCH /users/:id/password` 修改密码，长度限制为 6–128 字符。
+- `users.isRoot=true` 的种子管理员账号只能由本人修改。
+- 资料、密码、启停、软删除、RBAC 角色绑定和解绑均执行同一服务层保护。
+- 请求者编号只从 JWT 鉴权上下文读取；用户响应显式排除 `passwordHash`。
+- `users.role` 仍是遗留展示字段，不参与 RBAC 授权或管理员保护。
+
+完整设计见
+`../docs/superpowers/specs/2026-07-24-administrator-account-isolation-design.md`。
+
 ## 测试
 
 ### 单元测试
@@ -96,8 +108,9 @@ BASE_URL=http://127.0.0.1:3000 pnpm smoke
 - 覆盖 WS 鉴权、welcome、heartbeat、ping、读超时、分片和超大帧
 - 覆盖 RPC 成功、失败、超时、身份匹配、去重和 maxInFlight
 - 覆盖设备通过真实 WS 上报 AppAudit 成功/失败 Step、非法审计隔离和 Monitor API 读取
+- 覆盖用户资料、改密和管理员资料/密码/启停/删除/RBAC 角色关系隔离
 - 通过 monitor/metrics API 观察 Worker 冷路径
-- 当前为 121 项运行时检查
+- 当前为 131 项运行时检查
 
 `test/assert-blackbox-e2e.js` 会拒绝 E2E 导入持久层客户端或应用内部服务。
 

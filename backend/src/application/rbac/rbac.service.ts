@@ -11,13 +11,18 @@ import {
 import { and, eq } from 'drizzle-orm';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
+import { AdministratorAccountPolicyService } from '../users/administrator-account-policy.service';
 import { users } from '../users/users.schema';
 import { permissions, rolePermissions, roles, userRoles } from './rbac.schema';
 import { PermissionTuple } from './entity/model';
 
 @Injectable()
 export class RbacService {
-  constructor(private readonly dbService: DbService) {}
+  constructor(
+    private readonly dbService: DbService,
+    private readonly administratorAccountPolicyService: AdministratorAccountPolicyService,
+  ) {}
+
   private get database() {
     return this.dbService.database;
   }
@@ -169,12 +174,19 @@ export class RbacService {
 
   // ---------- 用户 <-> 角色 ----------
 
-  async assignRole(userId: number, roleId: number) {
-    await this.assertUserExists(userId);
+  async assignRole(
+    requesterUserId: number,
+    targetUserId: number,
+    roleId: number,
+  ) {
+    await this.administratorAccountPolicyService.assertCanMutateUser(
+      requesterUserId,
+      targetUserId,
+    );
     await this.assertRoleExists(roleId);
     const [assignedRole] = await this.database
       .insert(userRoles)
-      .values({ userId, roleId })
+      .values({ userId: targetUserId, roleId })
       .onConflictDoNothing()
       .returning();
     if (!assignedRole) {
@@ -183,10 +195,20 @@ export class RbacService {
     return { assigned: true };
   }
 
-  async unassignRole(userId: number, roleId: number) {
+  async unassignRole(
+    requesterUserId: number,
+    targetUserId: number,
+    roleId: number,
+  ) {
+    await this.administratorAccountPolicyService.assertCanMutateUser(
+      requesterUserId,
+      targetUserId,
+    );
     const [unassignedRole] = await this.database
       .delete(userRoles)
-      .where(and(eq(userRoles.userId, userId), eq(userRoles.roleId, roleId)))
+      .where(
+        and(eq(userRoles.userId, targetUserId), eq(userRoles.roleId, roleId)),
+      )
       .returning();
     if (!unassignedRole) {
       throw new NotFoundException('用户未拥有该角色');
@@ -215,17 +237,6 @@ export class RbacService {
       .limit(1);
     if (!permission) {
       throw new NotFoundException('权限不存在');
-    }
-  }
-
-  private async assertUserExists(userId: number) {
-    const [user] = await this.database
-      .select({ id: users.id })
-      .from(users)
-      .where(alive(users, eq(users.id, userId)))
-      .limit(1);
-    if (!user) {
-      throw new NotFoundException('用户不存在');
     }
   }
 }

@@ -496,11 +496,16 @@ async function main() {
 
     section('User / RBAC 全接口与实时吊销');
     const username = `${TEST_RESOURCE_PREFIX}-user`;
-    const password = 'e2e-pass-123';
+    let password = 'e2e-pass-123';
     const createUser = await httpRequest(
       'POST',
       '/users',
-      { username, password, role: 'operator' },
+      {
+        username,
+        password,
+        role: 'operator',
+        description: 'black-box account',
+      },
       administratorAccessToken,
     );
     requireValue(
@@ -518,10 +523,46 @@ async function main() {
       administratorAccessToken,
     );
     assert(
-      userDetail.status === 200 && userDetail.json.username === username,
+      userDetail.status === 200 &&
+        userDetail.json.username === username &&
+        userDetail.json.description === 'black-box account' &&
+        userDetail.json.isRoot === false,
       'GET /users/:id 返回用户详情且不暴露密码散列',
     );
     assert(!('passwordHash' in userDetail.json), '用户详情不包含 passwordHash');
+
+    const updateUser = await httpRequest(
+      'PATCH',
+      `/users/${userId}`,
+      { description: 'updated through public API' },
+      administratorAccessToken,
+    );
+    assert(
+      updateUser.status === 200 &&
+        updateUser.json.description === 'updated through public API' &&
+        !('passwordHash' in updateUser.json),
+      'PATCH /users/:id 修改普通用户资料且不暴露密码散列',
+    );
+
+    const changedPassword = 'e2e-pass-changed-123';
+    const updateUserPassword = await httpRequest(
+      'PATCH',
+      `/users/${userId}/password`,
+      { password: changedPassword },
+      administratorAccessToken,
+    );
+    assert(
+      updateUserPassword.status === 200 &&
+        updateUserPassword.json.id === userId &&
+        !('passwordHash' in updateUserPassword.json),
+      'PATCH /users/:id/password 修改普通用户密码且不暴露密码散列',
+    );
+    const loginWithPreviousPassword = await httpRequest('POST', '/auth/login', {
+      username,
+      password,
+    });
+    assert(loginWithPreviousPassword.status === 401, '改密后旧密码不能再登录');
+    password = changedPassword;
 
     const roleName = `${TEST_RESOURCE_PREFIX}-role`;
     const createRole = await httpRequest(
@@ -567,9 +608,25 @@ async function main() {
       (permission) =>
         permission.action === 'read' && permission.subject === 'user',
     );
+    const administratorProtectionPermissions = [
+      permissionsList.json.find(
+        (permission) =>
+          permission.action === 'update' && permission.subject === 'user',
+      ),
+      permissionsList.json.find(
+        (permission) =>
+          permission.action === 'delete' && permission.subject === 'user',
+      ),
+      permissionsList.json.find(
+        (permission) =>
+          permission.action === 'manage' && permission.subject === 'rbac',
+      ),
+    ];
     requireValue(
-      permissionsList.status === 200 && !!readUserPermission,
-      'GET /rbac/permissions 含种子 read/user',
+      permissionsList.status === 200 &&
+        !!readUserPermission &&
+        administratorProtectionPermissions.every(Boolean),
+      'GET /rbac/permissions 含管理员隔离测试所需的种子权限',
       readUserPermission,
     );
 
@@ -601,6 +658,24 @@ async function main() {
       administratorAccessToken,
     );
     assert(attachReadUser.status < 300, '角色绑定 read/user 权限');
+
+    const administratorPermissionAttachmentResponses = [];
+    for (const permission of administratorProtectionPermissions) {
+      administratorPermissionAttachmentResponses.push(
+        await httpRequest(
+          'POST',
+          `/rbac/roles/${roleId}/permissions/${permission.id}`,
+          undefined,
+          administratorAccessToken,
+        ),
+      );
+    }
+    assert(
+      administratorPermissionAttachmentResponses.every(
+        (response) => response.status < 300,
+      ),
+      '角色绑定 update/user、delete/user 与 manage/rbac 权限',
+    );
 
     const assignRole = await httpRequest(
       'POST',
@@ -655,6 +730,68 @@ async function main() {
             permission.action === 'read' && permission.subject === 'user',
         ),
       '用户 /auth/me 返回实时 RBAC 权限',
+    );
+
+    const administratorUserId = administratorProfile.json.id;
+    const forbiddenAdministratorProfileUpdate = await httpRequest(
+      'PATCH',
+      `/users/${administratorUserId}`,
+      { description: 'forbidden cross-administrator write' },
+      userAuthenticationToken,
+    );
+    assert(
+      forbiddenAdministratorProfileUpdate.status === 403,
+      '其他账号不能修改管理员资料',
+    );
+    const forbiddenAdministratorPasswordUpdate = await httpRequest(
+      'PATCH',
+      `/users/${administratorUserId}/password`,
+      { password: 'forbidden-password-123' },
+      userAuthenticationToken,
+    );
+    assert(
+      forbiddenAdministratorPasswordUpdate.status === 403,
+      '其他账号不能修改管理员密码',
+    );
+    const forbiddenAdministratorDisable = await httpRequest(
+      'POST',
+      `/users/${administratorUserId}/enabled`,
+      { enabled: false },
+      userAuthenticationToken,
+    );
+    assert(
+      forbiddenAdministratorDisable.status === 403,
+      '其他账号不能停用管理员',
+    );
+    const forbiddenAdministratorDelete = await httpRequest(
+      'DELETE',
+      `/users/${administratorUserId}`,
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      forbiddenAdministratorDelete.status === 403,
+      '其他账号不能删除管理员',
+    );
+    const forbiddenAdministratorRoleAssignment = await httpRequest(
+      'POST',
+      `/rbac/users/${administratorUserId}/roles/${roleId}`,
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      forbiddenAdministratorRoleAssignment.status === 403,
+      '其他账号不能给管理员绑定角色',
+    );
+    const forbiddenAdministratorRoleRemoval = await httpRequest(
+      'DELETE',
+      `/rbac/users/${administratorUserId}/roles/${roleId}`,
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      forbiddenAdministratorRoleRemoval.status === 403,
+      '其他账号不能移除管理员角色',
     );
 
     const unassignRole = await httpRequest(

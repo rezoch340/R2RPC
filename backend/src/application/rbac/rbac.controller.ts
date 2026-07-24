@@ -6,9 +6,11 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import type { AuthedRequest } from '../../common/types/authed-request';
 import { RbacService } from './rbac.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { CreatePermissionDto } from './dto/create-permission.dto';
@@ -99,8 +101,9 @@ export class RbacController {
   assignRole(
     @Param('userId', ParseIntPipe) userId: number,
     @Param('roleId', ParseIntPipe) roleId: number,
+    @Req() request: AuthedRequest,
   ) {
-    return this.rbac.assignRole(userId, roleId);
+    return this.rbac.assignRole(request.user!.id, userId, roleId);
   }
 
   @Delete('users/:userId/roles/:roleId')
@@ -109,7 +112,8 @@ export class RbacController {
   unassignRole(
     @Param('userId', ParseIntPipe) userId: number,
     @Param('roleId', ParseIntPipe) roleId: number,
+    @Req() request: AuthedRequest,
   ) {
-    return this.rbac.unassignRole(userId, roleId);
+    return this.rbac.unassignRole(request.user!.id, userId, roleId);
   }
 }

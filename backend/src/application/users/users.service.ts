@@ -7,11 +7,27 @@ import { eq } from 'drizzle-orm';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { hashPassword } from '../../common/utils/password';
 import { DbService } from '../../infrastructure/db/db.service';
+import { AdministratorAccountPolicyService } from './administrator-account-policy.service';
 import { users } from './users.schema';
+
+const publicUserSelection = {
+  id: users.id,
+  username: users.username,
+  role: users.role,
+  isRoot: users.isRoot,
+  enabled: users.enabled,
+  description: users.description,
+  lastLoginAt: users.lastLoginAt,
+  createdAt: users.createdAt,
+};
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly dbService: DbService) {}
+  constructor(
+    private readonly dbService: DbService,
+    private readonly administratorAccountPolicyService: AdministratorAccountPolicyService,
+  ) {}
+
   private get database() {
     return this.dbService.database;
   }
@@ -28,28 +44,14 @@ export class UsersService {
 
   async list() {
     return this.database
-      .select({
-        id: users.id,
-        username: users.username,
-        role: users.role,
-        createdAt: users.createdAt,
-        enabled: users.enabled,
-        lastLoginAt: users.lastLoginAt,
-      })
+      .select(publicUserSelection)
       .from(users)
       .where(alive(users));
   }
 
   async findById(userId: number) {
     const [userRecord] = await this.database
-      .select({
-        id: users.id,
-        username: users.username,
-        role: users.role,
-        createdAt: users.createdAt,
-        enabled: users.enabled,
-        lastLoginAt: users.lastLoginAt,
-      })
+      .select(publicUserSelection)
       .from(users)
       .where(alive(users, eq(users.id, userId)))
       .limit(1);
@@ -59,7 +61,12 @@ export class UsersService {
     return userRecord;
   }
 
-  async create(input: { username: string; password: string; role?: string }) {
+  async create(input: {
+    username: string;
+    password: string;
+    role?: string;
+    description?: string;
+  }) {
     if (await this.findByUsername(input.username)) {
       throw new ConflictException('用户名已存在');
     }
@@ -69,18 +76,65 @@ export class UsersService {
         username: input.username,
         passwordHash: hashPassword(input.password),
         role: input.role ?? 'admin',
+        description: input.description,
       })
-      .returning({
-        id: users.id,
-        username: users.username,
-        role: users.role,
-        createdAt: users.createdAt,
-      });
+      .returning(publicUserSelection);
     return createdUser;
   }
 
-  async remove(userId: number) {
-    await softDelete(this.database, users, eq(users.id, userId));
+  async update(
+    requesterUserId: number,
+    targetUserId: number,
+    description: string,
+  ) {
+    await this.administratorAccountPolicyService.assertCanMutateUser(
+      requesterUserId,
+      targetUserId,
+    );
+    const [updatedUser] = await this.database
+      .update(users)
+      .set({ description })
+      .where(alive(users, eq(users.id, targetUserId)))
+      .returning(publicUserSelection);
+    if (!updatedUser) {
+      throw new NotFoundException('用户不存在');
+    }
+    return updatedUser;
+  }
+
+  async setPassword(
+    requesterUserId: number,
+    targetUserId: number,
+    password: string,
+  ) {
+    await this.administratorAccountPolicyService.assertCanMutateUser(
+      requesterUserId,
+      targetUserId,
+    );
+    const [updatedUser] = await this.database
+      .update(users)
+      .set({ passwordHash: hashPassword(password) })
+      .where(alive(users, eq(users.id, targetUserId)))
+      .returning(publicUserSelection);
+    if (!updatedUser) {
+      throw new NotFoundException('用户不存在');
+    }
+    return updatedUser;
+  }
+
+  async remove(requesterUserId: number, targetUserId: number) {
+    await this.administratorAccountPolicyService.assertCanMutateUser(
+      requesterUserId,
+      targetUserId,
+    );
+    const [deletedUser] = await softDelete(
+      this.database,
+      users,
+      eq(users.id, targetUserId),
+    );
+    if (!deletedUser) {
+      throw new NotFoundException('用户不存在');
+    }
     return { deleted: true };
   }
 
@@ -91,11 +145,19 @@ export class UsersService {
       .where(eq(users.id, userId));
   }
 
-  async setEnabled(userId: number, enabled: boolean) {
+  async setEnabled(
+    requesterUserId: number,
+    targetUserId: number,
+    enabled: boolean,
+  ) {
+    await this.administratorAccountPolicyService.assertCanMutateUser(
+      requesterUserId,
+      targetUserId,
+    );
     const [updatedUser] = await this.database
       .update(users)
       .set({ enabled })
-      .where(alive(users, eq(users.id, userId)))
+      .where(alive(users, eq(users.id, targetUserId)))
       .returning({
         id: users.id,
         username: users.username,

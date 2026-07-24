@@ -4,13 +4,13 @@
 
 ## 1. 完成度
 
-后端既定 backlog #1–#12 全部完成。代码包含 31 个 HTTP 路径模板、1 个设备 WebSocket 网关、API/Worker 双进程和 8 个数据库迁移。
+后端既定 backlog #1–#13 全部完成。代码包含 32 个 HTTP 路径模板、1 个设备 WebSocket 网关、API/Worker 双进程和 8 个数据库迁移。
 
 | 领域 | 能力 | 状态 | 黑盒覆盖 |
 |---|---|---|---|
 | 认证 | 登录、JWT、`/auth/me` | ✅ | ✅ |
 | RBAC | role/permission CRUD 与双向解绑 | ✅ | ✅ |
-| 用户 | CRUD、enabled、lastLoginAt、旧 JWT 吊销 | ✅ | ✅ |
+| 用户 | CRUD、资料、改密、enabled、管理员隔离、旧 JWT 吊销 | ✅ | ✅ |
 | Project | CRUD、enabled、GroupInfo | ✅ | ✅ |
 | Access token | `rk_`、project 作用域、过期/撤销/软删 | ✅ | ✅ |
 | Device token | `dk_`、project 绑定、过期/撤销/软删 | ✅ | ✅ |
@@ -38,8 +38,13 @@
 - `GET /users`
 - `GET /users/:id`
 - `POST /users`
+- `PATCH /users/:id`
+- `PATCH /users/:id/password`
 - `DELETE /users/:id`
 - `POST /users/:id/enabled`
+
+`isRoot` 种子管理员账号只能由本人修改。该保护同时覆盖资料、密码、启停、软删除和
+`/rbac/users/:userId/roles/:roleId` 的绑定/解绑。`users.role` 不参与授权或管理员保护。
 
 ### RBAC
 
@@ -222,8 +227,9 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 `pnpm smoke` 与 `pnpm test:e2e` 执行同一套完整性测试：
 
-- 121 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
+- 131 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
 - 覆盖全部 HTTP controller 方法。
+- 覆盖资料修改、改密新旧密码登录，以及管理员资料/密码/启停/删除/RBAC 关系隔离。
 - 覆盖 WS 鉴权、心跳、ping、读超时、分片/超大帧拒绝。
 - 使用 256 个并发 HTTP invoke 真实占满 WS 设备在途槽。
 - 覆盖目标设备 result 身份匹配与重复结果去重。
@@ -231,6 +237,8 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 - 通过 monitor/metrics API 验证 Worker 冷路径结果。
 
 `test/assert-blackbox-e2e.js` 会静态拒绝 E2E 导入持久层客户端或应用内部服务。
+
+Jest 当前为 5 个 suite、11 个测试，包含管理员策略的本人 root、他人 root 和普通目标分支。
 
 ### 内部集成
 
