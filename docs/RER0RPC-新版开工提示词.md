@@ -9,11 +9,14 @@
 
 ## 当前事实
 
-- 活代码在 `backend/` 与 `frontend/`：NestJS 11 + Drizzle，Next.js 16 + shadcn。
+- 活代码在 `backend/`、`frontend/` 与 `sdk/`：NestJS 11 + Drizzle、Next.js 16 +
+  shadcn、Android/Kotlin 和 JavaScript/TypeScript SDK。
 - PostgreSQL 是业务权威库，Redis 承担 presence/队列/分布式协调，Manticore 保存 payload 和设备 AppAudit Step。
 - API 与 Worker 是独立进程：`src/main.ts`、`src/worker.ts`。
 - 设备使用 `dk_` device token 连接 `/api/client/ws`。
 - 调用方使用 `rk_` access token 调 `POST /rpc/invoke/:project/:action`。
+- 官方 SDK 位于 `sdk/android` 和 `sdk/javascript`，两端都提供 Device、Caller 和
+  AppAudit Recorder。
 - 设备可在 WS `result.appAudit` 上报 V1 执行 Step，契约见 `docs/device-app-audit.md`。
 - 后台使用 JWT + CASL RBAC。
 - `roles` 是权限组；读操作使用 `read/rbac`，所有 RBAC 写操作仅 `isRoot` 种子管理员可执行。
@@ -23,10 +26,10 @@
   `/rpc/invoke/*` 继续使用 Access Token。
 - 后台账号支持资料修改和改密；`isRoot` 管理员资料、密码、启停、删除和 RBAC 关系只能由本人修改。
 - 后端 backlog #1–#15、管理前端 #16、手动 RPC #17、后台授权缓存 #18、统一配置/Compose
-  #19 和容器性能验收 #20 已全部完成。
+  #19、容器性能验收 #20、Android/JavaScript SDK #21 已全部完成。
 - 管理前端 #16 已完成，覆盖全部后台管理公开面；默认端口 3001。
 - 当前基线：OpenAPI 39 个路径模板、后端 HTTP/WebSocket 黑盒 172 passed、前端 Playwright
-  12 passed、Jest 10 suites / 35 tests。
+  12 passed、Jest 10 suites / 35 tests、JavaScript SDK 10 tests、Android SDK 8 tests。
 - API、Worker、迁移、种子和前端共用根目录 `config.yaml` schema；根目录 `compose.yaml`
   提供 PostgreSQL、Redis、Manticore 和全部应用服务编排。
 - Compose 全部服务都有限制，CPU 声明上限合计 4.00 核、内存 3840 MiB；可选
@@ -54,7 +57,9 @@
 11. 涉及手动 RPC 时读 `docs/superpowers/specs/2026-07-24-manual-rpc-debugger-design.md`
 12. 涉及配置或容器时读 `docs/superpowers/specs/2026-07-24-unified-configuration-compose-design.md`
 13. 涉及性能测试或资源预算时读 `docs/superpowers/specs/2026-07-24-container-performance-suite-design.md`
-14. 与任务最接近的 source、test、schema 和历史 plan
+14. 涉及客户端接入时读 `sdk/README.md` 与
+    `docs/superpowers/specs/2026-07-24-device-sdks-design.md`
+15. 与任务最接近的 source、test、schema 和历史 plan
 
 ## 修改规则
 
@@ -108,6 +113,15 @@ pnpm test:e2e
 前端 Playwright 也只能通过浏览器与公开 HTTP API 验证，边界由
 `test/assert-blackbox-e2e.cjs` 强制；当前基线为 12 passed。
 
+在 `sdk/`：
+
+```bash
+(cd javascript && corepack pnpm check)
+(cd android && ./gradlew :rer0rpc-sdk:testDebugUnitTest :rer0rpc-sdk:assembleRelease)
+```
+
+SDK 测试只能走公开 HTTP/WebSocket 协议，不得导入后端模块或直连持久层。
+
 底层 retention/stale/metrics/maxInFlight 算法的直连检查属于 `pnpm test:integration:*`，不得称为 E2E。
 
 ## 当前优先事项
@@ -122,4 +136,5 @@ pnpm test:e2e
 - 功能完成后更新 `docs/后端进度.md` 和 `CHANGELOG.md`。
 - API 变化后执行 `pnpm openapi:gen` 并提交 `docs/openapi.yaml`。
 - 行为、配置、命令变化必须同步更新 README、backend/README、deploy/README 和相关设计文档。
+- SDK 契约变化必须同步两个 SDK、`sdk/README.md`、AppAudit 协议和 SDK 设计。
 ```

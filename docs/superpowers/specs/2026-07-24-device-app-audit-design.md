@@ -26,7 +26,8 @@ RER0RPC 在远端设备执行动作，服务端只能看到最终 WS `result`，
 
 - 第一版不支持逐 Step 的流式 `audit_step` 消息。
 - 不在服务端伪造设备内部 Step。
-- 不在本仓库实现具体设备 SDK；本文给出设备侧协议和记录器行为要求。
+- 本规格阶段只定义协议和记录器行为；后续已由
+  `2026-07-24-device-sdks-design.md` 在本仓库实现 Android 与 JavaScript SDK。
 - 不把 `appAudit` 返回给同步 RPC 调用方；它只进入日志详情。
 - 不把原始 Step 内容写入 PostgreSQL。
 

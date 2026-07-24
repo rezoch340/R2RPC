@@ -28,6 +28,8 @@
 RER0RPC 解决“服务端需要调用位于 NAT、移动网络或客户现场中的在线设备”这一类问题：
 
 - **实时派发**：通过持久 WebSocket 连接把 HTTP RPC 请求转发到指定设备或由服务端自动路由。
+- **官方 SDK**：Android/Kotlin 与 JavaScript/TypeScript 同时覆盖设备接入、调用方请求和
+  AppAudit Recorder。
 - **明确隔离**：Access Token、Device Token、功能组和 `clientId` 共同约束调用边界。
 - **完整观测**：请求状态、耗时、载荷、设备 AppAudit Step、趋势指标和系统操作日志可追溯。
 - **独立控制面**：管理前端覆盖功能组、设备、令牌、账号、权限组、日志和手动调试。
@@ -48,6 +50,7 @@ RER0RPC 解决“服务端需要调用位于 NAT、移动网络或客户现场�
 | 设备审计 | 设备随 WS `result` 上报 AppAudit V1 Step，请求、响应和错误分段展示 |
 | 系统审计 | 登录、控制面读取、Guard 拒绝和业务写操作审计，不记录密码或 Token 明文 |
 | 管理控制台 | Next.js + shadcn 响应式后台，全部实体表支持筛选与分页 |
+| 官方 SDK | Android/Kotlin、JavaScript/TypeScript 设备端与调用方 SDK，内置重连、超时和 AppAudit Recorder |
 | 部署运维 | 统一 YAML、独立迁移/种子、健康检查、非 root 应用容器、持久化卷 |
 | 性能验收 | 4 台虚拟在线设备、真实 WS Hello、自动轮询/随机指定设备、质量阈值和 JSON 报告 |
 
@@ -129,7 +132,7 @@ flowchart TB
   subgraph AccessLayer["访问层"]
     Caller["调用方服务"]
     Administrator["后台管理员"]
-    Device["在线设备"]
+    Device["在线设备<br/>Android / JavaScript SDK"]
   end
 
   subgraph ControlPlane["管理控制面"]
@@ -229,6 +232,7 @@ flowchart TB
 | 后端 | Node.js 24、TypeScript、NestJS 11、Drizzle ORM |
 | 前端 | Next.js 16、React 19、Tailwind CSS 4、shadcn、TanStack Query |
 | 实时通信 | WebSocket |
+| 客户端 SDK | Kotlin、Coroutines、OkHttp；TypeScript、Fetch、isomorphic-ws |
 | 数据库 | PostgreSQL 16 |
 | 缓存与队列 | Redis 7、BullMQ |
 | 搜索与载荷索引 | Manticore Search |
@@ -417,6 +421,8 @@ Redis、JWT 或管理员配置。
 | HTTP/WebSocket 黑盒冒烟 | 172 passed |
 | 后端 Jest | 10 suites / 35 tests |
 | 前端 Playwright | 12 passed |
+| JavaScript SDK | 3 files / 10 tests |
+| Android SDK | 3 classes / 8 tests |
 | OpenAPI | 39 paths |
 | 受限 Compose 性能测试 | 4 devices / 1600 requests / 0 failures / 80.03 req/s / P95 7.50 ms |
 
@@ -436,8 +442,16 @@ pnpm lint
 pnpm build
 pnpm test:e2e
 
+# JavaScript / TypeScript SDK
+cd ../sdk/javascript
+corepack pnpm check
+
+# Android / Kotlin SDK
+cd ../android
+./gradlew :rer0rpc-sdk:testDebugUnitTest :rer0rpc-sdk:assembleRelease
+
 # Compose 与镜像
-cd ..
+cd ../..
 docker compose config --quiet
 docker compose build api frontend
 docker compose --profile performance run --rm performance
@@ -455,6 +469,7 @@ RER0RPC/
 ├── frontend/                Next.js 管理控制台与 Playwright E2E
 ├── deploy/                  Compose 配置模板、启动脚本和部署说明
 ├── docs/                    OpenAPI、当前文档、设计规格与历史归档
+├── sdk/                     Android/Kotlin 与 JavaScript/TypeScript SDK
 ├── compose.yaml             完整容器编排
 ├── config.example.yaml      宿主机统一配置模板
 ├── CHANGELOG.md             变更记录
@@ -465,8 +480,8 @@ RER0RPC/
 
 - 后端功能 backlog #1–#15 已完成。
 - 设备 RPC、后台控制面、权限、审计、管理前端、完整 Compose 和容器性能验收已形成闭环。
-- 设备 SDK 不在本仓库范围；设备按照 WebSocket 与
-  [AppAudit V1 协议](docs/device-app-audit.md)接入。
+- Android/Kotlin 与 JavaScript/TypeScript SDK 已纳入仓库，设备与调用方可直接复用
+  [SDK 接入说明](sdk/README.md)。
 - 发布阶段待办以[`docs/下一步-后端待办.md`](docs/下一步-后端待办.md)为准。
 
 ## 项目文档
@@ -479,6 +494,7 @@ RER0RPC/
 - [后端进度台账](docs/后端进度.md)
 - [后端开发说明](backend/README.md)
 - [前端开发说明](frontend/README.md)
+- [Android 与 JavaScript SDK](sdk/README.md)
 - [部署与 Docker Compose](deploy/README.md)
 - [工程规范](docs/design-conventions.md)
 - [OpenAPI](docs/openapi.yaml)
@@ -487,6 +503,7 @@ RER0RPC/
 ### 协议与设计
 
 - [设备 AppAudit V1 接入协议](docs/device-app-audit.md)
+- [Android 与 JavaScript SDK 设计](docs/superpowers/specs/2026-07-24-device-sdks-design.md)
 - [管理员账号隔离与改密设计](docs/superpowers/specs/2026-07-24-administrator-account-isolation-design.md)
 - [权限组设计](docs/superpowers/specs/2026-07-24-permission-groups-design.md)
 - [系统操作审计日志设计](docs/superpowers/specs/2026-07-24-system-audit-logs-design.md)

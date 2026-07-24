@@ -1,6 +1,6 @@
 # 工程设计规范
 
-> 适用于 **NestJS 后端 + Next.js(App Router)前端**的通用工程约定。新人 / 开发 Agent 动手前先读这篇。
+> 适用于 **NestJS 后端 + Next.js(App Router)前端 + Android/JavaScript SDK** 的通用工程约定。新人 / 开发 Agent 动手前先读这篇。
 
 ---
 
@@ -323,6 +323,25 @@ async fillAndSave(input: {
 
 ## 三、通用协作约定
 
+### SDK 约定
+
+- 官方 SDK 固定放在 `sdk/android` 与 `sdk/javascript`，两端公共能力保持语义一致：
+  Device、Caller、AppAudit Recorder。
+- SDK 只能使用 `/api/client/ws`、`/rpc/invoke/*` 和 `/rpc/clientQueue` 等公开协议；禁止
+  导入后端源码或访问 PostgreSQL、Redis、Manticore。
+- Device Token 只用于设备 WS，Access Token 只用于调用方 HTTP；SDK 不签发、刷新、持久化
+  或输出令牌日志。
+- Android `clientId` 默认读取 Widevine MediaDrm ID 并编码为小写十六进制；JavaScript
+  `clientId` 由宿主持久化提供。两端都不得每次启动自动随机生成。
+- welcome 的 clientId 必须与本地一致；4001 鉴权关闭停止重连，其他异常断线使用有上限的
+  指数退避。
+- 未注册 Action、处理器异常和超时必须映射为稳定 result，迟到结果不能二次发送。
+- AppAudit Recorder 必须自动维护连续 sequence、UTC ISO 时间、非负 duration 和单次完成；
+  字段、数量与体积边界跟随 `docs/device-app-audit.md`。
+- JavaScript SDK 使用完整 TypeScript strict 类型并输出声明；Android SDK 不绑定 Activity，
+  网络和 Action 执行不得阻塞主线程。
+- SDK 源码、测试和示例同样执行完整语义命名规则，不得引入含糊缩写或大段嵌套控制流。
+
 - **注释**:放被注释代码的**上一行**(不写行尾),用**中文**。
   ≤2 行用普通 `//`;>2 行用折叠格式——首行概述,明细行前缀 `// >`,更深一层 `// > >`,保证 IDE 可折叠。
   整理存量注释只动注释(位置 / 换行 / 语言),**绝不改代码、逻辑、字符串字面量**。
@@ -349,3 +368,6 @@ async fillAndSave(input: {
   样本，Hello 响应、全部设备覆盖或质量阈值失败必须非零退出并写 JSON 报告。
 - Compose 内所有服务都必须保留 `cpus`、`mem_limit` 和 `pids_limit`；包含一次性服务与
   performance profile 的声明上限总和不得超过 4.00 核和 4 GiB。
+- JavaScript SDK 必须通过 `corepack pnpm check`；Android SDK 必须通过
+  `./gradlew :rer0rpc-sdk:testDebugUnitTest :rer0rpc-sdk:assembleRelease`。SDK HTTP/WS
+  测试使用公开协议和 Mock Server，不以导入后端 service 代替协议验收。

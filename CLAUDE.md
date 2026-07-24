@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-RER0RPC 是设备侧 RPC 中继平台(思路类似 Sekiro):调用方按 `project`(功能组)或指定 `clientId`,把请求下发到在线设备,设备执行后实时回传结果。活代码位于 `backend/`(NestJS API/Worker)与 `frontend/`(Next.js 管理控制台)。
+RER0RPC 是设备侧 RPC 中继平台(思路类似 Sekiro):调用方按 `project`(功能组)或指定 `clientId`,把请求下发到在线设备,设备执行后实时回传结果。活代码位于 `backend/`(NestJS API/Worker)、`frontend/`(Next.js 管理控制台)与 `sdk/`(Android/Kotlin、JavaScript/TypeScript SDK)。
 
 当前文档已经统一为 NestJS + PostgreSQL + Redis + BullMQ + Manticore 架构，端口 **3000**，默认管理员 `admin/admin123456`。旧 Go/MySQL 文档只保存在 `docs/archive/`，不得作为当前实现依据。
 
@@ -51,6 +51,26 @@ pnpm test:e2e              # 12 项浏览器黑盒,只访问 UI 与公开 HTTP A
 令牌和 JSON 复制统一使用 `CopyButton`/`lib/clipboard.ts`，禁止页面直接调用
 `navigator.clipboard.writeText`；公共实现会在非安全上下文自动回退。全部列表默认 10
 条/页、最大 100 条/页。
+
+## SDK 命令
+
+```bash
+# JavaScript / TypeScript
+cd sdk/javascript
+corepack pnpm check
+
+# Android / Kotlin
+cd ../android
+./gradlew :rer0rpc-sdk:testDebugUnitTest :rer0rpc-sdk:assembleRelease
+./gradlew :rer0rpc-sdk:publishToMavenLocal
+```
+
+两套 SDK 都同时提供 Device、Caller 和 AppAudit Recorder，只能使用公开 HTTP/WebSocket
+协议，不得导入后端模块或访问 PostgreSQL、Redis、Manticore。JavaScript 包名为
+`@rer0rpc/javascript-sdk`；Android Maven 坐标为
+`io.rer0rpc:rer0rpc-android:0.1.0`。Android 默认使用 Widevine MediaDrm ID 作为
+`clientId`；JavaScript 由宿主持久化并跨重启复用，不能每次启动临时随机生成。设计见
+`docs/superpowers/specs/2026-07-24-device-sdks-design.md`。
 
 - **前置基础设施**:PostgreSQL / Redis / Manticore 按根目录 `config.yaml`(默认
   `localhost:5432/6379/9308`)须已在跑；仓库提供根目录 `compose.yaml` 与
@@ -131,5 +151,7 @@ AppAudit 继续走各自日志链路，不重复写 `system_logs`。系统操作
 - **性能测试也只走公开接口**:`src/scripts/performance*.ts` 只能通过 HTTP/WS 测量真实系统，
   禁止直连持久层；场景、设备数、速率和阈值从统一配置读取。Hello 业务响应或全部设备覆盖
   不合格也必须返回非零退出码并保留 JSON 报告。
+- **SDK 也只走公开协议**：Android 与 JavaScript 的实现、示例和测试不得导入
+  `backend/` 或使用持久层客户端；协议字段变化必须同时更新两端与 `sdk/README.md`。
 - retention/stale/metrics/maxInFlight 的底层直连脚本统一命名 `*.integration.ts`，只能作为 `test:integration:*` 内部算法检查，**不得称为 E2E/冒烟**。
 - 别默认建 `repository.ts`;新模块用 `nest g`(不手写样板),schema 用 Drizzle 替掉 CLI 的 `entities/`。
