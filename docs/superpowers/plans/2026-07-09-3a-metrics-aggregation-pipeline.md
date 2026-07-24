@@ -114,7 +114,7 @@ export const rpcDailyMetrics = pgTable(
 - [ ] **Step 3: 生成 + 应用迁移 + reseed**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend
+cd /Users/lpitiless/Documents/R2RPC/backend
 node_modules/.bin/drizzle-kit generate
 grep -nE 'CREATE TABLE "(device_daily_metrics|rpc_daily_metrics)"|DROP TABLE "metrics"' drizzle/0004_*.sql
 node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/migrate.ts
@@ -126,8 +126,8 @@ Expected:两张 CREATE TABLE + DROP TABLE "metrics";无交互;`迁移完成`;see
 - [ ] **Step 4: build + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -3
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/application/metrics/metrics.schema.ts backend/src/infrastructure/config backend/drizzle && git commit -m "feat(3a): device_daily_metrics + rpc_daily_metrics tables (drop metrics shell) + aggregateRetentionDays config + migration"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -3
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src/application/metrics/metrics.schema.ts backend/src/infrastructure/config backend/drizzle && git commit -m "feat(3a): device_daily_metrics + rpc_daily_metrics tables (drop metrics shell) + aggregateRetentionDays config + migration"
 ```
 
 ---
@@ -285,8 +285,8 @@ import { MetricsService } from '../metrics/metrics.service';
 - [ ] **Step 6: build + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -6
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src && git commit -m "feat(3a): recordCompletion daily aggregation on RequestLogProcessor first-insert (dedup via writeSpine)"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -6
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src && git commit -m "feat(3a): recordCompletion daily aggregation on RequestLogProcessor first-insert (dedup via writeSpine)"
 ```
 
 ---
@@ -402,8 +402,8 @@ import { MetricsService } from '../metrics/metrics.service';
 - [ ] **Step 4: build + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -6
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src && git commit -m "feat(3a): startup reconcile from request_logs + daily aggregate-table cleanup worker"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -6
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src && git commit -m "feat(3a): startup reconcile from request_logs + daily aggregate-table cleanup worker"
 ```
 
 ---
@@ -537,15 +537,15 @@ main().catch((e) => {
 - [ ] **Step 3: 跑冒烟**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/metrics-smoke.ts 2>&1 | tail -16
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/metrics-smoke.ts 2>&1 | tail -16
 ```
 Expected:`METRICS SMOKE PASSED`(累加 9 条 + 对账 3 条断言全 PASS)。
 
 - [ ] **Step 4: prettier + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/prettier --write "src/**/*.ts" >/dev/null
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/scripts/metrics-smoke.ts backend/package.json && git commit -m "test(3a): metrics aggregation pipeline direct smoke (recordCompletion + reconcile)"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/prettier --write "src/**/*.ts" >/dev/null
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src/scripts/metrics-smoke.ts backend/package.json && git commit -m "test(3a): metrics aggregation pipeline direct smoke (recordCompletion + reconcile)"
 ```
 
 ---
@@ -573,7 +573,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/scripts/metrics-smo
 - [ ] **Step 2: 提交 + 推 + PR**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add docs/后端进度.md && git commit -m "docs(3a): mark metrics aggregation pipeline done + 3b split" && git push -u origin feat/3-metrics-aggregation && gh pr create --base main --title "feat(3a): 指标聚合管道(日聚合表 + 完成累加 + 对账 + 清理)" --body "#3 指标聚合体系 3a(写入管道)。两日聚合表 + per-completion 累加(去重)+ 重启对账 + 30天清理。读视图=3b。计划见 docs/superpowers/plans/2026-07-09-3a-metrics-aggregation-pipeline.md"
+cd /Users/lpitiless/Documents/R2RPC && git add docs/后端进度.md && git commit -m "docs(3a): mark metrics aggregation pipeline done + 3b split" && git push -u origin feat/3-metrics-aggregation && gh pr create --base main --title "feat(3a): 指标聚合管道(日聚合表 + 完成累加 + 对账 + 清理)" --body "#3 指标聚合体系 3a(写入管道)。两日聚合表 + per-completion 累加(去重)+ 重启对账 + 30天清理。读视图=3b。计划见 docs/superpowers/plans/2026-07-09-3a-metrics-aggregation-pipeline.md"
 ```
 
 - [ ] **Step 3:** 回填 PR 号到完成记录,补一提交。

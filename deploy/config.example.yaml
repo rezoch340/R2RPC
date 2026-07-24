@@ -15,9 +15,9 @@ frontend:
 db:
   host: postgres
   port: 5432
-  user: rer0rpc
-  password: rer0rpc
-  database: rer0rpc
+  user: r2rpc
+  password: r2rpc
+  database: r2rpc
 
 redis:
   host: redis

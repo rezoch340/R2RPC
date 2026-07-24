@@ -1,4 +1,4 @@
-# RER0RPC
+# R2RPC
 
 [![wakatime](https://wakatime.com/badge/user/bd5036d3-6da5-4386-8a6b-2acdaf448df5/project/4d0173df-ceea-4da6-b039-6f406b360801.svg)](https://wakatime.com/badge/user/bd5036d3-6da5-4386-8a6b-2acdaf448df5/project/4d0173df-ceea-4da6-b039-6f406b360801)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white)
@@ -8,11 +8,11 @@
 ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
 > [!IMPORTANT]
-> **RER0RPC 是 [manyuegong33/r0rpc](https://github.com/manyuegong33/r0rpc) 的分布式重构版本。**
+> **R2RPC 是 [manyuegong33/r0rpc](https://github.com/manyuegong33/r0rpc) 的分布式重构版本。**
 > 本项目在原有设备 RPC 中继目标上，重新设计了分布式运行架构、数据边界、权限体系、
 > 可观测性、管理控制台和容器化部署能力。
 
-**RER0RPC 是面向在线设备的实时 RPC 中继与运维控制平台。**
+**R2RPC 是面向在线设备的实时 RPC 中继与运维控制平台。**
 
 调用方通过 HTTP 提交任务，服务端将请求实时派发给符合功能组和身份边界的 WebSocket
 设备，并把执行结果同步返回给调用方。平台同时提供完整的后台控制台、权限组、令牌管理、
@@ -23,9 +23,9 @@
 
 ---
 
-## 为什么使用 RER0RPC
+## 为什么使用 R2RPC
 
-RER0RPC 解决“服务端需要调用位于 NAT、移动网络或客户现场中的在线设备”这一类问题：
+R2RPC 解决“服务端需要调用位于 NAT、移动网络或客户现场中的在线设备”这一类问题：
 
 - **实时派发**：通过持久 WebSocket 连接把 HTTP RPC 请求转发到指定设备或由服务端自动路由。
 - **官方 SDK**：Android/Kotlin 与 JavaScript/TypeScript 同时覆盖设备接入、调用方请求和
@@ -58,7 +58,7 @@ RER0RPC 解决“服务端需要调用位于 NAT、移动网络或客户现场�
 
 ### 运行概览
 
-![RER0RPC 管理控制台运行概览](docs/assets/management-console-overview.jpg)
+![R2RPC 管理控制台运行概览](docs/assets/management-console-overview.jpg)
 
 > 运行概览集中展示累计请求、在线设备、功能组、平均延迟、近 7 天请求趋势和状态分布；
 > 指标来自真实后端接口，不使用前端静态演示数据。
@@ -124,7 +124,7 @@ RER0RPC 解决“服务端需要调用位于 NAT、移动网络或客户现场�
 
 ## 系统架构
 
-RER0RPC 将实时 RPC 热路径、异步日志冷路径和管理控制面分离。Redis 保存跨实例协调状态，
+R2RPC 将实时 RPC 热路径、异步日志冷路径和管理控制面分离。Redis 保存跨实例协调状态，
 PostgreSQL 保存权威业务数据，Manticore 专门承载大载荷和设备执行 Step。
 
 ```mermaid
@@ -426,7 +426,7 @@ Redis、JWT 或管理员配置。
 | OpenAPI | 39 paths |
 | 受限 Compose 性能测试 | 4 devices / 1600 requests / 0 failures / 80.03 req/s / P95 7.50 ms |
 
-> 该测试结果仅代表 RER0RPC 后台服务性能，不代表真实设备端侧的执行性能。
+> 该测试结果仅代表 R2RPC 后台服务性能，不代表真实设备端侧的执行性能。
 
 ```bash
 # 后端
@@ -448,7 +448,7 @@ corepack pnpm check
 
 # Android / Kotlin SDK
 cd ../android
-./gradlew :rer0rpc-sdk:testDebugUnitTest :rer0rpc-sdk:assembleRelease
+./gradlew :r2rpc-sdk:testDebugUnitTest :r2rpc-sdk:assembleRelease
 
 # Compose 与镜像
 cd ../..
@@ -464,7 +464,7 @@ docker compose --profile performance run --rm performance
 ## 项目结构
 
 ```text
-RER0RPC/
+R2RPC/
 ├── backend/                 NestJS API、Worker、迁移、种子和黑盒测试
 ├── frontend/                Next.js 管理控制台与 Playwright E2E
 ├── deploy/                  Compose 配置模板、启动脚本和部署说明
@@ -490,7 +490,7 @@ RER0RPC/
 
 - [项目总览](docs/项目总览-中文.md)
 - [文档索引与有效性说明](docs/README.md)
-- [核心能力矩阵](docs/RER0RPC-核心功能统计.md)
+- [核心能力矩阵](docs/R2RPC-核心功能统计.md)
 - [后端进度台账](docs/后端进度.md)
 - [后端开发说明](backend/README.md)
 - [前端开发说明](frontend/README.md)

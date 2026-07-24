@@ -1,4 +1,4 @@
-# RER0RPC 当前核心功能统计
+# R2RPC 当前核心功能统计
 
 > 更新日期：2026-07-24。本文统计当前 NestJS/PostgreSQL 实现。旧 Go 系统语义基线见 `docs/archive/旧版-Go-核心功能统计.md`。
 
@@ -365,7 +365,7 @@ RootGuard 的 root、非 root `manage/rbac` 和缺失身份分支。
 
 - JavaScript SDK：`sdk/javascript/`，ESM + TypeScript 声明，Node.js 20+ 和现代浏览器可用。
 - Android SDK：`sdk/android/`，Maven 坐标
-  `io.rer0rpc:rer0rpc-android:0.1.0`，`minSdk 21`、Java 8 字节码兼容 AAR，设备默认
+  `io.r2rpc:r2rpc-android:0.1.0`，`minSdk 21`、Java 8 字节码兼容 AAR，设备默认
   使用 Widevine MediaDrm ID 作为 `clientId`。
 - 两端同时提供 Device 与 Caller：设备端封装 WS welcome、heartbeat、重连、Action
   路由/超时/result；调用方封装 invoke、在线设备列表和指定设备在线状态。

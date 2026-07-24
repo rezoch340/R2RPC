@@ -1,7 +1,7 @@
 import DefaultWebSocket from 'isomorphic-ws';
 import {
-  Rer0RpcAuthenticationError,
-  Rer0RpcError,
+  R2RpcAuthenticationError,
+  R2RpcError,
 } from './errors.js';
 import type {
   DeviceActionHandler,
@@ -33,7 +33,7 @@ export interface WebSocketLike {
 
 export type WebSocketFactory = (url: string) => WebSocketLike;
 
-export interface Rer0RpcDeviceOptions {
+export interface R2RpcDeviceOptions {
   baseUrl: string;
   deviceToken: string;
   clientId: string;
@@ -50,7 +50,7 @@ export interface Rer0RpcDeviceOptions {
 
 const WEB_SOCKET_OPEN_STATE = 1;
 
-export class Rer0RpcDevice {
+export class R2RpcDevice {
   private readonly actionHandlers = new Map<string, DeviceActionHandler>();
   private readonly webSocketFactory: WebSocketFactory;
   private connectionState: DeviceConnectionState = 'idle';
@@ -61,7 +61,7 @@ export class Rer0RpcDevice {
   private shouldRun = false;
   private defaultHandler: DeviceActionHandler | undefined;
 
-  constructor(private readonly options: Rer0RpcDeviceOptions) {
+  constructor(private readonly options: R2RpcDeviceOptions) {
     if (!options.baseUrl.trim()) {
       throw new TypeError('baseUrl 不能为空');
     }
@@ -134,7 +134,7 @@ export class Rer0RpcDevice {
     webSocket.onmessage = (event) =>
       this.handleMessage(webSocket, event.data);
     webSocket.onerror = () =>
-      this.reportError(new Rer0RpcError('设备 WebSocket 连接错误'));
+      this.reportError(new R2RpcError('设备 WebSocket 连接错误'));
     webSocket.onclose = (event) => this.handleClose(webSocket, event);
   }
 
@@ -198,7 +198,7 @@ export class Rer0RpcDevice {
 
   private handleWelcome(message: Record<string, unknown>): void {
     if (message.clientId !== this.options.clientId) {
-      this.reportError(new Rer0RpcError('welcome clientId 与本地设备不一致'));
+      this.reportError(new R2RpcError('welcome clientId 与本地设备不一致'));
       this.webSocket?.close(4003, 'clientId mismatch');
       return;
     }
@@ -324,7 +324,7 @@ export class Rer0RpcDevice {
     webSocket = this.webSocket,
   ): void {
     if (webSocket?.readyState !== WEB_SOCKET_OPEN_STATE) {
-      this.reportError(new Rer0RpcError('设备 WebSocket 当前不可写'));
+      this.reportError(new R2RpcError('设备 WebSocket 当前不可写'));
       return;
     }
     webSocket.send(JSON.stringify(message));
@@ -359,7 +359,7 @@ export class Rer0RpcDevice {
     if (event.code === 4001) {
       this.shouldRun = false;
       this.setState('stopped');
-      this.reportError(new Rer0RpcAuthenticationError());
+      this.reportError(new R2RpcAuthenticationError());
       return;
     }
     this.scheduleReconnect();

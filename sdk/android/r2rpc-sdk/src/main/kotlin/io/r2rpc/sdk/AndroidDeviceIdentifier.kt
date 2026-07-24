@@ -1,4 +1,4 @@
-package io.rer0rpc.sdk
+package io.r2rpc.sdk
 
 import android.media.MediaDrm
 import android.os.Build
@@ -17,7 +17,7 @@ object AndroidDeviceIdentifier {
 
     private fun readWidevineMediaDrmIdentifier(): String {
         if (!MediaDrm.isCryptoSchemeSupported(widevineSchemeIdentifier)) {
-            throw Rer0RpcDeviceIdentifierException(
+            throw R2RpcDeviceIdentifierException(
                 "当前 Android 设备不支持 Widevine MediaDrm，无法生成 clientId",
             )
         }
@@ -26,7 +26,7 @@ object AndroidDeviceIdentifier {
             try {
                 MediaDrm(widevineSchemeIdentifier)
             } catch (exception: Exception) {
-                throw Rer0RpcDeviceIdentifierException(
+                throw R2RpcDeviceIdentifierException(
                     "无法初始化 Widevine MediaDrm",
                     exception,
                 )
@@ -37,7 +37,7 @@ object AndroidDeviceIdentifier {
                 mediaDrm.getPropertyByteArray(MediaDrm.PROPERTY_DEVICE_UNIQUE_ID),
             )
         } catch (exception: Exception) {
-            throw Rer0RpcDeviceIdentifierException(
+            throw R2RpcDeviceIdentifierException(
                 "无法读取 Widevine MediaDrm 设备 ID",
                 exception,
             )
@@ -48,7 +48,7 @@ object AndroidDeviceIdentifier {
 
     internal fun encodeAsLowercaseHexadecimal(identifierBytes: ByteArray): String {
         if (identifierBytes.isEmpty()) {
-            throw Rer0RpcDeviceIdentifierException(
+            throw R2RpcDeviceIdentifierException(
                 "Widevine MediaDrm 设备 ID 不能为空",
             )
         }

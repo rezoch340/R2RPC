@@ -133,7 +133,7 @@ import { deviceTokens } from '../device-token/device-token.schema';
 - [ ] **Step 3: 生成增量迁移**(纯新增表 + 新增列,非交互)
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/drizzle-kit generate
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/drizzle-kit generate
 ```
 Expected: 生成 `drizzle/0001_*.sql`,含 `CREATE TABLE "device_tokens"`、`CREATE TABLE "device_token_projects"`、`ALTER TABLE "devices" ADD COLUMN "device_token_id"`。**无交互 prompt**。抽查:
 
@@ -145,21 +145,21 @@ Expected: 三处命中。
 - [ ] **Step 4: 应用迁移 + reseed(幂等)**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/migrate.ts && node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/seed-admin.ts
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/migrate.ts && node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/seed-admin.ts
 ```
 Expected: `迁移完成`;seed 无报错(此刻 seed 还没加新权限,Task 2 再补)。
 
 - [ ] **Step 5: 验证 schema 同步 + build**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/drizzle-kit generate && node_modules/.bin/nest build 2>&1 | tail -5
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/drizzle-kit generate && node_modules/.bin/nest build 2>&1 | tail -5
 ```
 Expected: `No schema changes, nothing to migrate`;build 退出 0(新 schema 文件被 `deviceTokenId` FK 引用,能编译)。
 
 - [ ] **Step 6: 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/application/device-token/device-token.schema.ts backend/src/application/devices/devices.schema.ts backend/drizzle && git commit -m "feat(2b): device_tokens + device_token_projects schema + devices.device_token_id + migration"
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src/application/device-token/device-token.schema.ts backend/src/application/devices/devices.schema.ts backend/drizzle && git commit -m "feat(2b): device_tokens + device_token_projects schema + devices.device_token_id + migration"
 ```
 
 ---
@@ -453,14 +453,14 @@ imports 数组里,`AccessTokenModule,` 之后加一行:
 - [ ] **Step 7: build + lint + format + reseed(补权限)**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -5 && node_modules/.bin/eslint "{src,apps,libs,test}/**/*.ts" --fix && node_modules/.bin/prettier --write "src/**/*.ts" >/dev/null && node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/seed-admin.ts 2>&1 | tail -3
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -5 && node_modules/.bin/eslint "{src,apps,libs,test}/**/*.ts" --fix && node_modules/.bin/prettier --write "src/**/*.ts" >/dev/null && node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/seed-admin.ts 2>&1 | tail -3
 ```
 Expected: build 0;lint 无错;seed 打印「权限 15 条」(原 14 + device-token)。
 
 - [ ] **Step 8: 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add -A backend/src backend/package.json 2>/dev/null; git add backend/src && git commit -m "feat(2b): device-token CRUD module + manage/device-token permission"
+cd /Users/lpitiless/Documents/R2RPC && git add -A backend/src backend/package.json 2>/dev/null; git add backend/src && git commit -m "feat(2b): device-token CRUD module + manage/device-token permission"
 ```
 
 ---
@@ -494,7 +494,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add -A backend/src backend/package.
 - [ ] **Step 2: 起 API + 跑冒烟**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend
+cd /Users/lpitiless/Documents/R2RPC/backend
 node dist/main.js > /tmp/api-2b.log 2>&1 &
 API_PID=$!
 for i in $(seq 1 20); do curl -s -o /dev/null -X POST http://127.0.0.1:3000/auth/login -H 'content-type: application/json' -d '{"username":"admin","password":"admin123456"}' && break; sleep 1; done
@@ -507,7 +507,7 @@ Expected: 全部 PASS,含新增 6 条 device-token 断言 + `=== SMOKE PASSED ==
 - [ ] **Step 3: 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/test/smoke.e2e.js && git commit -m "test(2b): device-token CRUD smoke assertions"
+cd /Users/lpitiless/Documents/R2RPC && git add backend/test/smoke.e2e.js && git commit -m "test(2b): device-token CRUD smoke assertions"
 ```
 
 ---
@@ -536,7 +536,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/test/smoke.e2e.js && gi
 - [ ] **Step 2: 提交 + 推 + PR**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add docs/后端进度.md && git commit -m "docs(2b): mark device token done + completion record" && git push -u origin feat/2b-device-token && gh pr create --base main --title "feat(2b): device token(注册凭证 + CRUD + 在线设备数)" --body "epic #2 子项 2b。镜像 access-token 加 device_tokens/device_token_projects + CRUD + manage/device-token;devices 加 device_token_id(2c 写值)。计划见 docs/superpowers/plans/2026-07-09-2b-device-token.md"
+cd /Users/lpitiless/Documents/R2RPC && git add docs/后端进度.md && git commit -m "docs(2b): mark device token done + completion record" && git push -u origin feat/2b-device-token && gh pr create --base main --title "feat(2b): device token(注册凭证 + CRUD + 在线设备数)" --body "epic #2 子项 2b。镜像 access-token 加 device_tokens/device_token_projects + CRUD + manage/device-token;devices 加 device_token_id(2c 写值)。计划见 docs/superpowers/plans/2026-07-09-2b-device-token.md"
 ```
 
 - [ ] **Step 3:** 回填 PR 号到完成记录,补一提交。

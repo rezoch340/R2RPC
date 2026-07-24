@@ -262,7 +262,7 @@ test('移动端导航可以打开并进入管理页面', async ({ page }) => {
   await page.getByRole('button', { name: '打开导航' }).click();
   const navigationDialog = page.getByRole('dialog');
   await expect(
-    navigationDialog.getByText('RER0RPC', { exact: true }),
+    navigationDialog.getByText('R2RPC', { exact: true }),
   ).toBeVisible();
   await navigationDialog.getByRole('link', { name: '系统日志' }).click();
   await expect(page).toHaveURL('/system-logs');

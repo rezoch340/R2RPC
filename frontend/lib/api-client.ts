@@ -1,17 +1,17 @@
 declare global {
   interface Window {
-    __RER0RPC_CONFIG__?: {
+    __R2RPC_CONFIG__?: {
       apiUrl?: string;
       apiPort?: number;
     };
   }
 }
 
-const TOKEN_STORAGE_KEY = 'rer0rpc_admin_token';
+const TOKEN_STORAGE_KEY = 'r2rpc_admin_token';
 
 function resolveApiBaseUrl(): string {
   const runtimeConfiguration =
-    typeof window === 'undefined' ? undefined : window.__RER0RPC_CONFIG__;
+    typeof window === 'undefined' ? undefined : window.__R2RPC_CONFIG__;
   if (runtimeConfiguration?.apiUrl) {
     return runtimeConfiguration.apiUrl.replace(/\/$/, '');
   }

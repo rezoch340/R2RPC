@@ -109,7 +109,7 @@ import 补 `Body`/`ParseIntPipe`(若缺)+ DTO;类内 `remove` 之后加:
 - [ ] **Step 6: 生成 + 应用迁移 + reseed + build**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend
+cd /Users/lpitiless/Documents/R2RPC/backend
 node_modules/.bin/drizzle-kit generate
 grep -nE 'ADD COLUMN "enabled"' drizzle/0005_*.sql
 node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/migrate.ts
@@ -121,7 +121,7 @@ Expected:`0005` 有 `ADD COLUMN "enabled"`(非交互);`迁移完成`;seed「权�
 - [ ] **Step 7: 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src backend/drizzle && git commit -m "feat(8): projects.enabled column + 启停 endpoint + update/project permission + migration"
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src backend/drizzle && git commit -m "feat(8): projects.enabled column + 启停 endpoint + update/project permission + migration"
 ```
 
 ---
@@ -169,8 +169,8 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/src backend/drizzle && 
 - [ ] **Step 2: build + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -3
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/application/rpc/rpc.service.ts && git commit -m "feat(8): reject invoke dispatch to disabled project (status=disabled 403)"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -3
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src/application/rpc/rpc.service.ts && git commit -m "feat(8): reject invoke dispatch to disabled project (status=disabled 403)"
 ```
 
 ---
@@ -309,8 +309,8 @@ import { MetricsService } from '../metrics/metrics.service';
 - [ ] **Step 5: build + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -6
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src && git commit -m "feat(8): GET /projects/info GroupInfo derived stats (device counts + 7d metrics + status)"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -6
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src && git commit -m "feat(8): GET /projects/info GroupInfo derived stats (device counts + 7d metrics + status)"
 ```
 
 ---
@@ -351,7 +351,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/src && git commit -m "f
 - [ ] **Step 2: build + 起 API + 跑 smoke**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend
+cd /Users/lpitiless/Documents/R2RPC/backend
 node_modules/.bin/nest build 2>&1 | tail -2
 pkill -f 'node dist/main.js' 2>/dev/null; sleep 1
 node dist/main.js > /tmp/api-8.log 2>&1 &
@@ -364,8 +364,8 @@ Expected:全 PASS + `SMOKE PASSED`,含 GroupInfo + 启停拦截断言。FAIL 别
 - [ ] **Step 3: prettier + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/prettier --write "test/**/*.js" >/dev/null
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/test/smoke.e2e.js && git commit -m "test(8): project enabled dispatch-block + GroupInfo smoke assertions"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/prettier --write "test/**/*.js" >/dev/null
+cd /Users/lpitiless/Documents/R2RPC && git add backend/test/smoke.e2e.js && git commit -m "test(8): project enabled dispatch-block + GroupInfo smoke assertions"
 ```
 
 ---
@@ -389,7 +389,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/test/smoke.e2e.js && gi
 - [ ] **Step 2: 提交 + 推 + PR**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add docs/后端进度.md && git commit -m "docs(8): mark project enabled + GroupInfo done" && git push -u origin feat/8-project-enabled-groupinfo && gh pr create --base main --title "feat(8): 分组 enabled + GroupInfo 派生统计" --body "projects 启停 + invoke 拒派禁用组 + GET /projects/info 派生视图(设备/在线/7天/成功率/运行态)。计划见 docs/superpowers/plans/2026-07-09-8-project-enabled-groupinfo.md"
+cd /Users/lpitiless/Documents/R2RPC && git add docs/后端进度.md && git commit -m "docs(8): mark project enabled + GroupInfo done" && git push -u origin feat/8-project-enabled-groupinfo && gh pr create --base main --title "feat(8): 分组 enabled + GroupInfo 派生统计" --body "projects 启停 + invoke 拒派禁用组 + GET /projects/info 派生视图(设备/在线/7天/成功率/运行态)。计划见 docs/superpowers/plans/2026-07-09-8-project-enabled-groupinfo.md"
 ```
 
 - [ ] **Step 3:** 回填 PR 号到完成记录,补一提交。

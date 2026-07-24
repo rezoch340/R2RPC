@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### 项目更名为 R2RPC
+- 项目品牌、管理控制台、Swagger/OpenAPI、Docker 镜像、默认开发数据库、配置示例和全部文档
+  统一更名为 R2RPC。
+- JavaScript SDK 调整为 `@r2rpc/javascript-sdk`，公开类型统一使用 `R2Rpc*`；Android SDK
+  调整为 `io.r2rpc:r2rpc-android:0.1.0`、`io.r2rpc.sdk` 和 `R2Rpc*`。
+- 前端运行时配置全局变量改为 `window.__R2RPC_CONFIG__`，本地登录令牌键改为
+  `r2rpc_admin_token`；协议路由、数据库表结构和令牌前缀不变。
+
 ### Android 与 JavaScript SDK
 - 新增 JavaScript/TypeScript ESM SDK，提供设备 WebSocket、调用方 HTTP、自动/指定设备调用、
   在线状态查询、指数重连、Action 超时与 AppAudit V1 Recorder。

@@ -163,8 +163,8 @@ import { QueryTrendDto } from './dto/query-trend.dto';
 - [ ] **Step 5: build + lint + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -3 && node_modules/.bin/eslint "src/application/metrics/**/*.ts" --fix
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/application/metrics && git commit -m "feat(3b): metrics weekly + trend read views from daily aggregates"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -3 && node_modules/.bin/eslint "src/application/metrics/**/*.ts" --fix
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src/application/metrics && git commit -m "feat(3b): metrics weekly + trend read views from daily aggregates"
 ```
 Expected: build 0,lint 无错。
 
@@ -197,7 +197,7 @@ Expected: build 0,lint 无错。
 - [ ] **Step 2: build + 起 API + 跑 smoke**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend
+cd /Users/lpitiless/Documents/R2RPC/backend
 node_modules/.bin/nest build 2>&1 | tail -2
 pkill -f 'node dist/main.js' 2>/dev/null; sleep 1
 node dist/main.js > /tmp/api-3b.log 2>&1 &
@@ -210,8 +210,8 @@ Expected: 全 PASS + `SMOKE PASSED`,含 3 条新 weekly/trend 断言。FAIL 别�
 - [ ] **Step 3: prettier + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/prettier --write "test/**/*.js" >/dev/null
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/test/smoke.e2e.js && git commit -m "test(3b): metrics weekly/trend API smoke assertions"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/prettier --write "test/**/*.js" >/dev/null
+cd /Users/lpitiless/Documents/R2RPC && git add backend/test/smoke.e2e.js && git commit -m "test(3b): metrics weekly/trend API smoke assertions"
 ```
 
 ---
@@ -236,7 +236,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/test/smoke.e2e.js && gi
 - [ ] **Step 2: 提交 + 推 + PR**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add docs/后端进度.md && git commit -m "docs(3b): mark metrics read views done + #3 complete" && git push -u origin feat/3b-metrics-read-views && gh pr create --base main --title "feat(3b): 指标读视图(weekly + trend)" --body "#3 收尾。weekly(近7天设备)+ trend(按天补零)读聚合表 API。overview 不动。计划见 docs/superpowers/plans/2026-07-09-3b-metrics-read-views.md"
+cd /Users/lpitiless/Documents/R2RPC && git add docs/后端进度.md && git commit -m "docs(3b): mark metrics read views done + #3 complete" && git push -u origin feat/3b-metrics-read-views && gh pr create --base main --title "feat(3b): 指标读视图(weekly + trend)" --body "#3 收尾。weekly(近7天设备)+ trend(按天补零)读聚合表 API。overview 不动。计划见 docs/superpowers/plans/2026-07-09-3b-metrics-read-views.md"
 ```
 
 - [ ] **Step 3:** 回填 PR 号到完成记录,补一提交。

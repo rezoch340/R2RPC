@@ -17,7 +17,7 @@ const temporaryDirectories: string[] = [];
 
 function createTemporaryDirectory(): string {
   const temporaryDirectory = mkdtempSync(
-    resolve(tmpdir(), 'rer0rpc-configuration-'),
+    resolve(tmpdir(), 'r2rpc-configuration-'),
   );
   temporaryDirectories.push(temporaryDirectory);
   return temporaryDirectory;
@@ -33,9 +33,9 @@ app:
 db:
   host: 127.0.0.1
   port: 5432
-  user: rer0rpc
-  password: rer0rpc
-  database: rer0rpc
+  user: r2rpc
+  password: r2rpc
+  database: r2rpc
 redis:
   host: 127.0.0.1
   port: 6379

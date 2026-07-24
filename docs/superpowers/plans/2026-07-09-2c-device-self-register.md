@@ -190,14 +190,14 @@ type CachedDeviceToken = {
 - [ ] **Step 5: build**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -5
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -5
 ```
 Expected: 退出 0。
 
 - [ ] **Step 6: 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/application/device-token/device-token.service.ts && git commit -m "feat(2c): device-token WS validation cache-aside + revoke/delete cache invalidation"
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src/application/device-token/device-token.service.ts && git commit -m "feat(2c): device-token WS validation cache-aside + revoke/delete cache invalidation"
 ```
 
 ---
@@ -435,14 +435,14 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 - [ ] **Step 5: build**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -8
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -8
 ```
 Expected: 退出 0。(旧 client-login 端点此刻仍在但已成孤儿——其 JWT wsUrl 连 WS 会被当 device token 校验失败 close 4001;Task 3 删掉它。)
 
 - [ ] **Step 6: 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/application/devices backend/src/infrastructure/ws && git commit -m "feat(2c): WS gateway device-token auth + devices online upsert"
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src/application/devices backend/src/infrastructure/ws && git commit -m "feat(2c): WS gateway device-token auth + devices online upsert"
 ```
 
 ---
@@ -454,7 +454,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/application/devices
 - [ ] **Step 1: 删 client 目录**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && git rm -r src/application/client
+cd /Users/lpitiless/Documents/R2RPC/backend && git rm -r src/application/client
 ```
 
 - [ ] **Step 2: app.module 去 ClientModule**
@@ -501,7 +501,7 @@ import {
 - [ ] **Step 6: build(验证引用全清干净)**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -8
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -8
 ```
 Expected: 退出 0。若报找不到 client/* 或 clientGroups/clients/projectsOfClient,回到对应 Step 补删。兜底 grep 应为空:
 ```bash
@@ -511,7 +511,7 @@ grep -rniIE "application/client/|ClientModule|ClientService|ClientController|pro
 - [ ] **Step 7: 生成迁移(drop 两表 + 加索引)+ 应用 + reseed**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/drizzle-kit generate
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/drizzle-kit generate
 grep -nE 'DROP TABLE|device_token_id_idx' drizzle/0002_*.sql
 node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/migrate.ts
 node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/seed-admin.ts
@@ -522,7 +522,7 @@ Expected: `0002_*.sql` 含 `DROP TABLE "client_groups"`、`DROP TABLE "clients"`
 - [ ] **Step 8: 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add -A && git commit -m "feat(2c): delete client-login (drop clients/client_groups) + devices device_token_id index"
+cd /Users/lpitiless/Documents/R2RPC && git add -A && git commit -m "feat(2c): delete client-login (drop clients/client_groups) + devices device_token_id index"
 ```
 
 ---
@@ -579,7 +579,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add -A && git commit -m "feat(2c): 
 - [ ] **Step 5: 起 API(重建 dist)+ 跑 smoke**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend
+cd /Users/lpitiless/Documents/R2RPC/backend
 node_modules/.bin/nest build 2>&1 | tail -3
 pkill -f 'node dist/main.js' 2>/dev/null; sleep 1
 node dist/main.js > /tmp/api-2c.log 2>&1 &
@@ -592,8 +592,8 @@ Expected: 全 PASS + `=== SMOKE PASSED ===`,含 welcome/projects、invoke 闭环
 - [ ] **Step 6: prettier + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/prettier --write "test/**/*.js" >/dev/null
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/test/smoke.e2e.js && git commit -m "test(2c): rewrite smoke to device-token self-registration"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/prettier --write "test/**/*.js" >/dev/null
+cd /Users/lpitiless/Documents/R2RPC && git add backend/test/smoke.e2e.js && git commit -m "test(2c): rewrite smoke to device-token self-registration"
 ```
 
 ---
@@ -619,7 +619,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/test/smoke.e2e.js && gi
 - [ ] **Step 2: 提交 + 推 + PR**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add docs/后端进度.md && git commit -m "docs(2c): mark device self-register done + completion record" && git push -u origin feat/2c-device-self-register && gh pr create --base main --title "feat(2c): 设备自注册 + 删 client-login" --body "epic #2 子项 2c(最大一块)。WS 改 device-token 自注册 + 删整个 client-login(drop clients/client_groups)。计划见 docs/superpowers/plans/2026-07-09-2c-device-self-register.md"
+cd /Users/lpitiless/Documents/R2RPC && git add docs/后端进度.md && git commit -m "docs(2c): mark device self-register done + completion record" && git push -u origin feat/2c-device-self-register && gh pr create --base main --title "feat(2c): 设备自注册 + 删 client-login" --body "epic #2 子项 2c(最大一块)。WS 改 device-token 自注册 + 删整个 client-login(drop clients/client_groups)。计划见 docs/superpowers/plans/2026-07-09-2c-device-self-register.md"
 ```
 
 - [ ] **Step 3:** 回填 PR 号到完成记录,补一提交。

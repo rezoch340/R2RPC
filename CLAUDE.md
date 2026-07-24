@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-RER0RPC 是设备侧 RPC 中继平台(思路类似 Sekiro):调用方按 `project`(功能组)或指定 `clientId`,把请求下发到在线设备,设备执行后实时回传结果。活代码位于 `backend/`(NestJS API/Worker)、`frontend/`(Next.js 管理控制台)与 `sdk/`(Android/Kotlin、JavaScript/TypeScript SDK)。
+R2RPC 是设备侧 RPC 中继平台(思路类似 Sekiro):调用方按 `project`(功能组)或指定 `clientId`,把请求下发到在线设备,设备执行后实时回传结果。活代码位于 `backend/`(NestJS API/Worker)、`frontend/`(Next.js 管理控制台)与 `sdk/`(Android/Kotlin、JavaScript/TypeScript SDK)。
 
 当前文档已经统一为 NestJS + PostgreSQL + Redis + BullMQ + Manticore 架构，端口 **3000**，默认管理员 `admin/admin123456`。旧 Go/MySQL 文档只保存在 `docs/archive/`，不得作为当前实现依据。
 
@@ -44,7 +44,7 @@ pnpm build                 # 生产构建
 pnpm test:e2e              # 12 项浏览器黑盒,只访问 UI 与公开 HTTP API
 ```
 
-前端使用 Next.js + shadcn，并严格按 RER0RPC OpenAPI 实现页面与类型。
+前端使用 Next.js + shadcn，并严格按 R2RPC OpenAPI 实现页面与类型。
 管理页不得导入后端内部模块或直连数据库/Redis/Manticore；RBAC 前端显隐不是安全边界，最终授权
 仍由后端 Guard 决定。API、Worker、迁移、种子和前端共用根目录 `config.yaml`；CORS 使用
 `app.corsOrigins`，浏览器连接使用 `frontend.apiUrl/apiPort`，不得恢复分散 `.env`。
@@ -61,14 +61,14 @@ corepack pnpm check
 
 # Android / Kotlin
 cd ../android
-./gradlew :rer0rpc-sdk:testDebugUnitTest :rer0rpc-sdk:assembleRelease
-./gradlew :rer0rpc-sdk:publishToMavenLocal
+./gradlew :r2rpc-sdk:testDebugUnitTest :r2rpc-sdk:assembleRelease
+./gradlew :r2rpc-sdk:publishToMavenLocal
 ```
 
 两套 SDK 都同时提供 Device、Caller 和 AppAudit Recorder，只能使用公开 HTTP/WebSocket
 协议，不得导入后端模块或访问 PostgreSQL、Redis、Manticore。JavaScript 包名为
-`@rer0rpc/javascript-sdk`；Android Maven 坐标为
-`io.rer0rpc:rer0rpc-android:0.1.0`。Android 默认使用 Widevine MediaDrm ID 作为
+`@r2rpc/javascript-sdk`；Android Maven 坐标为
+`io.r2rpc:r2rpc-android:0.1.0`。Android 默认使用 Widevine MediaDrm ID 作为
 `clientId`；JavaScript 由宿主持久化并跨重启复用，不能每次启动临时随机生成。设计见
 `docs/superpowers/specs/2026-07-24-device-sdks-design.md`。
 

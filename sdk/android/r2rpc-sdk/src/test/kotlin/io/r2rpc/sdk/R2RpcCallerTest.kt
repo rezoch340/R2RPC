@@ -1,4 +1,4 @@
-package io.rer0rpc.sdk
+package io.r2rpc.sdk
 
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -12,7 +12,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 
-class Rer0RpcCallerTest {
+class R2RpcCallerTest {
     private val server = MockWebServer()
 
     @AfterTest
@@ -41,8 +41,8 @@ class Rer0RpcCallerTest {
                     ),
             )
             val caller =
-                Rer0RpcCaller(
-                    Rer0RpcCallerOptions(
+                R2RpcCaller(
+                    R2RpcCallerOptions(
                         baseUrl = server.url("/").toString(),
                         accessToken = "rk_fixture",
                     ),
@@ -79,15 +79,15 @@ class Rer0RpcCallerTest {
                     .setBody("""{"message":"unauthorized"}"""),
             )
             val caller =
-                Rer0RpcCaller(
-                    Rer0RpcCallerOptions(
+                R2RpcCaller(
+                    R2RpcCallerOptions(
                         baseUrl = server.url("/").toString(),
                         accessToken = "rk_fixture",
                     ),
                 )
 
             val exception =
-                assertFailsWith<Rer0RpcHttpException> {
+                assertFailsWith<R2RpcHttpException> {
                     caller.listOnlineDevices("cn-nodes")
                 }
 
@@ -99,8 +99,8 @@ class Rer0RpcCallerTest {
     @Test
     fun `在发请求前拒绝非法调用参数`() {
         val caller =
-            Rer0RpcCaller(
-                Rer0RpcCallerOptions(
+            R2RpcCaller(
+                R2RpcCallerOptions(
                     baseUrl = server.url("/").toString(),
                     accessToken = "rk_fixture",
                 ),

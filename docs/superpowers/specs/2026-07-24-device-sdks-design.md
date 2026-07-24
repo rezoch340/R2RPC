@@ -47,14 +47,14 @@
 
 ### JavaScript / TypeScript
 
-- ESM 包 `@rer0rpc/javascript-sdk`，输出 JavaScript 与声明文件。
+- ESM 包 `@r2rpc/javascript-sdk`，输出 JavaScript 与声明文件。
 - `isomorphic-ws` 统一 Node.js 与浏览器 WebSocket。
 - 调用方使用标准 Fetch 和 AbortController。
 - Vitest 覆盖 Recorder、HTTP 调用、WS Job/Result、未注册 Action 与超时。
 
 ### Android / Kotlin
 
-- Maven 坐标 `io.rer0rpc:rer0rpc-android:0.1.0`。
+- Maven 坐标 `io.r2rpc:r2rpc-android:0.1.0`。
 - 产物为 `minSdk 21`、Java 8 字节码兼容的 Android AAR，不绑定 Activity 生命周期。
 - 默认读取 `MediaDrm.PROPERTY_DEVICE_UNIQUE_ID`，编码为小写十六进制 `clientId` 并在进程内
   缓存；不使用每次启动变化的随机 ID。显式 `clientId` 仅用于旧设备映射迁移与测试。

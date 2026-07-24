@@ -1,24 +1,24 @@
-export class Rer0RpcError extends Error {
+export class R2RpcError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
-    this.name = 'Rer0RpcError';
+    this.name = 'R2RpcError';
   }
 }
 
-export class Rer0RpcHttpError extends Rer0RpcError {
+export class R2RpcHttpError extends R2RpcError {
   constructor(
     message: string,
     readonly statusCode: number,
     readonly responseBody: unknown,
   ) {
     super(message);
-    this.name = 'Rer0RpcHttpError';
+    this.name = 'R2RpcHttpError';
   }
 }
 
-export class Rer0RpcAuthenticationError extends Rer0RpcError {
+export class R2RpcAuthenticationError extends R2RpcError {
   constructor(message = '设备令牌鉴权失败') {
     super(message);
-    this.name = 'Rer0RpcAuthenticationError';
+    this.name = 'R2RpcAuthenticationError';
   }
 }

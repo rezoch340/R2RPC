@@ -20,7 +20,7 @@ echo "==> 启动基础设施 (postgres / redis / manticore)"
 docker compose -f "$COMPOSE_FILE" up -d postgres redis manticore
 
 echo "==> 等待 Postgres 就绪"
-until docker compose -f "$COMPOSE_FILE" exec -T postgres pg_isready -U rer0rpc -d rer0rpc >/dev/null 2>&1; do
+until docker compose -f "$COMPOSE_FILE" exec -T postgres pg_isready -U r2rpc -d r2rpc >/dev/null 2>&1; do
   sleep 1
 done
 

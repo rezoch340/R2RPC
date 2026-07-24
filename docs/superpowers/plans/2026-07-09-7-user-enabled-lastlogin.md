@@ -52,7 +52,7 @@ import 确认有 `boolean`;加:
 - [ ] **Step 3: 生成+应用迁移+reseed+build**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend
+cd /Users/lpitiless/Documents/R2RPC/backend
 node_modules/.bin/drizzle-kit generate
 grep -nE 'ADD COLUMN "(enabled|last_login_at)"' drizzle/0007_*.sql
 node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/migrate.ts
@@ -64,7 +64,7 @@ Expected:2 个 ADD COLUMN(非交互);迁移完成;seed「权限 16 条」;build 
 - [ ] **Step 4: 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/application/users/users.schema.ts backend/src/scripts/seed-admin.ts backend/drizzle && git commit -m "feat(7): users.enabled + last_login_at columns + update/user permission + migration"
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src/application/users/users.schema.ts backend/src/scripts/seed-admin.ts backend/drizzle && git commit -m "feat(7): users.enabled + last_login_at columns + update/user permission + migration"
 ```
 
 ---
@@ -152,8 +152,8 @@ import 补 `ForbiddenException`。
 - [ ] **Step 6: build + lint + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -5 && node_modules/.bin/eslint "src/application/{users,auth,rbac}/**/*.ts"
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src && git commit -m "feat(7): enforce user enabled (login + per-request revoke) + last_login update + toggle endpoint"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -5 && node_modules/.bin/eslint "src/application/{users,auth,rbac}/**/*.ts"
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src && git commit -m "feat(7): enforce user enabled (login + per-request revoke) + last_login update + toggle endpoint"
 ```
 
 ---
@@ -188,7 +188,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/src && git commit -m "f
 - [ ] **Step 2: build + 起 API + 跑 smoke**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend
+cd /Users/lpitiless/Documents/R2RPC/backend
 node_modules/.bin/nest build 2>&1 | tail -2
 pkill -f 'node dist/main.js' 2>/dev/null; sleep 1
 node dist/main.js > /tmp/api-7.log 2>&1 &
@@ -201,8 +201,8 @@ Expected:全 PASS + `SMOKE PASSED`,含用户启停/吊销/last_login 断言。FA
 - [ ] **Step 3: prettier + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/prettier --write "test/**/*.js" >/dev/null
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/test/smoke.e2e.js && git commit -m "test(7): user enabled toggle + per-request revoke + last_login smoke"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/prettier --write "test/**/*.js" >/dev/null
+cd /Users/lpitiless/Documents/R2RPC && git add backend/test/smoke.e2e.js && git commit -m "test(7): user enabled toggle + per-request revoke + last_login smoke"
 ```
 
 ---
@@ -226,7 +226,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/test/smoke.e2e.js && gi
 - [ ] **Step 2: 提交 + 推 + PR**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add docs/后端进度.md && git commit -m "docs(7): mark user enabled + last_login done" && git push -u origin feat/7-user-enabled-lastlogin && gh pr create --base main --title "feat(7): 用户 enabled + last_login_at" --body "users 启停(登录+每请求双重拦)+ last_login。POST /users/:id/enabled。计划见 docs/superpowers/plans/2026-07-09-7-user-enabled-lastlogin.md"
+cd /Users/lpitiless/Documents/R2RPC && git add docs/后端进度.md && git commit -m "docs(7): mark user enabled + last_login done" && git push -u origin feat/7-user-enabled-lastlogin && gh pr create --base main --title "feat(7): 用户 enabled + last_login_at" --body "users 启停(登录+每请求双重拦)+ last_login。POST /users/:id/enabled。计划见 docs/superpowers/plans/2026-07-09-7-user-enabled-lastlogin.md"
 ```
 
 - [ ] **Step 3:** 回填 PR 号,补一提交。

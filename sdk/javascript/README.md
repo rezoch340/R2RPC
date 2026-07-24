@@ -1,4 +1,4 @@
-# RER0RPC JavaScript / TypeScript SDK
+# R2RPC JavaScript / TypeScript SDK
 
 适用于 Node.js 20+、现代浏览器和 Electron 等具有标准 WebSocket/Fetch 能力的
 JavaScript 环境。包同时提供设备端常驻连接和调用方 HTTP 客户端。
@@ -8,38 +8,38 @@ JavaScript 环境。包同时提供设备端常驻连接和调用方 HTTP 客户
 当前仓库内本地安装：
 
 ```bash
-(cd /path/to/RER0RPC/sdk/javascript && corepack pnpm install && corepack pnpm build)
+(cd /path/to/R2RPC/sdk/javascript && corepack pnpm install && corepack pnpm build)
 
 # 在目标 JavaScript 工程中执行
-pnpm add /path/to/RER0RPC/sdk/javascript
+pnpm add /path/to/R2RPC/sdk/javascript
 ```
 
 发布制品的包名为：
 
 ```bash
-pnpm add @rer0rpc/javascript-sdk
+pnpm add @r2rpc/javascript-sdk
 ```
 
 ## 设备上线
 
 `clientId` 应由宿主应用首次安装时生成并持久化，后续启动复用同一个值。
-`baseUrl` 传 RER0RPC HTTP(S) 服务根地址，不要附加 `/api/client/ws`。
+`baseUrl` 传 R2RPC HTTP(S) 服务根地址，不要附加 `/api/client/ws`。
 
 ```ts
 import {
   AppAuditRecorder,
-  Rer0RpcDevice,
-} from '@rer0rpc/javascript-sdk';
+  R2RpcDevice,
+} from '@r2rpc/javascript-sdk';
 
-const device = new Rer0RpcDevice({
+const device = new R2RpcDevice({
   baseUrl: 'https://relay.example.com',
-  deviceToken: process.env.RER0RPC_DEVICE_TOKEN!,
+  deviceToken: process.env.R2RPC_DEVICE_TOKEN!,
   clientId: 'android-installation-8e3412',
   platform: 'android-frida',
   extra: { applicationVersion: '1.4.0' },
   maxInFlight: 512,
   onStateChange: ({ state, reconnectAttempt }) => {
-    console.log('RER0RPC state', state, reconnectAttempt);
+    console.log('R2RPC state', state, reconnectAttempt);
   },
   onError: (error) => console.error(error),
 });
@@ -91,11 +91,11 @@ device.stop();
 ## 调用 RPC
 
 ```ts
-import { Rer0RpcCaller } from '@rer0rpc/javascript-sdk';
+import { R2RpcCaller } from '@r2rpc/javascript-sdk';
 
-const caller = new Rer0RpcCaller({
+const caller = new R2RpcCaller({
   baseUrl: 'https://relay.example.com',
-  accessToken: process.env.RER0RPC_ACCESS_TOKEN!,
+  accessToken: process.env.R2RPC_ACCESS_TOKEN!,
 });
 
 const automaticResponse = await caller.invoke(
@@ -117,7 +117,7 @@ const deviceStatus = await caller.isDeviceOnline('cn-nodes', 'device-001');
 ```
 
 `invoke()` 的最后一个参数还接受 `AbortSignal`。HTTP 非 2xx 响应会抛出
-`Rer0RpcHttpError`，其中保留 `statusCode` 和服务端响应体。
+`R2RpcHttpError`，其中保留 `statusCode` 和服务端响应体。
 `payload` 必须是 JSON object；数组、字符串和其他顶层标量不符合当前 invoke DTO。
 
 ## 开发验证

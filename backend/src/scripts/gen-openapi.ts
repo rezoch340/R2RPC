@@ -22,7 +22,7 @@ async function main() {
 
   // 复用 main.ts 的 DocumentBuilder 配置(标题/版本/Bearer)
   const swaggerConfiguration = new DocumentBuilder()
-    .setTitle('RER0RPC API')
+    .setTitle('R2RPC API')
     .setVersion('0.1')
     .addBearerAuth()
     .build();

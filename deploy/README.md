@@ -1,4 +1,4 @@
-# RER0RPC 部署与 Docker Compose
+# R2RPC 部署与 Docker Compose
 
 ## 统一配置
 
@@ -18,7 +18,8 @@ cp deploy/config.example.yaml deploy/config.yaml
 ```
 
 两份 example 的字段完全相同；宿主机模板使用 `127.0.0.1`，Compose 模板使用
-`postgres`、`redis`、`manticore` 服务名。真实 `config.yaml` 已被 Git 忽略。
+`postgres`、`redis`、`manticore` 服务名。Compose 项目名固定为 `r2rpc`，确保容器网络与
+命名卷不受本地仓库目录名影响。真实 `config.yaml` 已被 Git 忽略。
 
 配置段：
 
@@ -58,8 +59,8 @@ API healthy ──────────────────────�
 API healthy + Worker started ─────────────────────────────→ Performance
 ```
 
-应用容器以非 root 用户运行，统一配置只读挂载，持久数据进入命名卷；不固定
-`container_name`，不同 Compose project 可以并行。
+应用容器以非 root 用户运行，统一配置只读挂载，持久数据进入 `r2rpc` project 的命名卷；
+不固定 `container_name`。
 
 ## 4 核 4 GiB 硬预算
 

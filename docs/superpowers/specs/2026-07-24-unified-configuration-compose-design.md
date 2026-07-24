@@ -65,7 +65,8 @@ flowchart LR
 - API 与 Worker 只在两个一次性任务成功后启动。
 - 前端等待 API 健康后启动。
 - API、Worker、迁移、种子和前端只读挂载同一份 Compose `config.yaml`。
-- 不使用固定 `container_name`，允许不同 Compose project 并行运行。
+- 不使用固定 `container_name`，服务统一由 Compose project 管理。
+- 根编排固定使用 project 名 `r2rpc`，容器网络和命名卷不依赖本地目录名称。
 - 应用容器以非 root 用户运行；配置只读挂载，数据写入命名卷。
 - performance 等 API 健康、Worker 启动后执行，挂载虚拟设备并只访问公开 HTTP/WebSocket，
   报告写入宿主机目录。
@@ -73,7 +74,7 @@ flowchart LR
   4.00 CPU 与 4 GiB。
 
 官方 PostgreSQL 镜像的首次建库参数属于容器引导协议，Compose 固定为开发模板中的
-`rer0rpc`。生产部署若修改数据库账号，必须同时修改 Compose 的 PostgreSQL 引导参数和
+`r2rpc`。生产部署若修改数据库账号，必须同时修改 Compose 的 PostgreSQL 引导参数和
 统一配置；使用外部托管 PostgreSQL 时删除本地 `postgres` 服务即可。
 
 ## 5. 兼容与边界

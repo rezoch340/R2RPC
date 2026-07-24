@@ -1,5 +1,5 @@
 {
-  "name": "rer0rpc-frontend",
+  "name": "r2rpc-frontend",
   "version": "0.0.1",
   "private": true,
   "packageManager": "pnpm@11.17.0",
