@@ -4,8 +4,23 @@
 
 ## [Unreleased]
 
+### 手动 RPC 调试
+- 新增后台 JWT 保护的 `GET /rpc/debug/options` 与
+  `POST /rpc/debug/invoke/:project/:action`；上下文返回功能组、历史 Action 和在线设备，调用
+  复用现有真实 RPC 派发链路。
+- 新增 `invoke/manual-rpc` 内置权限；19 条内置权限全部补齐面向管理员的说明，幂等种子会更新
+  历史记录，operator 继续只获得 8 条 `read/*`。
+- 手动调用请求日志记录后台 `requesterUserId`，系统操作审计只记录功能组、Action、设备和
+  超时，不记录 Payload；公开 Access Token RPC 协议与鉴权边界保持不变。
+- 新增 `/rpc-debugger` 页面、权限导航和预取，支持功能组/Action/在线设备/超时选择、Payload
+  编辑与格式化、请求预览、响应、状态和耗时展示。
+- 修复重复发起调试时先清空结果导致整块闪烁；等待新响应期间保留上一份实际请求与响应，完成后
+  原位替换。
+- OpenAPI 更新为 **39 个路径模板**；后端黑盒 **162 passed, 0 failed**，前端 Playwright
+  **11 passed**，Jest **8 suites / 24 tests**、前后端 lint 与生产构建通过。
+
 ### 文档收口
-- 同步根目录、后端、前端、部署、项目总览、能力矩阵、进度、待办、工程规范、交接提示与设计索引，统一当前 37 个 OpenAPI 路径、155 项后端黑盒和 10 项前端 Playwright 基线。
+- 同步根目录、后端、前端、部署、项目总览、能力矩阵、进度、待办、工程规范、交接提示与设计索引，统一当前 39 个 OpenAPI 路径、162 项后端黑盒和 11 项前端 Playwright 基线。
 - 补齐两类令牌作用域编辑、Device Token close 4002、复制回退、列表分页筛选、折线趋势图和宽版日志抽屉的行为说明。
 - 明确历史计划、规格和归档只用于追溯；历史阶段数字和实施步骤不作为当前进度。
 
@@ -39,7 +54,7 @@
 - 修复通过局域网 IP 打开开发前端时 HMR WebSocket 被 Next.js 来源检查拒绝的问题；自动加入本机 IPv4 地址，并支持 `NEXT_ALLOWED_DEV_ORIGINS` 补充自定义开发域名。
 - 修复请求日志与系统日志翻页时短暂清空表格造成的闪屏；新页请求期间保留上一页数据，响应完成后原位替换。侧栏切换全部管理页面时先按权限预取公开接口，再提交路由切换，避免首次进入页面闪加载骨架。
 - 系统日志扩展为完整控制面访问审计：记录登录成功/失败、全部 JWT 读取和 Guard/路由阶段拒绝；RPC/WS 数据面继续使用独立日志链路。
-- 最终验证：前端 Playwright **10 passed**，前端 lint 与生产构建通过；后端 Jest **8 suites / 24 tests**、完整 HTTP/WebSocket 黑盒 **155 passed、0 failed**。
+- 最终验证：前端 Playwright **11 passed**，前端 lint 与生产构建通过；后端 Jest **8 suites / 24 tests**、完整 HTTP/WebSocket 黑盒 **162 passed、0 failed**。
 
 ### 系统操作审计日志
 - 盘点全部 14 张旧表：业务实体均具有语义名称与 `description`；关系表名称由复合外键表达，请求日志/聚合表按日志规则豁免，不机械增加无意义的 `name`。
@@ -48,7 +63,8 @@
 - metadata 只采集安全 path/body/query 字段，不复制完整 body；密码和 token 明文不会写入系统日志，RPC/WS 数据面不重复写入。
 - 新增 `GET /system-logs`，使用 `read/system-log`，支持操作者、action、subject、状态、时间和分页筛选；系统日志无修改/删除 API。
 - project 创建接口补齐已有 `description` 列的输入能力和数据库长度校验。
-- 种子权限现为 18 条，operator 的 `read/*` 权限为 8 条；当前验证为 Jest **8 suites / 24 tests**、OpenAPI **37 个路径模板**、完整黑盒 **155 passed、0 failed**。
+- 种子权限现为 19 条且全部带完整说明，operator 的 `read/*` 权限为 8 条；当前验证为 Jest
+  **8 suites / 24 tests**、OpenAPI **39 个路径模板**、完整黑盒 **162 passed、0 failed**。
 
 ### 权限组管理
 - 复用现有 `roles`、`permissions`、`role_permissions`、`user_roles`，明确 Role 即权限组；用户可分配多个权限组，授权继续取所有有效组权限的并集，无数据库迁移。

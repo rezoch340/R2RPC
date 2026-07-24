@@ -21,6 +21,7 @@ test('登录和全部管理页面通过公开接口加载', async ({ page }) => 
     ['/projects', '功能组'],
     ['/devices', '设备'],
     ['/request-logs', '请求日志'],
+    ['/rpc-debugger', '手动 RPC 调试'],
     ['/device-tokens', '设备令牌'],
     ['/access-tokens', '访问令牌'],
     ['/users', '后台账号'],
@@ -37,6 +38,48 @@ test('登录和全部管理页面通过公开接口加载', async ({ page }) => 
       0,
     );
   }
+});
+
+test('手动 RPC 调试通过受权限保护的公开接口发起调用', async ({ page }) => {
+  await page.goto('/rpc-debugger');
+  await expect(
+    page.getByRole('heading', { name: '手动 RPC 调试', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel('功能组', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('目标设备', { exact: true })).toBeVisible();
+
+  await page.getByLabel('Action', { exact: true }).fill('browser-smoke-probe');
+  await page.getByLabel('超时秒数', { exact: true }).fill('1');
+  await page
+    .getByLabel('Payload JSON', { exact: true })
+    .fill('{"source":"playwright","probe":true}');
+  await page.getByRole('button', { name: '发起调用' }).click();
+
+  await expect(page.getByText('响应结果', { exact: true })).toBeVisible();
+  await expect(page.getByText('HTTP', { exact: true })).toBeVisible();
+
+  let releaseRepeatedInvocation: (() => void) | undefined;
+  let markRepeatedInvocationStarted: (() => void) | undefined;
+  const repeatedInvocationStarted = new Promise<void>((resolve) => {
+    markRepeatedInvocationStarted = resolve;
+  });
+  const repeatedInvocationCanContinue = new Promise<void>((resolve) => {
+    releaseRepeatedInvocation = resolve;
+  });
+  await page.route('**/rpc/debug/invoke/**', async (route) => {
+    markRepeatedInvocationStarted?.();
+    await repeatedInvocationCanContinue;
+    await route.continue();
+  });
+
+  await page.getByRole('button', { name: '发起调用' }).click();
+  await repeatedInvocationStarted;
+  await expect(page.getByText('响应结果', { exact: true })).toBeVisible();
+  await expect(page.getByText('实际请求', { exact: true })).toBeVisible();
+  await expect(page.getByText('暂无调用结果', { exact: true })).toHaveCount(0);
+
+  releaseRepeatedInvocation?.();
+  await expect(page.getByRole('button', { name: '发起调用' })).toBeEnabled();
 });
 
 test('全部数据列表提供字段筛选和分页', async ({ page }) => {

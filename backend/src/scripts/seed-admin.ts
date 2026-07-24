@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { Pool } from 'pg';
 import { ConfigService } from '../infrastructure/config/config.service';
 import { users } from '../application/users/users.schema';
@@ -15,26 +15,59 @@ import { hashPassword } from '../common/utils/password';
 // 可用环境变量覆盖: ADMIN_USER / ADMIN_PASSWORD
 const DEMO_PROJECTS = ['cn-nodes', 'us-nodes'];
 
-// 权限全集(action, subject)
-const ALL_PERMISSIONS: Array<{ action: string; subject: string }> = [
-  { action: 'read', subject: 'user' },
-  { action: 'create', subject: 'user' },
-  { action: 'delete', subject: 'user' },
-  { action: 'update', subject: 'user' },
-  { action: 'read', subject: 'project' },
-  { action: 'create', subject: 'project' },
-  { action: 'delete', subject: 'project' },
-  { action: 'update', subject: 'project' },
-  { action: 'read', subject: 'metrics' },
-  { action: 'read', subject: 'monitor' },
-  { action: 'read', subject: 'system-log' },
-  { action: 'invoke', subject: 'rpc' },
-  { action: 'read', subject: 'rpc' },
-  { action: 'read', subject: 'rbac' },
-  { action: 'manage', subject: 'rbac' },
-  { action: 'manage', subject: 'access-token' },
-  { action: 'manage', subject: 'device-token' },
-  { action: 'read', subject: 'device' },
+// 权限全集(action, subject, description)
+const ALL_PERMISSIONS: Array<{
+  action: string;
+  subject: string;
+  description: string;
+}> = [
+  { action: 'read', subject: 'user', description: '查看后台账号' },
+  { action: 'create', subject: 'user', description: '创建后台账号' },
+  { action: 'delete', subject: 'user', description: '删除后台账号' },
+  {
+    action: 'update',
+    subject: 'user',
+    description: '修改后台账号资料、密码和启用状态',
+  },
+  { action: 'read', subject: 'project', description: '查看功能组' },
+  { action: 'create', subject: 'project', description: '创建功能组' },
+  { action: 'delete', subject: 'project', description: '删除功能组' },
+  { action: 'update', subject: 'project', description: '修改功能组启用状态' },
+  { action: 'read', subject: 'metrics', description: '查看运行指标和趋势' },
+  { action: 'read', subject: 'monitor', description: '查看 RPC 请求日志' },
+  {
+    action: 'read',
+    subject: 'system-log',
+    description: '查看系统操作审计日志',
+  },
+  {
+    action: 'invoke',
+    subject: 'rpc',
+    description: '保留的 RPC 调用权限；公开调用仍使用 Access Token',
+  },
+  { action: 'read', subject: 'rpc', description: '查看 RPC 运行信息' },
+  { action: 'read', subject: 'rbac', description: '查看权限组和权限目录' },
+  {
+    action: 'manage',
+    subject: 'rbac',
+    description: '管理权限组、权限目录和用户分组',
+  },
+  {
+    action: 'manage',
+    subject: 'access-token',
+    description: '管理调用方 Access Token',
+  },
+  {
+    action: 'manage',
+    subject: 'device-token',
+    description: '管理设备 Device Token',
+  },
+  { action: 'read', subject: 'device', description: '查看设备及在线状态' },
+  {
+    action: 'invoke',
+    subject: 'manual-rpc',
+    description: '在管理控制台手动发起 RPC 调试调用',
+  },
 ];
 
 // operator 权限组只挂 read/* 权限(只读,无 create/delete/invoke/manage)
@@ -77,6 +110,19 @@ async function main() {
     .insert(permissions)
     .values(ALL_PERMISSIONS)
     .onConflictDoNothing();
+  // 已存在的种子权限也补齐最新说明，保证幂等重跑能修复历史空值。
+  for (const permissionDefinition of ALL_PERMISSIONS) {
+    await database
+      .update(permissions)
+      .set({ description: permissionDefinition.description })
+      .where(
+        and(
+          eq(permissions.action, permissionDefinition.action),
+          eq(permissions.subject, permissionDefinition.subject),
+          isNull(permissions.deletedAt),
+        ),
+      );
+  }
   const permissionRecords = await database.select().from(permissions);
   const permissionIdByKey = new Map(
     permissionRecords.map((permission) => [

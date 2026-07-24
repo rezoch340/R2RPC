@@ -15,6 +15,7 @@
 4. 权限组、权限目录和用户分组写入口只对 `isRoot=true` 展示。
 5. 请求日志列表只读 PG 脊柱；payload 与 AppAudit 在打开详情后按 requestId 懒加载。
 6. 页面、组件、E2E 和工具脚本都执行完整变量名门禁。
+7. 手动 RPC 页面只使用后台 JWT 与 `invoke/manual-rpc`，不读取、选择或代填 Access Token。
 
 ## 3. 技术方案
 
@@ -40,6 +41,7 @@
 | 设备 | 在线态、平台、IP、并发上限、扩展信息、字段筛选和分页 |
 | 两类令牌 | 功能组创建与二次编辑、明文复制、撤销、软删除、字段筛选和分页 |
 | 请求日志 | 服务端筛选分页、右侧详情抽屉、payload、默认折叠 AppAudit Step |
+| 手动 RPC 调试 | 功能组、历史 Action、在线设备、超时、Payload 编辑、请求预览与响应 |
 | 后台账号 | 创建、资料、改密、启停、删除、权限组分配、字段筛选和分页 |
 | 权限组 | 组 CRUD、权限矩阵、权限目录 CRUD、两张表独立筛选分页 |
 | 系统日志 | 事件、操作者、动作、资源、目标类型/名称、结果、时间和服务端筛选分页 |
@@ -63,10 +65,12 @@ HTTP 等非安全上下文中自动回退到隐藏文本框复制，不允许页
 - `pnpm lint`：完整变量名门禁 + ESLint。
 - `pnpm build`：Next.js 生产构建和 TypeScript。
 - Playwright：从登录 UI 获取真实 JWT，逐页验证公开 HTTP API。
+- Playwright 通过 `/rpc/debug/*` 真实接口发起手动 RPC，不使用数据库或浏览器路由 mock。
 - Playwright 延迟真实用户列表接口，验证预取期间保留当前页面且目标页不出现加载骨架。
 - `test/assert-blackbox-e2e.cjs`：静态拒绝后端内部导入、持久层客户端和 SQL。
-- 后端 155 项 HTTP/WebSocket 黑盒继续复跑，确认 CORS、访问审计与令牌作用域更新不影响设备 WS 和 Worker 冷路径。
+- 后端 162 项 HTTP/WebSocket 黑盒继续复跑，确认 CORS、访问审计、手动 RPC 与令牌作用域更新
+  不影响设备 WS 和 Worker 冷路径。
 
 验证结果：前端变量名门禁与 ESLint 通过、Next.js 生产构建通过、Playwright
-**10 passed**；后端 Jest **8 suites / 24 tests passed**，HTTP/WebSocket 黑盒
-**155 passed, 0 failed**。
+**11 passed**；后端 Jest **8 suites / 24 tests passed**，HTTP/WebSocket 黑盒
+**162 passed, 0 failed**。

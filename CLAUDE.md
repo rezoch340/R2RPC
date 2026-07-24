@@ -27,7 +27,7 @@ pnpm start:worker          # Worker 进程(独立!--entryFile worker)
 pnpm db:generate           # drizzle-kit 从 src/**/*.schema.ts 生成迁移(见坑)
 pnpm db:migrate            # 应用迁移(独立步骤,绝不在 app 启动时跑)
 pnpm seed:admin            # 种子 admin + demo projects + RBAC 权限(幂等,可重跑)
-pnpm smoke                 # 155 项纯 HTTP/WS 黑盒完整性冒烟，需 API+Worker 在跑
+pnpm smoke                 # 162 项纯 HTTP/WS 黑盒完整性冒烟，需 API+Worker 在跑
 pnpm test:e2e              # 与 smoke 相同；先执行黑盒边界守卫
 pnpm test:integration:retention | test:integration:device-stale
 pnpm test:integration:metrics | test:integration:max-inflight # 内部直连检查，明确不是 E2E
@@ -40,7 +40,7 @@ pnpm test                  # Jest 单测(*.spec.ts)
 pnpm dev                   # Next.js 开发服务器,端口 3001
 pnpm lint                  # 命名门禁 + ESLint
 pnpm build                 # 生产构建
-pnpm test:e2e              # 10 项浏览器黑盒,只访问 UI 与公开 HTTP API
+pnpm test:e2e              # 11 项浏览器黑盒,只访问 UI 与公开 HTTP API
 ```
 
 前端使用 Next.js + shadcn，并严格按 RER0RPC OpenAPI 实现页面与类型。
@@ -88,7 +88,7 @@ project→id → `PresenceService.pickOnlineAcquire` 从 Redis `project:clients:
 
 ## RBAC
 
-CASL;权限是 DB `permissions` 行,`(action, subject)` **free-form**(新 subject 无需代码注册)。controller 上加 `@RequirePermission('read','device')`;`PermissionGuard` 里 `user.isRoot` 直通全部。加权限 = 往 `src/scripts/seed-admin.ts` 的 `ALL_PERMISSIONS` 加一行再 `seed:admin`。
+CASL;权限是 DB `permissions` 行,`(action, subject)` **free-form**(新 subject 无需代码注册)。controller 上加 `@RequirePermission('read','device')`;`PermissionGuard` 里 `user.isRoot` 直通全部。加权限 = 往 `src/scripts/seed-admin.ts` 的 `ALL_PERMISSIONS` 增加 action、subject 和完整 description 后再运行 `seed:admin`。当前手动 RPC 控制面使用独立 `invoke/manual-rpc`，不能复用公开数据面的 Access Token。
 
 `roles` 就是权限组：用户可属于多个权限组，权限取有效组的并集。权限组/权限目录/用户分组的
 读接口使用 `read/rbac`；所有 `/rbac/*` 写接口必须同时挂 `RootGuard`，只有

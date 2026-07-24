@@ -100,6 +100,10 @@ nest g resource application/{module} --no-spec
   `RootGuard`；只有 JWT 身份中的 `isRoot=true` 可写，普通用户不能通过被委派
   `manage/rbac` 绕过身份闸。
 - 新增请求体形式的关联接口时保留现有 URL 形式兼容入口，两个入口必须调用同一 service 方法。
+- 每条内置权限必须有准确、可直接展示的 `description`；种子必须同时创建新权限并幂等更新
+  已存在内置权限说明，禁止只写难以理解的 action/subject。
+- 不同凭证域必须使用独立权限语义：后台手动 RPC 使用 `invoke/manual-rpc`，公开 RPC 继续由
+  Access Token 作用域授权，不得用前端显隐或另一个管理权限代替。
 - `isRoot` 用户修改其他受保护管理员的组关系时仍须经过
   `AdministratorAccountPolicyService`，身份闸不能绕过账号隔离策略。
 
@@ -129,8 +133,9 @@ nest g resource application/{module} --no-spec
 - 审计 metadata 只能列出已确认安全的 path/body/query 白名单字段；禁止复制完整 body，密码和两类
   token 明文永远不能进入系统日志。
 - `system_logs` 是不可变追加事实，不使用软删除，不提供更新或删除 API。
-- RPC invoke、设备 WebSocket 与 AppAudit 属于数据面，继续写请求日志/协议日志，不进入
-  高频控制面系统日志；三类日志禁止互相塞字段。
+- 公开 Access Token RPC、设备 WebSocket 与 AppAudit 属于数据面，继续写请求日志/协议日志，
+  不进入高频控制面系统日志；后台 JWT 手动 RPC 是低频管理操作，必须另写白名单系统审计，
+  但 Payload 只进入请求日志，不进入系统日志。
 - 审计写入失败只记录服务端 error，不得把已成功的业务操作伪装成失败。
 
 ### 架构原则:分布式 + 冷热路径
@@ -251,6 +256,8 @@ async fillAndSave(input: {
 - Next.js 16 App Router + React 19 + Tailwind CSS 4 + shadcn/base-nova + TanStack Query。
 - 前端只访问后端公开 HTTP API，禁止导入 `backend/src`、数据库、Redis 或 Manticore 客户端。
 - RBAC 前端显隐只改善体验，不能替代后端 Guard；不得因按钮隐藏而弱化服务端授权。
+- 手动 RPC 页面只调用后台 JWT 保护的 `/rpc/debug/*`，导航和页面都按
+  `invoke/manual-rpc` 显隐；禁止让浏览器读取、选择或代填 Access Token。
 - 后端地址按运行时 YAML、`NEXT_PUBLIC_API_URL`、当前主机 + API 端口顺序解析；生产使用
   `CORS_ORIGIN` 明确允许控制台来源。
 - Next.js 开发服务器自动允许本机 IPv4 网卡地址访问 HMR；反向代理或自定义开发域名通过

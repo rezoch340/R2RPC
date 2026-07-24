@@ -9,6 +9,7 @@ import type {
   PermissionGroup,
   ProjectRecord,
   RequestLogRecord,
+  RpcDebugOptions,
   SystemLogRecord,
   TokenRecord,
   UserRecord,
@@ -114,6 +115,14 @@ const navigationPrefetchTasks: Record<string, NavigationPrefetchTask[]> = {
           })}`,
         ),
       permission: { action: "read", subject: "monitor" },
+    }),
+  ],
+  "/rpc-debugger": [
+    createPrefetchTask({
+      queryKey: ["rpc-debugger", "options"],
+      queryFunction: () =>
+        requestApi<RpcDebugOptions>("/rpc/debug/options"),
+      permission: { action: "invoke", subject: "manual-rpc" },
     }),
   ],
   "/device-tokens": [

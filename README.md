@@ -5,20 +5,22 @@
 ## 状态
 
 - 后端 backlog #1–#15：全部完成
-- 37 个 HTTP 路径模板 + `/api/client/ws`
+- 39 个 HTTP 路径模板 + `/api/client/ws`
 - NestJS API / Worker 双进程
 - PostgreSQL + Redis/BullMQ + Manticore
 - 设备可随 WS `result` 上报 AppAudit V1 结构化日志 Step
 - 后台账号支持资料修改与改密；`isRoot` 管理员账号只能由本人修改
 - Role 已升级为权限组管理模型；RBAC 写操作仅种子管理员可执行
+- 19 条内置权限均有完整说明；手动 RPC 调试由独立 `invoke/manual-rpc` 权限控制
 - 系统操作审计覆盖登录成功/失败、控制面读取、Guard 拒绝和业务写操作，且不记录密码/token 明文
-- Next.js 16 + shadcn 管理前端覆盖全部后台管理能力
+- Next.js 16 + shadcn 管理前端覆盖全部后台管理能力，包括功能组、Action、设备、超时和
+  Payload 可配置的手动 RPC 调试
 - 全部实体表支持字段筛选与分页，默认 10 条/页、最大 100 条/页
 - 运行概览使用近 7 天折线趋势图；请求详情使用宽版右侧抽屉，AppAudit Step 默认收起
 - Access Token 与 Device Token 均可二次编辑功能组；鉴权缓存立即失效，Device Token 的旧作用域连接会主动断开并按新作用域重连
 - 令牌和 JSON 载荷统一使用公共复制组件，局域网 HTTP 下会自动回退到兼容复制
-- 155 项纯 HTTP/WS 黑盒冒烟
-- 前端 Playwright 10 项浏览器 E2E，只通过 UI 与公开 HTTP API，不直连持久层
+- 162 项纯 HTTP/WS 黑盒冒烟
+- 前端 Playwright 11 项浏览器 E2E，只通过 UI 与公开 HTTP API，不直连持久层
 - 设备 SDK：不在本仓库范围
 
 ## 快速开始
@@ -85,5 +87,6 @@ docs/      当前文档、OpenAPI、历史设计与归档
 - [权限组设计](docs/superpowers/specs/2026-07-24-permission-groups-design.md)
 - [系统操作审计日志设计](docs/superpowers/specs/2026-07-24-system-audit-logs-design.md)
 - [管理前端设计](docs/superpowers/specs/2026-07-24-management-frontend-design.md)
+- [手动 RPC 调试设计](docs/superpowers/specs/2026-07-24-manual-rpc-debugger-design.md)
 - [OpenAPI](docs/openapi.yaml)
 - [Changelog](CHANGELOG.md)

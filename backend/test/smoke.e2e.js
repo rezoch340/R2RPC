@@ -729,9 +729,37 @@ async function main() {
       undefined,
       administratorAccessToken,
     );
+    const seededPermissionKeys = new Set([
+      'read/user',
+      'create/user',
+      'delete/user',
+      'update/user',
+      'read/project',
+      'create/project',
+      'delete/project',
+      'update/project',
+      'read/metrics',
+      'read/monitor',
+      'read/system-log',
+      'invoke/rpc',
+      'read/rpc',
+      'read/rbac',
+      'manage/rbac',
+      'manage/access-token',
+      'manage/device-token',
+      'read/device',
+      'invoke/manual-rpc',
+    ]);
+    const seededPermissions = permissionsList.json.filter((permission) =>
+      seededPermissionKeys.has(`${permission.action}/${permission.subject}`),
+    );
     const readUserPermission = permissionsList.json.find(
       (permission) =>
         permission.action === 'read' && permission.subject === 'user',
+    );
+    const manualRpcPermission = permissionsList.json.find(
+      (permission) =>
+        permission.action === 'invoke' && permission.subject === 'manual-rpc',
     );
     const delegatedManagementPermissions = [
       permissionsList.json.find(
@@ -758,9 +786,20 @@ async function main() {
     requireValue(
       permissionsList.status === 200 &&
         !!readUserPermission &&
+        !!manualRpcPermission &&
         delegatedManagementPermissions.every(Boolean),
-      'GET /rbac/permissions 含权限组、系统日志与管理员隔离所需的种子权限',
+      'GET /rbac/permissions 含手动 RPC、权限组、系统日志与管理员隔离所需的种子权限',
       readUserPermission,
+    );
+    assert(
+      seededPermissions.length === seededPermissionKeys.size &&
+        seededPermissions.every(
+          (permission) =>
+            typeof permission.description === 'string' &&
+            permission.description.trim().length > 0,
+        ) &&
+        manualRpcPermission.description === '在管理控制台手动发起 RPC 调试调用',
+      '全部内置权限都有完整说明，手动 RPC 权限说明准确',
     );
 
     const attachCustom = await httpRequest(
@@ -848,6 +887,16 @@ async function main() {
     assert(
       deniedWrite.status === 403,
       '缺少 create/user 的用户不能 POST /users',
+    );
+    const deniedManualRpcOptions = await httpRequest(
+      'GET',
+      '/rpc/debug/options',
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      deniedManualRpcOptions.status === 403,
+      '缺少 invoke/manual-rpc 的用户不能读取手动 RPC 调试上下文',
     );
     const deniedAccessLogs = await httpRequest(
       'GET',
@@ -1932,6 +1981,82 @@ async function main() {
       });
     };
 
+    const manualRpcOptions = await httpRequest(
+      'GET',
+      `/rpc/debug/options?project=${encodeURIComponent(projectNames.main)}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      manualRpcOptions.status === 200 &&
+        manualRpcOptions.json.projects.some(
+          (project) => project.name === projectNames.main,
+        ) &&
+        manualRpcOptions.json.clientIds.includes(clientId),
+      '手动 RPC 调试上下文返回功能组与在线设备',
+    );
+    const manualRpcPayload = {
+      source: 'administrator-console',
+      sensitiveProbe: `payload-only-${TEST_RUN_IDENTIFIER}`,
+    };
+    const manualRpcInvoke = await httpRequest(
+      'POST',
+      `/rpc/debug/invoke/${projectNames.main}/manual-probe?clientId=${encodeURIComponent(clientId)}`,
+      { timeoutSeconds: 5, payload: manualRpcPayload },
+      administratorAccessToken,
+    );
+    assert(
+      manualRpcInvoke.status === 200 &&
+        manualRpcInvoke.json.is_ok === true &&
+        manualRpcInvoke.json.clientId === clientId &&
+        JSON.stringify(manualRpcInvoke.json.payload.echo) ===
+          JSON.stringify(manualRpcPayload),
+      '具有 invoke/manual-rpc 的管理员可通过控制面接口完成真实 RPC 调用',
+    );
+    const refreshedManualRpcOptions = await waitFor(
+      '手动 RPC 调试历史 Action 可读',
+      async () => {
+        const response = await httpRequest(
+          'GET',
+          `/rpc/debug/options?project=${encodeURIComponent(projectNames.main)}`,
+          undefined,
+          administratorAccessToken,
+        );
+        return response.status === 200 &&
+          response.json.actions.includes('manual-probe')
+          ? response
+          : null;
+      },
+      15000,
+      150,
+    );
+    assert(
+      refreshedManualRpcOptions.json.actions.includes('manual-probe'),
+      '手动 RPC 调试上下文返回历史 Action',
+    );
+    const manualRpcAuditLogs = await httpRequest(
+      'GET',
+      `/system-logs?actorUsername=admin&action=invoke&subject=manual-rpc&pageSize=100`,
+      undefined,
+      administratorAccessToken,
+    );
+    const manualRpcAuditLog = manualRpcAuditLogs.json.rows.find(
+      (systemLog) =>
+        systemLog.name === '手动发起 RPC 调试调用' &&
+        systemLog.targetId === projectNames.main &&
+        systemLog.metadata.action === 'manual-probe',
+    );
+    assert(
+      manualRpcAuditLogs.status === 200 &&
+        !!manualRpcAuditLog &&
+        manualRpcAuditLog.metadata.clientId === clientId &&
+        manualRpcAuditLog.metadata.timeoutSeconds === 5 &&
+        !JSON.stringify(manualRpcAuditLog).includes(
+          manualRpcPayload.sensitiveProbe,
+        ),
+      '手动 RPC 调用写入系统审计且不记录 Payload',
+    );
+
     const echoPayload = {
       text: 'hello',
       nested: { runId: TEST_RUN_IDENTIFIER },
@@ -2352,6 +2477,14 @@ async function main() {
           !('appAudit' in row),
       ),
       'monitor 列表只返回 PG 脊柱，不返回 payload/appAudit',
+    );
+    assert(
+      requestList.json.rows.some(
+        (row) =>
+          row.requestId === manualRpcInvoke.json.requestId &&
+          row.requesterUserId === administratorProfile.json.id,
+      ),
+      '手动 RPC 请求日志记录发起后台账号',
     );
 
     const statusFiltered = await httpRequest(
