@@ -24,6 +24,7 @@ export const configSchema = z.object({
   jwt: z.object({
     secret: z.string().min(1),
     expiresIn: z.string().default('7d'),
+    authorizationCacheTtlSeconds: z.number().int().min(60).max(300).default(60),
   }),
   manticore: z.object({
     url: z.string().min(1),

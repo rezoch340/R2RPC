@@ -20,6 +20,7 @@ redis:
 jwt:
   secret: change-me-in-prod-please
   expiresIn: 7d
+  authorizationCacheTtlSeconds: 60
 
 manticore:
   url: http://127.0.0.1:9308

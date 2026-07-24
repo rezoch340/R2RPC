@@ -4,13 +4,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { and, eq, sql } from 'drizzle-orm';
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
+import { z } from 'zod';
 import {
   DEVICE_TOKEN_SCOPE_CHANGED_CHANNEL,
   type DeviceTokenScopeChangedEvent,
 } from '../../common/constants/device-token-events';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
+import { deviceTokenCacheKey } from '../../infrastructure/redis/cache-keys';
+import { RedisCacheAsideService } from '../../infrastructure/redis/redis-cache-aside.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
 import { devices } from '../devices/devices.schema';
 import { projects } from '../projects/projects.schema';
@@ -26,13 +29,22 @@ type CachedDeviceToken = {
   expiresAt: Date | string | null;
   projectIds: number[];
 };
+const cachedDeviceTokenSchema = z
+  .object({
+    id: z.number().int(),
+    status: z.string(),
+    expiresAt: z.union([z.date(), z.string()]).nullable(),
+    projectIds: z.array(z.number().int()),
+  })
+  .nullable();
 
 @Injectable()
 export class DeviceTokenService {
   constructor(
     private readonly dbService: DbService,
     private readonly projects: ProjectsService,
-    private readonly redis: RedisService,
+    private readonly redisService: RedisService,
+    private readonly redisCacheAsideService: RedisCacheAsideService,
   ) {}
 
   private get database() {
@@ -83,31 +95,32 @@ export class DeviceTokenService {
   async updateProjects(deviceTokenId: number, projectsInput: string[]) {
     const { projectNames, projectIds } =
       await this.resolveProjectSelection(projectsInput);
-    const deviceTokenRecord = await this.database.transaction(
-      async (transaction) => {
-        const [tokenRecord] = await transaction
-          .select()
-          .from(deviceTokens)
-          .where(alive(deviceTokens, eq(deviceTokens.id, deviceTokenId)))
-          .limit(1);
-        if (!tokenRecord) {
-          throw new NotFoundException('Device token 不存在');
-        }
+    const deviceTokenRecord =
+      await this.redisCacheAsideService.writeAndInvalidate(
+        () =>
+          this.database.transaction(async (transaction) => {
+            const [tokenRecord] = await transaction
+              .select()
+              .from(deviceTokens)
+              .where(alive(deviceTokens, eq(deviceTokens.id, deviceTokenId)))
+              .limit(1);
+            if (!tokenRecord) {
+              throw new NotFoundException('Device token 不存在');
+            }
 
-        await transaction
-          .delete(deviceTokenProjects)
-          .where(eq(deviceTokenProjects.tokenId, deviceTokenId));
-        await transaction.insert(deviceTokenProjects).values(
-          projectIds.map((projectId) => ({
-            tokenId: deviceTokenId,
-            projectId,
-          })),
-        );
-        return tokenRecord;
-      },
-    );
-
-    await this.deleteWebSocketCache(deviceTokenRecord.token);
+            await transaction
+              .delete(deviceTokenProjects)
+              .where(eq(deviceTokenProjects.tokenId, deviceTokenId));
+            await transaction.insert(deviceTokenProjects).values(
+              projectIds.map((projectId) => ({
+                tokenId: deviceTokenId,
+                projectId,
+              })),
+            );
+            return tokenRecord;
+          }),
+        (tokenRecord) => deviceTokenCacheKey(tokenRecord.token),
+      );
     await this.notifyScopeChanged(deviceTokenId);
     return { ...deviceTokenRecord, projects: projectNames };
   }
@@ -156,37 +169,40 @@ export class DeviceTokenService {
 
   /** 撤销:status='revoked'。 */
   async revoke(deviceTokenId: number) {
-    const [deviceTokenRecord] = await this.database
-      .update(deviceTokens)
-      .set({ status: 'revoked' })
-      .where(eq(deviceTokens.id, deviceTokenId))
-      .returning();
-    if (!deviceTokenRecord) {
-      throw new NotFoundException('Device token 不存在');
-    }
-    await this.deleteWebSocketCache(deviceTokenRecord.token);
-    return deviceTokenRecord;
+    return this.redisCacheAsideService.writeAndInvalidate(
+      async () => {
+        const [deviceTokenRecord] = await this.database
+          .update(deviceTokens)
+          .set({ status: 'revoked' })
+          .where(eq(deviceTokens.id, deviceTokenId))
+          .returning();
+        if (!deviceTokenRecord) {
+          throw new NotFoundException('Device token 不存在');
+        }
+        return deviceTokenRecord;
+      },
+      (deviceTokenRecord) => deviceTokenCacheKey(deviceTokenRecord.token),
+    );
   }
 
   /** 软删(与 revoke 正交)。 */
   async delete(deviceTokenId: number) {
-    const deletedTokens = await softDelete(
-      this.database,
-      deviceTokens,
-      eq(deviceTokens.id, deviceTokenId),
+    await this.redisCacheAsideService.writeAndInvalidate(
+      async () => {
+        const deletedTokens = await softDelete(
+          this.database,
+          deviceTokens,
+          eq(deviceTokens.id, deviceTokenId),
+        );
+        const deletedToken = deletedTokens[0] as { token: string } | undefined;
+        if (!deletedToken) {
+          throw new NotFoundException('Device token 不存在');
+        }
+        return deletedToken;
+      },
+      (deletedToken) => deviceTokenCacheKey(deletedToken.token),
     );
-    if (deletedTokens.length === 0) {
-      throw new NotFoundException('Device token 不存在');
-    }
-    const deviceTokenRecord = deletedTokens[0] as { token?: string };
-    if (deviceTokenRecord.token) {
-      await this.deleteWebSocketCache(deviceTokenRecord.token);
-    }
     return { deleted: true };
-  }
-
-  private webSocketCacheKey(plaintextToken: string) {
-    return `ws:devtoken:${createHash('sha256').update(plaintextToken).digest('hex')}`;
   }
 
   // DB 查:明文 token → 记录 + projectIds(供 WS 校验回落)
@@ -215,12 +231,16 @@ export class DeviceTokenService {
   async validateForConnect(
     plaintextToken: string,
   ): Promise<{ tokenId: number; projectIds: number[] } | null> {
-    const cacheKey = this.webSocketCacheKey(plaintextToken);
-    let deviceTokenRecord = await this.readCache(cacheKey);
-    if (deviceTokenRecord === undefined) {
-      deviceTokenRecord = await this.findByToken(plaintextToken);
-      await this.writeCache(cacheKey, deviceTokenRecord);
-    }
+    const cacheKey = deviceTokenCacheKey(plaintextToken);
+    const deviceTokenRecord = await this.redisCacheAsideService.getOrLoad(
+      cacheKey,
+      cachedDeviceTokenSchema,
+      () => this.findByToken(plaintextToken),
+      (loadedToken) =>
+        loadedToken
+          ? WEBSOCKET_TOKEN_POSITIVE_TIME_TO_LIVE_SECONDS
+          : WEBSOCKET_TOKEN_NEGATIVE_TIME_TO_LIVE_SECONDS,
+    );
     if (!deviceTokenRecord) {
       return null;
     }
@@ -237,60 +257,6 @@ export class DeviceTokenService {
       tokenId: deviceTokenRecord.id,
       projectIds: deviceTokenRecord.projectIds,
     };
-  }
-
-  // 命中正缓存→记录;命中负缓存→null;未命中/redis 异常→undefined(回落 DB)
-  private async readCache(
-    cacheKey: string,
-  ): Promise<CachedDeviceToken | null | undefined> {
-    try {
-      const serializedToken = await this.redis.client.get(cacheKey);
-      if (!serializedToken) {
-        return undefined;
-      }
-      const cachedToken = JSON.parse(serializedToken) as {
-        notFound?: boolean;
-      } & Partial<CachedDeviceToken>;
-      if (cachedToken.notFound) {
-        return null;
-      }
-      return cachedToken as CachedDeviceToken;
-    } catch {
-      return undefined;
-    }
-  }
-
-  private async writeCache(
-    cacheKey: string,
-    deviceTokenRecord: CachedDeviceToken | null,
-  ): Promise<void> {
-    try {
-      if (deviceTokenRecord === null) {
-        await this.redis.client.set(
-          cacheKey,
-          JSON.stringify({ notFound: true }),
-          'EX',
-          WEBSOCKET_TOKEN_NEGATIVE_TIME_TO_LIVE_SECONDS,
-        );
-      } else {
-        await this.redis.client.set(
-          cacheKey,
-          JSON.stringify(deviceTokenRecord),
-          'EX',
-          WEBSOCKET_TOKEN_POSITIVE_TIME_TO_LIVE_SECONDS,
-        );
-      }
-    } catch {
-      // fail-open:缓存写失败不影响校验
-    }
-  }
-
-  private async deleteWebSocketCache(plaintextToken: string): Promise<void> {
-    try {
-      await this.redis.client.del(this.webSocketCacheKey(plaintextToken));
-    } catch {
-      // fail-open:缓存删失败不阻断撤销/删除,最长 TTL 后自然过期
-    }
   }
 
   private async resolveProjectSelection(projectsInput: string[]) {
@@ -313,7 +279,7 @@ export class DeviceTokenService {
   private async notifyScopeChanged(deviceTokenId: number): Promise<void> {
     const event: DeviceTokenScopeChangedEvent = { deviceTokenId };
     try {
-      await this.redis.client.publish(
+      await this.redisService.client.publish(
         DEVICE_TOKEN_SCOPE_CHANGED_CHANNEL,
         JSON.stringify(event),
       );

@@ -22,14 +22,16 @@
 - 19 条内置权限均有完整说明；后台手动 RPC 调试使用独立 `invoke/manual-rpc`，公开
   `/rpc/invoke/*` 继续使用 Access Token。
 - 后台账号支持资料修改和改密；`isRoot` 管理员资料、密码、启停、删除和 RBAC 关系只能由本人修改。
-- 后端 backlog #1–#15 已全部完成。
+- 后端 backlog #1–#15、管理前端 #16、手动 RPC #17 和后台授权缓存 #18 已全部完成。
 - 管理前端 #16 已完成，覆盖全部后台管理公开面；默认端口 3001。
-- 当前基线：OpenAPI 39 个路径模板、后端 HTTP/WebSocket 黑盒 162 passed、前端 Playwright
-  11 passed、Jest 8 suites / 24 tests。
+- 当前基线：OpenAPI 39 个路径模板、后端 HTTP/WebSocket 黑盒 172 passed、前端 Playwright
+  11 passed、Jest 9 suites / 31 tests。
 - 全部列表默认 10 条/页、最大 100 条/页；运行概览使用折线趋势图，请求详情使用宽版右侧
   抽屉，AppAudit Step 默认收起。
 - 两类令牌均支持二次编辑 project；Access Token 更新立即失效鉴权缓存，Device Token 更新
   会以 close 4002 断开旧连接并在重连后应用新作用域。
+- 后台用户身份与权限快照使用公共 Redis cache-aside，默认 TTL 60 秒；Redis 未命中或异常时
+  回源 PostgreSQL 并回写，RBAC、账号启停和软删除写入成功后立即删除受影响用户缓存。
 - 令牌和 JSON 复制必须复用公共 `CopyButton`；非安全上下文使用兼容回退。
 
 ## 先读
@@ -60,6 +62,8 @@
 - 代码注释使用中文。
 - 任何以用户为目标的新写入口都必须接入 `AdministratorAccountPolicyService`，请求者编号只取 JWT 上下文。
 - 所有 RBAC 写入口必须叠加 `RootGuard`；权限组读取必须批量组装，禁止 N+1。
+- JSON 缓存必须复用 `RedisCacheAsideService.getOrLoad/writeAndInvalidate`，禁止业务模块
+  各自重复实现 Redis fallback、回写和写后删除。
 - 新增内置权限必须同时提供准确 description，并由幂等种子更新已有记录；不同凭证边界的能力
   必须使用不同权限语义。
 - 新增后台 mutation 必须声明 `@SystemAudit`；自动访问审计只列安全 metadata，禁止记录
@@ -103,8 +107,7 @@ E2E_API_URL=http://127.0.0.1:3000 pnpm test:e2e
 1. 建 CI：build、lint、format、unit、黑盒 E2E。
 2. 增加 `/health` 与 `/ready`。
 3. 增加 API/Worker 生产 Dockerfile 和部署编排。
-4. 硬化 clientId 与 clientQueue 的 project 隔离。
-5. 为后台权限查询增加失效明确的短 TTL 缓存。
+4. 为 WS 内部 `receiver.getInfo` 兼容性补充升级回归。
 
 ## 文档
 

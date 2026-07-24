@@ -27,7 +27,7 @@ pnpm start:worker          # Worker 进程(独立!--entryFile worker)
 pnpm db:generate           # drizzle-kit 从 src/**/*.schema.ts 生成迁移(见坑)
 pnpm db:migrate            # 应用迁移(独立步骤,绝不在 app 启动时跑)
 pnpm seed:admin            # 种子 admin + demo projects + RBAC 权限(幂等,可重跑)
-pnpm smoke                 # 162 项纯 HTTP/WS 黑盒完整性冒烟，需 API+Worker 在跑
+pnpm smoke                 # 172 项纯 HTTP/WS 黑盒完整性冒烟，需 API+Worker 在跑
 pnpm test:e2e              # 与 smoke 相同；先执行黑盒边界守卫
 pnpm test:integration:retention | test:integration:device-stale
 pnpm test:integration:metrics | test:integration:max-inflight # 内部直连检查，明确不是 E2E
@@ -83,7 +83,10 @@ project→id → `PresenceService.pickOnlineAcquire` 从 Redis `project:clients:
 - **系统审计例外**:`system_logs` 是不可变追加日志，但为了直接展示“谁做了什么”明确保留
   `name + description`；不加 `deleted_at`，也不提供修改/删除 API。
 - **设备 AppAudit**：只认 WS `result.appAudit` 保留字段，V1 契约/限制见 `docs/device-app-audit.md`；非法审计整体丢弃但不影响 RPC。
-- **缓存 cache-aside + 写即删**:写库(权威)后**删**对应 Redis key(不是更新),下次请求懒回填;撤销/软删/stale 等被动变更同步删缓存。presence(WS 上线/心跳/断开)是主动写。
+- **缓存 cache-aside + 写即删**：统一复用 `RedisCacheAsideService.getOrLoad/writeAndInvalidate`；
+  Redis 未命中或异常时回源 PG 并回写，写库成功后删除 key。用户授权缓存默认 60 秒，
+  RBAC/账号启停/软删除写入必须失效相关用户缓存；令牌撤销、软删和作用域更新同样走公共组件。
+  presence（WS 上线/心跳/断开）是主动写。
 - 迁移**独立步骤**跑,绝不在 app 启动时改库。
 
 ## RBAC

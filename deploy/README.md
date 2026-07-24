@@ -68,8 +68,8 @@ cd backend
 pnpm smoke
 ```
 
-该命令执行 162 项纯 HTTP/WebSocket 黑盒检查，覆盖全部 HTTP controller 方法、系统操作审计、
-权限组、管理员账号隔离与改密、两类令牌作用域二次编辑与缓存失效、Device Token 旧连接主动
+该命令执行 172 项纯 HTTP/WebSocket 黑盒检查，覆盖全部 HTTP controller 方法、系统操作审计、
+权限组、后台授权缓存回源/回写/写后失效、管理员账号隔离与改密、两类令牌作用域二次编辑与缓存失效、Device Token 旧连接主动
 断开重连、手动 RPC 权限/调用/审计/发起人溯源、WS 协议和设备 AppAudit Step 冷路径，
 不直接连接数据库、Redis 或 Manticore。
 可用 `BASE_URL` 指向其他运行实例：

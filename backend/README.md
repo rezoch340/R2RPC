@@ -32,7 +32,7 @@ cp config.example.yaml config.yaml
 - `app.port`、`app.globalPrefix`、`app.publicWsUrl`
 - PostgreSQL
 - Redis
-- JWT
+- JWT（含 `authorizationCacheTtlSeconds`，用户授权缓存默认 60 秒，允许 60–300 秒）
 - Manticore
 - 原始日志和日聚合保留策略
 
@@ -90,6 +90,10 @@ Swagger 位于 `/docs`，设备 WebSocket 位于 `/api/client/ws`。
   普通用户即使拥有 `manage/rbac` 也不能修改权限组、权限目录或用户分组。
 - 每条内置权限都必须提供面向管理员的完整 `description`；种子脚本会幂等补齐现有权限说明。
 - 没有 schema 变化；部署后重跑 `pnpm seed:admin` 即可补齐权限及说明。
+- JWT 用户身份与权限快照通过 `RedisCacheAsideService.getOrLoad` 读取：Redis 未命中、数据不符合
+  zod 契约或 Redis 故障时回源 PostgreSQL，查询成功后回写 Redis。
+- 权限组挂载/移除权限、权限或权限组删除、用户分组/移组、账号启停和软删除均通过公共
+  `writeAndInvalidate` 在数据库写入成功后删除相关用户缓存；默认 TTL 为 60 秒。
 
 ### 内置权限目录
 
@@ -164,6 +168,9 @@ Swagger 位于 `/docs`，设备 WebSocket 位于 `/api/client/ws`。
 pnpm test
 ```
 
+当前为 Jest **9 suites / 31 tests**，其中公共 Redis cache-aside 覆盖命中、PostgreSQL fallback
+回写、负缓存、脏数据失效、写后删除以及写失败不删缓存。
+
 ### 黑盒 E2E / 完整性冒烟
 
 先启动基础设施、API 和 Worker：
@@ -189,12 +196,13 @@ BASE_URL=http://127.0.0.1:3000 pnpm smoke
 - 覆盖设备通过真实 WS 上报 AppAudit 成功/失败 Step、非法审计隔离和 Monitor API 读取
 - 覆盖用户资料、改密和管理员资料/密码/启停/删除/RBAC 角色关系隔离
 - 覆盖权限组编辑、嵌套权限、用户分组查询和非 root 持 `manage/rbac` 仍被拒绝
+- 覆盖授权缓存已命中后的权限挂载、移除、权限删除、用户分组、启停和软删除即时生效
 - 覆盖两类令牌二次编辑功能组、缓存即时失效和 Device Token 旧作用域连接断开重连
 - 覆盖全部 19 条内置权限说明、`invoke/manual-rpc` 拒绝/放行、真实设备往返、系统审计和
   `requesterUserId` 溯源
 - 覆盖登录成功/失败、控制面读取、Guard 拒绝、业务写入、筛选和密码不泄露
 - 通过 monitor/metrics API 观察 Worker 冷路径
-- 当前为 162 项运行时检查
+- 当前为 172 项运行时检查
 
 `test/assert-blackbox-e2e.js` 会拒绝 E2E 导入持久层客户端或应用内部服务。
 

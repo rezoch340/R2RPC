@@ -12,6 +12,7 @@ import {
 import { and, eq, inArray } from 'drizzle-orm';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
+import { UserAuthorizationCacheService } from '../../infrastructure/redis/user-authorization-cache.service';
 import { AdministratorAccountPolicyService } from '../users/administrator-account-policy.service';
 import { users } from '../users/users.schema';
 import { permissions, rolePermissions, roles, userRoles } from './rbac.schema';
@@ -53,6 +54,7 @@ export class RbacService {
   constructor(
     private readonly dbService: DbService,
     private readonly administratorAccountPolicyService: AdministratorAccountPolicyService,
+    private readonly userAuthorizationCacheService: UserAuthorizationCacheService,
   ) {}
 
   private get database() {
@@ -153,15 +155,18 @@ export class RbacService {
   }
 
   async deleteRole(roleId: number) {
-    const [deletedRole] = await softDelete(
-      this.database,
-      roles,
-      eq(roles.id, roleId),
-    );
-    if (!deletedRole) {
-      throw new NotFoundException('权限组不存在');
-    }
-    return { deleted: true };
+    const affectedUserIds = await this.listRoleMemberUserIds(roleId);
+    return this.userAuthorizationCacheService.writeAndInvalidate(async () => {
+      const [deletedRole] = await softDelete(
+        this.database,
+        roles,
+        eq(roles.id, roleId),
+      );
+      if (!deletedRole) {
+        throw new NotFoundException('权限组不存在');
+      }
+      return { deleted: true };
+    }, affectedUserIds);
   }
 
   // ---------- 权限 CRUD ----------
@@ -192,15 +197,19 @@ export class RbacService {
   }
 
   async deletePermission(permissionId: number) {
-    const [deletedPermission] = await softDelete(
-      this.database,
-      permissions,
-      eq(permissions.id, permissionId),
-    );
-    if (!deletedPermission) {
-      throw new NotFoundException('权限不存在');
-    }
-    return { deleted: true };
+    const affectedUserIds =
+      await this.listPermissionHolderUserIds(permissionId);
+    return this.userAuthorizationCacheService.writeAndInvalidate(async () => {
+      const [deletedPermission] = await softDelete(
+        this.database,
+        permissions,
+        eq(permissions.id, permissionId),
+      );
+      if (!deletedPermission) {
+        throw new NotFoundException('权限不存在');
+      }
+      return { deleted: true };
+    }, affectedUserIds);
   }
 
   // ---------- 权限组 <-> 权限 ----------
@@ -208,31 +217,37 @@ export class RbacService {
   async attachPermission(roleId: number, permissionId: number) {
     await this.assertRoleExists(roleId);
     await this.assertPermissionExists(permissionId);
-    const [attachedPermission] = await this.database
-      .insert(rolePermissions)
-      .values({ roleId, permissionId })
-      .onConflictDoNothing()
-      .returning();
-    if (!attachedPermission) {
-      throw new ConflictException('权限组已拥有该权限');
-    }
-    return { attached: true };
+    const affectedUserIds = await this.listRoleMemberUserIds(roleId);
+    return this.userAuthorizationCacheService.writeAndInvalidate(async () => {
+      const [attachedPermission] = await this.database
+        .insert(rolePermissions)
+        .values({ roleId, permissionId })
+        .onConflictDoNothing()
+        .returning();
+      if (!attachedPermission) {
+        throw new ConflictException('权限组已拥有该权限');
+      }
+      return { attached: true };
+    }, affectedUserIds);
   }
 
   async detachPermission(roleId: number, permissionId: number) {
-    const [detachedPermission] = await this.database
-      .delete(rolePermissions)
-      .where(
-        and(
-          eq(rolePermissions.roleId, roleId),
-          eq(rolePermissions.permissionId, permissionId),
-        ),
-      )
-      .returning();
-    if (!detachedPermission) {
-      throw new NotFoundException('权限组未拥有该权限');
-    }
-    return { detached: true };
+    const affectedUserIds = await this.listRoleMemberUserIds(roleId);
+    return this.userAuthorizationCacheService.writeAndInvalidate(async () => {
+      const [detachedPermission] = await this.database
+        .delete(rolePermissions)
+        .where(
+          and(
+            eq(rolePermissions.roleId, roleId),
+            eq(rolePermissions.permissionId, permissionId),
+          ),
+        )
+        .returning();
+      if (!detachedPermission) {
+        throw new NotFoundException('权限组未拥有该权限');
+      }
+      return { detached: true };
+    }, affectedUserIds);
   }
 
   // ---------- 用户 <-> 权限组 ----------
@@ -258,15 +273,17 @@ export class RbacService {
       targetUserId,
     );
     await this.assertRoleExists(roleId);
-    const [assignedRole] = await this.database
-      .insert(userRoles)
-      .values({ userId: targetUserId, roleId })
-      .onConflictDoNothing()
-      .returning();
-    if (!assignedRole) {
-      throw new ConflictException('用户已拥有该权限组');
-    }
-    return { assigned: true };
+    return this.userAuthorizationCacheService.writeAndInvalidate(async () => {
+      const [assignedRole] = await this.database
+        .insert(userRoles)
+        .values({ userId: targetUserId, roleId })
+        .onConflictDoNothing()
+        .returning();
+      if (!assignedRole) {
+        throw new ConflictException('用户已拥有该权限组');
+      }
+      return { assigned: true };
+    }, [targetUserId]);
   }
 
   async unassignRole(
@@ -278,16 +295,18 @@ export class RbacService {
       requesterUserId,
       targetUserId,
     );
-    const [unassignedRole] = await this.database
-      .delete(userRoles)
-      .where(
-        and(eq(userRoles.userId, targetUserId), eq(userRoles.roleId, roleId)),
-      )
-      .returning();
-    if (!unassignedRole) {
-      throw new NotFoundException('用户未拥有该权限组');
-    }
-    return { unassigned: true };
+    return this.userAuthorizationCacheService.writeAndInvalidate(async () => {
+      const [unassignedRole] = await this.database
+        .delete(userRoles)
+        .where(
+          and(eq(userRoles.userId, targetUserId), eq(userRoles.roleId, roleId)),
+        )
+        .returning();
+      if (!unassignedRole) {
+        throw new NotFoundException('用户未拥有该权限组');
+      }
+      return { unassigned: true };
+    }, [targetUserId]);
   }
 
   // ---------- 存在性校验(供上面的关联操作复用,不存在则 404) ----------
@@ -389,5 +408,24 @@ export class RbacService {
       )
       .where(inArray(rolePermissions.roleId, roleIds))
       .orderBy(rolePermissions.roleId, permissions.id);
+  }
+
+  private async listRoleMemberUserIds(roleId: number): Promise<number[]> {
+    const userRecords = await this.database
+      .selectDistinct({ userId: userRoles.userId })
+      .from(userRoles)
+      .where(eq(userRoles.roleId, roleId));
+    return userRecords.map((userRecord) => userRecord.userId);
+  }
+
+  private async listPermissionHolderUserIds(
+    permissionId: number,
+  ): Promise<number[]> {
+    const userRecords = await this.database
+      .selectDistinct({ userId: userRoles.userId })
+      .from(userRoles)
+      .innerJoin(rolePermissions, eq(userRoles.roleId, rolePermissions.roleId))
+      .where(eq(rolePermissions.permissionId, permissionId));
+    return userRecords.map((userRecord) => userRecord.userId);
   }
 }

@@ -4,14 +4,14 @@
 
 ## 1. 完成度
 
-后端既定 backlog #1–#15 与管理前端 #16、手动 RPC 调试 #17 全部完成。代码包含 39 个 HTTP
+后端既定 backlog #1–#15 与管理前端 #16、手动 RPC 调试 #17、后台授权缓存 #18 全部完成。代码包含 39 个 HTTP
 路径模板、1 个设备 WebSocket 网关、API/Worker 双进程、15 张 PostgreSQL 表、9 个数据库
 迁移和 10 个管理页面。
 
 | 领域 | 能力 | 状态 | 黑盒覆盖 |
 |---|---|---|---|
-| 认证 | 登录、JWT、`/auth/me` | ✅ | ✅ |
-| RBAC | 权限组、嵌套权限、用户分组、19 条带说明权限、root-only 写隔离 | ✅ | ✅ |
+| 认证 | 登录、JWT、`/auth/me`、60 秒授权快照 cache-aside | ✅ | ✅ |
+| RBAC | 权限组、嵌套权限、用户分组、19 条带说明权限、root-only 写隔离、写后缓存失效 | ✅ | ✅ |
 | 用户 | CRUD、资料、改密、enabled、管理员隔离、旧 JWT 吊销 | ✅ | ✅ |
 | 系统审计 | 谁在何时做了什么、安全 metadata、筛选分页 | ✅ | ✅ |
 | Project | CRUD、enabled、GroupInfo | ✅ | ✅ |
@@ -67,6 +67,8 @@
 普通账号即使被授予 `manage/rbac` 仍不能修改权限组、权限目录或用户分组。
 当前 19 条内置权限都带完整说明，`seed-admin.ts` 会在幂等重跑时同步更新历史权限说明。
 手动调试单独使用 `invoke/manual-rpc`，不会借用 `invoke/rpc` 或 Access Token 管理权限。
+JWT 鉴权通过公共 Redis cache-aside 读取用户身份与权限快照；未命中或 Redis 异常时回源
+PostgreSQL 并回写。权限组/权限关系、用户分组、账号启停和软删除成功后立即删除受影响用户缓存。
 
 ### System logs
 
@@ -283,14 +285,21 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 ## 7. 测试统计
 
+### 单元测试
+
+- Jest 9 suites / 31 tests。
+- 公共 Redis cache-aside 覆盖命中、持久层 fallback 与回写、负缓存、契约异常失效、
+  写后删除和写失败不删缓存。
+
 ### 黑盒 E2E
 
 `pnpm smoke` 与 `pnpm test:e2e` 执行同一套完整性测试：
 
-- 162 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
+- 172 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
 - 覆盖全部 HTTP controller 方法。
 - 覆盖系统操作日志、筛选、普通用户权限委派和密码不泄露。
 - 覆盖权限组编辑、嵌套权限、用户已分配组、新旧关联入口和 root-only 写隔离。
+- 覆盖缓存命中后的权限挂载/移除、权限删除、用户分组/移组、启停和软删除实时生效。
 - 覆盖资料修改、改密新旧密码登录，以及管理员资料/密码/启停/删除/RBAC 关系隔离。
 - 覆盖两类令牌二次编辑功能组、Access Token 缓存失效和 Device Token 旧作用域连接断开重连。
 - 覆盖全部内置权限说明、手动 RPC 权限拒绝/放行、上下文、真实 WS 往返、系统审计和后台
@@ -327,6 +336,3 @@ RootGuard 的 root、非 root `manage/rbac` 和缺失身份分支。
 - CI
 - 生产 API/Worker 镜像与编排
 - 健康检查/readiness
-- `clientId` 多租户隔离硬化
-- `clientQueue?clientId=` project 边界硬化
-- RBAC 短 TTL 缓存
