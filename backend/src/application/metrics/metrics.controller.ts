@@ -1,11 +1,16 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { QueryTrendDto } from './dto/query-trend.dto';
 import { MetricsService } from './metrics.service';
 
 @ApiTags('metrics')
-@ApiBearerAuth()
+@ApiBearerAuth('adminJwt')
 @Controller('metrics')
 export class MetricsController {
   constructor(private readonly metrics: MetricsService) {}
@@ -23,6 +28,11 @@ export class MetricsController {
   @RequirePermission('read', 'metrics')
   @ApiOperation({
     summary: '近7天设备指标(按 clientId×project 汇总;可选 ?project)',
+  })
+  @ApiQuery({
+    name: 'project',
+    required: false,
+    description: '可选功能组名称；省略时返回全部功能组。',
   })
   weekly(@Query('project') project?: string) {
     return this.metrics.weekly(project);

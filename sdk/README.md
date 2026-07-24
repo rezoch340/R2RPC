@@ -10,6 +10,10 @@
 两套 SDK 都只通过公开 HTTP/WebSocket 接口工作，不依赖后端内部模块，也不直接连接
 PostgreSQL、Redis 或 Manticore。
 
+当前两个 SDK 均处于 `0.1.0` 仓库内验证阶段，尚未发布到公共 npm Registry 或 Maven
+Central。请使用本地路径、Maven Local 或经批准的私有制品库；版本、许可和发布门禁见
+[`../docs/releasing.md`](../docs/releasing.md)。
+
 ## 身份边界
 
 - 设备端使用 `dk_` Device Token，通过 `/api/client/ws` 注册上线。

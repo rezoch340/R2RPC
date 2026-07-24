@@ -20,7 +20,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
 @ApiTags('users')
-@ApiBearerAuth()
+@ApiBearerAuth('adminJwt')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}

@@ -106,6 +106,39 @@ type AppAudit = {
 };
 ```
 
+### 精确字段约束
+
+服务端按下表执行 V1 严格校验。表中“必填”表示属性必须存在；可选对象一旦提供，其内部字段仍
+必须满足对应限制。
+
+| 路径 | 必填 | 精确限制 |
+|---|---:|---|
+| `schemaVersion` | 是 | 只能为整数 `1` |
+| `title` | 是 | 字符串，长度 1～200 |
+| `metadata` | 是 | 数组，最多 64 项；允许空数组 |
+| `metadata[].key` | 是 | 字符串，长度 1～100 |
+| `metadata[].value` | 是 | 任意可 JSON 序列化的值 |
+| `steps` | 是 | 数组，最多 128 项；允许空数组 |
+| `steps[].sequence` | 是 | 整数 1～128，并且必须严格等于当前数组下标加 1 |
+| `steps[].code` | 否 | 字符串，最大 100 |
+| `steps[].name` | 是 | 字符串，长度 1～200 |
+| `steps[].startedAt` | 是 | 带 `Z` 或明确时区偏移的 ISO 8601 日期时间 |
+| `steps[].durationMs` | 是 | 有限数字，且不小于 0 |
+| `steps[].status` | 否 | 有限数字，或最大 100 字符的字符串 |
+| `request.method` | 否 | 字符串，长度 1～32 |
+| `request.url` | 否 | 字符串，最大 4096 |
+| `request.headers/body` | 否 | 任意可 JSON 序列化的值 |
+| `response.statusCode` | 否 | 整数 0～999 |
+| `response.headers/body` | 否 | 任意可 JSON 序列化的值 |
+| `response.bodyFormat` | 否 | 只能为 `json`、`text` 或 `empty` |
+| `error.type` | 否 | 字符串，最大 100 |
+| `error.code` | 否 | 字符串，最大 100 |
+| `error.message` | 否 | 字符串，最大 4096 |
+
+`appAudit`、metadata、Step、request、response 和 error 对象全部使用 **strict object**
+语义：任何未在 V1 中声明的额外字段都会导致整份 `appAudit` 被丢弃。需要携带扩展业务数据时，
+应放入 `metadata[].value`、`request.body`、`response.body` 或 headers，而不是增加协议字段。
+
 ## 设备记录器要求
 
 1. 每次 RPC 最多创建一份 AppAudit。
@@ -120,6 +153,8 @@ type AppAudit = {
 - `appAudit` 最大 512 KiB。
 - 最多 64 个 metadata、128 个 Step。
 - WS 整帧仍受 4 MiB 上限约束。
+- 512 KiB 按 `JSON.stringify(appAudit)` 后的 UTF-8 字节数计算；循环引用、`BigInt` 等无法
+  JSON 序列化的内容会判定为非法。
 - 非法审计会被整体丢弃，但 RPC 业务结果继续完成。
 - `payload.appAudit` 是普通业务数据；只有 `result.appAudit` 是审计保留字段。
 - 设备断线或 RPC 超时且没有最终 `result` 时，服务端无法获得尚未上报的内部 Step。

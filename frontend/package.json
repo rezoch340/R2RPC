@@ -1,7 +1,19 @@
 {
   "name": "r2rpc-frontend",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "description": "R2RPC management console",
+  "author": "R2RPC Contributors",
   "private": true,
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rezoch340/R2RPC.git",
+    "directory": "frontend"
+  },
+  "homepage": "https://github.com/rezoch340/R2RPC#readme",
+  "bugs": {
+    "url": "https://github.com/rezoch340/R2RPC/issues"
+  },
   "packageManager": "pnpm@11.17.0",
   "scripts": {
     "dev": "CONFIG_FILE=../config.yaml next dev -p 3001",

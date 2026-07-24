@@ -1,9 +1,11 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
 import { dump } from 'js-yaml';
 import { AppModule } from '../app.module';
+import { buildOpenApiConfiguration } from '../common/openapi/openapi.configuration';
+import { completeOpenApiDocument } from '../common/openapi/openapi.document';
 import { ConfigService } from '../infrastructure/config/config.service';
 
 // 从 @nestjs/swagger 装饰器生成 OpenAPI 3 规范,导出 YAML 到 docs/openapi.yaml。
@@ -20,15 +22,10 @@ async function main() {
     application.setGlobalPrefix(configuration.app.globalPrefix);
   }
 
-  // 复用 main.ts 的 DocumentBuilder 配置(标题/版本/Bearer)
-  const swaggerConfiguration = new DocumentBuilder()
-    .setTitle('R2RPC API')
-    .setVersion('0.1')
-    .addBearerAuth()
-    .build();
-  const openApiDocument = SwaggerModule.createDocument(
-    application,
-    swaggerConfiguration,
+  // 与运行时 Swagger 共用配置、响应 schema、安全方案和完整性断言。
+  const swaggerConfiguration = buildOpenApiConfiguration();
+  const openApiDocument = completeOpenApiDocument(
+    SwaggerModule.createDocument(application, swaggerConfiguration),
   );
 
   const outputPath = join(__dirname, '../../../docs/openapi.yaml');

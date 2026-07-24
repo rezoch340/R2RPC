@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 私密安全报告
+    url: https://github.com/rezoch340/R2RPC/security/advisories/new
+    about: 漏洞、凭证泄漏或可利用的越权问题请使用私密渠道。

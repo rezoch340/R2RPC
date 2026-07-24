@@ -17,6 +17,10 @@ cd sdk/android
 ./gradlew :r2rpc-sdk:publishToMavenLocal
 ```
 
+当前 `0.1.0` 制品尚未发布到 Maven Central；请使用 Maven Local 或经批准的私有仓库。公开
+发布必须遵循[`../../docs/releasing.md`](../../docs/releasing.md)和仓库
+[`../../LICENSE`](../../LICENSE)。
+
 在 Android 项目的仓库和依赖中加入：
 
 ```kotlin

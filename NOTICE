@@ -1,0 +1,16 @@
+R2RPC attribution notice
+=========================
+
+R2RPC is a distributed reimplementation of the device RPC relay project
+manyuegong33/r0rpc:
+
+https://github.com/manyuegong33/r0rpc
+
+R2RPC redesigns the server architecture, persistence, distributed connection
+coordination, authorization, observability, management console, SDKs and
+container deployment. The upstream repository remains the historical origin
+of the project goal and must remain credited in redistributed project
+documentation.
+
+As of 2026-07-25, neither the upstream repository nor R2RPC declared an
+open-source license. See LICENSE for the current repository permission notice.

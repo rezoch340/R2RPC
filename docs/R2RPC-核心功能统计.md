@@ -27,7 +27,7 @@
 | 日志保留 | 按天清理、每 scope 留最新 N 条 | ✅ | 内部集成 |
 | 指标 | 日聚合、重建、清理、overview/weekly/trend | ✅ | 公开读面 ✅ |
 | 分布式 | Redis session/waiter/pub-sub/结果去重 | ✅ | 单实例闭环 ✅ |
-| OpenAPI | 规范导出与生成脚本 | ✅ | build 校验 |
+| OpenAPI | 39 路径 / 51 操作、双鉴权、成功与错误响应契约 | ✅ | 生成期完整性断言 |
 | 代码质量 | 完整变量名、复杂度/嵌套/函数长度门禁 | ✅ | `pnpm lint:check` |
 | 管理前端 | Next.js + shadcn，完整后台公开面 | ✅ | Playwright 12 项 + HTTP |
 | 前端质量 | 页面/组件/E2E 完整变量名门禁、ESLint、生产构建 | ✅ | `frontend/pnpm lint` |

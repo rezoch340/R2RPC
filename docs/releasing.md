@@ -1,0 +1,48 @@
+# R2RPC 发布流程
+
+R2RPC 当前处于 `0.x` 阶段，服务端、管理前端、JavaScript SDK 和 Android SDK 采用独立版本。
+在权利人明确批准公开授权和制品分发前，仓库及 SDK 均保持 `UNLICENSED`，不得发布到 npm
+公共 Registry、Maven Central 或其他公开制品仓库。
+
+## 版本与标签
+
+| 制品 | 版本来源 | 标签格式 |
+|---|---|---|
+| 服务端与管理前端 | 发布提交与 `CHANGELOG.md` | `vMAJOR.MINOR.PATCH` |
+| JavaScript SDK | `sdk/javascript/package.json` | `javascript-vMAJOR.MINOR.PATCH` |
+| Android SDK | `sdk/android/r2rpc-sdk/build.gradle.kts` | `android-vMAJOR.MINOR.PATCH` |
+
+`0.x` 期间也必须记录不兼容变更。稳定版发布后遵循语义化版本：破坏兼容为 major、新增兼容
+能力为 minor、兼容修复为 patch。
+
+## 发布前检查
+
+1. 确认工作区干净，目标提交已合并到 `main`。
+2. 将 `CHANGELOG.md` 的 `[Unreleased]` 内容整理到带日期的版本标题。
+3. 同步 SDK 版本、README 安装示例、OpenAPI `info.version` 和兼容性说明。
+4. 确认没有 `.env`、`config.yaml`、Token、密码、内部地址、IDE 文件或构建产物进入制品。
+5. 执行：
+
+```bash
+(cd backend && pnpm lint:check && pnpm build && pnpm test && pnpm openapi:gen)
+(cd frontend && pnpm lint && pnpm build && pnpm test:e2e)
+(cd sdk/javascript && corepack pnpm check && npm pack --dry-run)
+(cd sdk/android && ./gradlew :r2rpc-sdk:testDebugUnitTest :r2rpc-sdk:assembleRelease)
+docker compose config --quiet
+docker compose build api frontend
+```
+
+6. 在隔离环境运行 `pnpm smoke`；发布服务端镜像时还应执行 Compose 性能测试。
+7. 对生成的 `docs/openapi.yaml` 执行差异审查，确保每个操作都有说明、成功响应 schema、
+   鉴权方案和 4xx 响应。
+
+## 发布与回滚
+
+- 创建签名标签和 GitHub Release，附 Changelog、镜像摘要、兼容性和迁移说明。
+- SDK 先在本地或私有 Registry 验证安装，再按批准的目标 Registry 发布。
+- 数据库变更必须提供向前修复方案；不得假设可以安全回滚已经被新版本写入的数据。
+- 回滚应用前确认旧版本仍能读取当前 schema、Redis 键和 WebSocket 消息。
+- 发布后重新运行健康检查、登录、设备上线、自动/指定设备 RPC 和日志查询。
+
+发布失败时应立即停止后续制品，记录已发布的版本或摘要，撤回可撤回制品，并在
+`CHANGELOG.md` 与 Release 中说明替代版本。

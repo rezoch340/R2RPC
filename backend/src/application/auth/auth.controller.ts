@@ -28,7 +28,7 @@ export class AuthController {
   }
 
   @Get('me')
-  @ApiBearerAuth()
+  @ApiBearerAuth('adminJwt')
   @AuthenticatedOnly()
   @ApiOperation({ summary: '当前登录用户' })
   me(@Req() request: { user: unknown }) {

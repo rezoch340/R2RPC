@@ -279,7 +279,15 @@ pnpm openapi:gen
 
 生成文件：`../docs/openapi.yaml`。
 
-当前导出基线为 39 个 HTTP 路径模板；设备 WebSocket 协议单独位于 `/api/client/ws`。
+当前导出基线为 39 个 HTTP 路径模板、51 个操作。运行时 Swagger 与静态 YAML 共用同一
+配置和响应契约；生成过程会拒绝缺少 operation 映射的接口。每个操作都必须包含：
+
+- 非空 description。
+- 明确的成功响应 schema。
+- 实际鉴权方案：后台 `adminJwt` 或调用方 `accessToken`。
+- 参数/鉴权/权限/资源冲突等标准 4xx，以及统一错误响应 schema。
+
+设备 WebSocket 协议不属于 HTTP OpenAPI，单独位于 `/api/client/ws`。
 
 ## 关键目录
 

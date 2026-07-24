@@ -1,8 +1,10 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { WsAdapter } from '@nestjs/platform-ws';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { buildOpenApiConfiguration } from './common/openapi/openapi.configuration';
+import { completeOpenApiDocument } from './common/openapi/openapi.document';
 import { ConfigService } from './infrastructure/config/config.service';
 
 // API 进程入口:HTTP API + WebSocket Gateway + Swagger
@@ -31,16 +33,11 @@ async function bootstrap() {
   });
   application.enableShutdownHooks();
 
-  const swaggerConfiguration = new DocumentBuilder()
-    .setTitle('R2RPC API')
-    .setVersion('0.1')
-    .addBearerAuth()
-    .build();
-  SwaggerModule.setup(
-    'docs',
-    application,
+  const swaggerConfiguration = buildOpenApiConfiguration();
+  const openApiDocument = completeOpenApiDocument(
     SwaggerModule.createDocument(application, swaggerConfiguration),
   );
+  SwaggerModule.setup('docs', application, openApiDocument);
 
   await application.listen(configuration.app.port);
 }

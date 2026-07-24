@@ -13,7 +13,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -29,6 +30,16 @@
     "device"
   ],
   "license": "UNLICENSED",
+  "author": "R2RPC Contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rezoch340/R2RPC.git",
+    "directory": "sdk/javascript"
+  },
+  "homepage": "https://github.com/rezoch340/R2RPC/tree/main/sdk/javascript#readme",
+  "bugs": {
+    "url": "https://github.com/rezoch340/R2RPC/issues"
+  },
   "sideEffects": false,
   "packageManager": "pnpm@11.17.0",
   "engines": {

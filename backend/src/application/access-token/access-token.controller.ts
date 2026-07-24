@@ -18,7 +18,7 @@ import { CreateAccessTokenDto } from './dto/create-access-token.dto';
 import { UpdateAccessTokenProjectsDto } from './dto/update-access-token-projects.dto';
 
 @ApiTags('access-token')
-@ApiBearerAuth()
+@ApiBearerAuth('adminJwt')
 @Controller('access-tokens')
 export class AccessTokenController {
   constructor(private readonly tokens: AccessTokenService) {}

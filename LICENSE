@@ -1,0 +1,20 @@
+R2RPC Source Code Notice
+
+Copyright (c) 2026 R2RPC authors and contributors.
+All rights reserved.
+
+No license is granted to use, copy, modify, merge, publish, distribute,
+sublicense, sell, or create derivative works from this repository or its
+contents, except with prior written permission from the applicable copyright
+holder.
+
+Viewing or cloning a publicly accessible copy of this repository does not
+grant permission beyond the rights that applicable law provides without a
+license.
+
+R2RPC is a distributed reimplementation of manyuegong33/r0rpc:
+https://github.com/manyuegong33/r0rpc
+
+The upstream repository did not declare an open-source license when this
+notice was added. Nothing in this notice grants rights to upstream material or
+changes the rights of any upstream copyright holder.
