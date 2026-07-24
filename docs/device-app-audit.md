@@ -3,6 +3,9 @@
 RER0RPC 支持设备在最终 WebSocket `result` 中上报内部执行 Step。审计数据只进入请求日志，
 不改变同步 invoke 响应。
 
+官方 Android/Kotlin 与 JavaScript/TypeScript SDK 已内置 Recorder，优先按
+[`sdk/README.md`](../sdk/README.md) 接入，不需要业务端手写 sequence、时间和耗时。
+
 ## 上报
 
 ```json
@@ -134,4 +137,5 @@ GET /monitor/requests/:requestId
 
 完整设计和验收标准见
 `docs/superpowers/specs/2026-07-24-device-app-audit-design.md`。
-
+SDK 设计见
+`docs/superpowers/specs/2026-07-24-device-sdks-design.md`。

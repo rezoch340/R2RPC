@@ -5,7 +5,8 @@
 ## 目录用途
 
 - `specs/`：已定稿并实施的行为设计。2026-07-24 的管理员隔离、权限组、系统审计、
-  AppAudit、管理前端、手动 RPC 调试、统一配置、完整 Compose 和容器性能验收规格仍可作为
+  AppAudit、管理前端、手动 RPC 调试、统一配置、完整 Compose、容器性能验收和
+  Android/JavaScript SDK 规格仍可作为
   对应领域的设计说明。
 - `plans/`：已经执行完毕的实现计划，只保留任务拆分、当时命令和阶段验证结果。
 
@@ -26,3 +27,6 @@
 
 当前容器性能设计：
 `specs/2026-07-24-container-performance-suite-design.md`。
+
+当前 SDK 设计：
+`specs/2026-07-24-device-sdks-design.md`。

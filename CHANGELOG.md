@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+### Android 与 JavaScript SDK
+- 新增 JavaScript/TypeScript ESM SDK，提供设备 WebSocket、调用方 HTTP、自动/指定设备调用、
+  在线状态查询、指数重连、Action 超时与 AppAudit V1 Recorder。
+- 新增 Android/Kotlin SDK，以 `minSdk 21`、Java 8 字节码兼容 AAR 交付，使用 OkHttp、
+  Coroutines 与 kotlinx.serialization，提供与 JavaScript SDK 对齐的设备端和调用方 API；
+  设备默认以 Widevine MediaDrm ID 作为 `clientId`。
+- 两端统一把未注册 Action、执行异常和超时映射为规范 result；鉴权失败停止重连，普通断线
+  按 500 ms 起步、30 s 封顶指数退避。
+- 新增两端安装说明、设备/调用方/AppAudit 示例与 SDD 规格；JavaScript **10 tests**、
+  Android **8 tests** 通过，Android 测试通过 MockWebServer 使用真实 HTTP/WebSocket。
+
 ### Docker 性能测试与 4 核 4 GiB 预算
 - 新增统一配置驱动的固定速率性能执行器，使用种子管理员登录、通过公开 API 创建临时令牌，
   并挂载 4 台真实 WebSocket 虚拟设备；结束后关闭连接并删除令牌。

@@ -28,8 +28,11 @@ build/
 coverage/
 *.tsbuildinfo
 performance-results/
+.gradle/
+.kotlin/
 !backend/pnpm-workspace.yaml
 !frontend/pnpm-workspace.yaml
+!sdk/javascript/pnpm-workspace.yaml
 
 # ---- 日志 ----
 *.log
@@ -41,6 +44,7 @@ yarn-debug.log*
 .env
 .env.*
 !.env.example
+local.properties
 
 # ---- 本地运行配置(含密钥),只跟踪 example ----
 config.yaml

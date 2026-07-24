@@ -5,7 +5,7 @@
 ## 1. 完成度
 
 后端既定 backlog #1–#15 与管理前端 #16、手动 RPC 调试 #17、后台授权缓存 #18、统一配置与
-完整 Compose #19、容器性能测试 #20 全部完成。代码包含 39 个 HTTP
+完整 Compose #19、容器性能测试 #20、Android 与 JavaScript SDK #21 全部完成。代码包含 39 个 HTTP
 路径模板、1 个设备 WebSocket 网关、API/Worker 双进程、15 张 PostgreSQL 表、9 个数据库
 迁移和 10 个管理页面。
 
@@ -33,6 +33,7 @@
 | 前端质量 | 页面/组件/E2E 完整变量名门禁、ESLint、生产构建 | ✅ | `frontend/pnpm lint` |
 | 配置与部署 | 前后端统一 YAML、API/Worker/frontend 镜像、完整 Compose | ✅ | loader 单测 + Compose/build |
 | 性能验收 | 4 台在线虚拟设备、真实 WS Hello、自动/随机路由、质量阈值、JSON 报告 | ✅ | 受限 Compose 实测 |
+| 官方 SDK | Android/Kotlin 与 JavaScript/TypeScript 设备端、调用方、AppAudit Recorder | ✅ | 18 项 SDK 测试 |
 
 ## 2. HTTP API
 
@@ -359,6 +360,19 @@ RootGuard 的 root、非 root `manage/rbac` 和缺失身份分支。
   强制阈值。
 - 隔离 Compose 实测 1600 请求、0 失败、80.03 req/s、P95 7.50 ms、P99 10.31 ms；
   3 个 Hello 场景各 160 次，4 台设备全部收到任务。
+
+### Android 与 JavaScript SDK
+
+- JavaScript SDK：`sdk/javascript/`，ESM + TypeScript 声明，Node.js 20+ 和现代浏览器可用。
+- Android SDK：`sdk/android/`，Maven 坐标
+  `io.rer0rpc:rer0rpc-android:0.1.0`，`minSdk 21`、Java 8 字节码兼容 AAR，设备默认
+  使用 Widevine MediaDrm ID 作为 `clientId`。
+- 两端同时提供 Device 与 Caller：设备端封装 WS welcome、heartbeat、重连、Action
+  路由/超时/result；调用方封装 invoke、在线设备列表和指定设备在线状态。
+- 两端提供 AppAudit V1 Recorder，自动生成连续 sequence、ISO 时间与 duration，并拒绝
+  Step 重复完成。
+- JavaScript Vitest 10 项、Android/JUnit 8 项通过；Android MockWebServer 使用真实
+  HTTP/WebSocket 帧验证公开协议。
 
 ## 8. 剩余工作
 
