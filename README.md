@@ -21,7 +21,7 @@
 - 后台用户与权限快照使用公共 Redis cache-aside：默认缓存 60 秒，未命中回源 PostgreSQL 并回写；用户或 RBAC 写入成功后立即失效
 - 令牌和 JSON 载荷统一使用公共复制组件，局域网 HTTP 下会自动回退到兼容复制
 - 172 项纯 HTTP/WS 黑盒冒烟
-- 前端 Playwright 11 项浏览器 E2E，只通过 UI 与公开 HTTP API，不直连持久层
+- 前端 Playwright 12 项浏览器 E2E，只通过 UI 与公开 HTTP API，不直连持久层
 - 设备 SDK：不在本仓库范围
 
 ## 快速开始

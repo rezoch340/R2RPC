@@ -1,7 +1,7 @@
 # RER0RPC 文档索引
 
 > 更新日期：2026-07-24。当前验证基线为后端 HTTP/WebSocket 黑盒 **172 passed**、
-> Jest **9 suites / 31 tests**、前端 Playwright **11 passed**、OpenAPI **39 个路径模板**。
+> Jest **9 suites / 31 tests**、前端 Playwright **12 passed**、OpenAPI **39 个路径模板**。
 
 ## 当前有效文档
 

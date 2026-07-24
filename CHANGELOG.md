@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 系统日志表格长文本隔离
+- 系统日志表格改为固定布局并为事件、操作者、动作/资源、目标、结果、时间和详情设置受控列宽；
+  窄视口由表格容器横向滚动，不再由单条日志撑乱整行。
+- 事件说明及其他可能变长的字段使用单行省略，并通过悬停标题保留完整内容，避免覆盖相邻列。
+- 新增浏览器回归验证长事件说明的 overflow、ellipsis 和 nowrap 契约；前端 Playwright
+  **12 passed**，lint 与生产构建通过。
+
 ### 后台授权公共 cache-aside
 - 新增公共 `RedisCacheAsideService`：`getOrLoad` 统一 Redis 命中、zod 契约校验、
   PostgreSQL fallback 和回写，`writeAndInvalidate` 统一权威库写成功后的缓存删除。
@@ -34,7 +41,7 @@
   **11 passed**，Jest **8 suites / 24 tests**、前后端 lint 与生产构建通过。
 
 ### 文档收口
-- 同步根目录、后端、前端、部署、项目总览、能力矩阵、进度、待办、工程规范、交接提示与设计索引，统一当前 39 个 OpenAPI 路径、172 项后端黑盒、9 suites / 31 tests Jest 和 11 项前端 Playwright 基线。
+- 同步根目录、后端、前端、部署、项目总览、能力矩阵、进度、待办、工程规范、交接提示与设计索引，统一当前 39 个 OpenAPI 路径、172 项后端黑盒、9 suites / 31 tests Jest 和 12 项前端 Playwright 基线。
 - 补齐两类令牌作用域编辑、Device Token close 4002、复制回退、列表分页筛选、折线趋势图和宽版日志抽屉的行为说明。
 - 明确历史计划、规格和归档只用于追溯；历史阶段数字和实施步骤不作为当前进度。
 

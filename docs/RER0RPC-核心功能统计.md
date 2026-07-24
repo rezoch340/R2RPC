@@ -28,7 +28,7 @@
 | 分布式 | Redis session/waiter/pub-sub/结果去重 | ✅ | 单实例闭环 ✅ |
 | OpenAPI | 规范导出与生成脚本 | ✅ | build 校验 |
 | 代码质量 | 完整变量名、复杂度/嵌套/函数长度门禁 | ✅ | `pnpm lint:check` |
-| 管理前端 | Next.js + shadcn，完整后台公开面 | ✅ | Playwright 11 项 + HTTP |
+| 管理前端 | Next.js + shadcn，完整后台公开面 | ✅ | Playwright 12 项 + HTTP |
 | 前端质量 | 页面/组件/E2E 完整变量名门禁、ESLint、生产构建 | ✅ | `frontend/pnpm lint` |
 
 ## 2. HTTP API
@@ -312,7 +312,7 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 `test/assert-blackbox-e2e.js` 会静态拒绝 E2E 导入持久层客户端或应用内部服务。
 
-前端 `test/assert-blackbox-e2e.cjs` 使用同一口径，Playwright 当前 11 项，只操作浏览器和公开
+前端 `test/assert-blackbox-e2e.cjs` 使用同一口径，Playwright 当前 12 项，只操作浏览器和公开
 HTTP API；覆盖全部管理页、手动 RPC 调试、字段筛选与分页、两类令牌作用域编辑、非安全上下文
 复制回退、日志详情抽屉、账号改密入口、移动导航、导航预取和未登录跳转。测试不会导入后端、
 数据库或 Redis。
