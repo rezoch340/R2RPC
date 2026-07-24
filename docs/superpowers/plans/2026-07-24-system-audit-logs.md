@@ -30,7 +30,7 @@
 ## 验证结果
 
 - Drizzle：15 张表、9 个迁移。
-- OpenAPI：35 个 HTTP 路径模板。
+- OpenAPI：37 个 HTTP 路径模板。
 - Jest：8 个 suite、24 个测试通过。
-- 完整黑盒：145 passed / 0 failed，只使用 HTTP 与真实 WebSocket。
+- 完整黑盒：155 passed / 0 failed，只使用 HTTP 与真实 WebSocket。
 - build、`pnpm lint:check`、Prettier check、OpenAPI 生成和 E2E 边界守卫全部通过。

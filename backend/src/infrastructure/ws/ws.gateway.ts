@@ -14,6 +14,7 @@ import { PresenceService } from './presence.service';
 // socket 上挂的会话上下文(设备可属多 project)
 type ClientSocket = WebSocket & {
   _clientId?: string;
+  _deviceTokenId?: number;
   _projects?: number[];
   _maxInFlight?: number;
   _lastActivity?: number;
@@ -139,6 +140,7 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     connection: AuthenticatedDeviceConnection,
   ): void {
     socket._clientId = connection.clientId;
+    socket._deviceTokenId = connection.deviceTokenId;
     socket._projects = connection.projectIds;
     socket._maxInFlight = connection.metadata.maxInFlight;
   }

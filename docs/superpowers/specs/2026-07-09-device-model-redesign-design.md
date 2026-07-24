@@ -177,8 +177,10 @@ flowchart LR
 
 ## 6. device token 管理
 
-- CRUD API `/device-tokens`(生成返回明文/列表含在线设备数/改/撤销/软删),权限 `manage/device-token`(admin isRoot 直通)。
+- CRUD API `/device-tokens`(生成返回明文/列表含在线设备数/`PATCH :id/projects` 二次编辑作用域/撤销/软删),权限 `manage/device-token`(admin isRoot 直通)。
 - 与 `/access-tokens` 对称;复用 access-token 模块模式(明文回看、redis 缓存、软删+缓存失效)。
+- 作用域更新后删除鉴权缓存，并通过 Redis pub/sub 通知所有 API 实例关闭该令牌的现有连接；
+  设备重连后按新 project 集重新登记 presence，避免删除的旧作用域继续可用。
 
 ## 7. 冷热路径 & 缓存失效(全局准则,本重构遵循)
 

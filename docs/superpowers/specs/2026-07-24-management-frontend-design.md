@@ -37,7 +37,7 @@
 | 运行概览 | overview、近 7 天折线趋势、功能组和设备在线汇总 |
 | 功能组 | 创建、启停、删除、设备数、7 天成功率、字段筛选和分页 |
 | 设备 | 在线态、平台、IP、并发上限、扩展信息、字段筛选和分页 |
-| 两类令牌 | 功能组勾选、明文复制、撤销、软删除、字段筛选和分页 |
+| 两类令牌 | 功能组创建与二次编辑、明文复制、撤销、软删除、字段筛选和分页 |
 | 请求日志 | 服务端筛选分页、右侧详情抽屉、payload、默认折叠 AppAudit Step |
 | 后台账号 | 创建、资料、改密、启停、删除、权限组分配、字段筛选和分页 |
 | 权限组 | 组 CRUD、权限矩阵、权限目录 CRUD、两张表独立筛选分页 |
@@ -57,8 +57,8 @@
 - Playwright：从登录 UI 获取真实 JWT，逐页验证公开 HTTP API。
 - Playwright 延迟真实用户列表接口，验证预取期间保留当前页面且目标页不出现加载骨架。
 - `test/assert-blackbox-e2e.cjs`：静态拒绝后端内部导入、持久层客户端和 SQL。
-- 后端 145 项 HTTP/WebSocket 黑盒继续复跑，确认 CORS 与访问审计不影响设备 WS 和 Worker 冷路径。
+- 后端 155 项 HTTP/WebSocket 黑盒继续复跑，确认 CORS、访问审计与令牌作用域更新不影响设备 WS 和 Worker 冷路径。
 
 验证结果：前端变量名门禁与 ESLint 通过、Next.js 生产构建通过、Playwright
-**8 passed**；后端 Jest **8 suites / 24 tests passed**，HTTP/WebSocket 黑盒
-**145 passed, 0 failed**。
+**9 passed**；后端 Jest **8 suites / 24 tests passed**，HTTP/WebSocket 黑盒
+**155 passed, 0 failed**。

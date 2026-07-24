@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Req,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import type { AuthedRequest } from '../../common/types/authed-request';
 import { DeviceTokenService } from './device-token.service';
 import { CreateDeviceTokenDto } from './dto/create-device-token.dto';
+import { UpdateDeviceTokenProjectsDto } from './dto/update-device-token-projects.dto';
 
 @ApiTags('device-token')
 @ApiBearerAuth()
@@ -50,6 +52,24 @@ export class DeviceTokenController {
   })
   list() {
     return this.tokens.list();
+  }
+
+  @Patch(':id/projects')
+  @RequirePermission('manage', 'device-token')
+  @SystemAudit({
+    name: '修改 Device Token 功能组',
+    action: 'update',
+    subject: 'device-token',
+    targetType: 'device-token',
+    targetParameter: 'id',
+    metadataBodyFields: ['projects'],
+  })
+  @ApiOperation({ summary: '替换 device token 的功能组作用域' })
+  updateProjects(
+    @Param('id', ParseIntPipe) deviceTokenId: number,
+    @Body() input: UpdateDeviceTokenProjectsDto,
+  ) {
+    return this.tokens.updateProjects(deviceTokenId, input.projects);
   }
 
   @Post(':id/revoke')

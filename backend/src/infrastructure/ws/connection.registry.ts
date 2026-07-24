@@ -1,12 +1,19 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
+import {
+  DEVICE_TOKEN_SCOPE_CHANGED_CHANNEL,
+  type DeviceTokenScopeChangedEvent,
+} from '../../common/constants/device-token-events';
 import { RedisService } from '../redis/redis.service';
 import { ClusterBus } from './cluster-bus.service';
 import { INSTANCE_IDENTIFIER } from './instance-id';
 
 // 连接上挂的每连接会话 token(CAS 删除用),避免 (socket as any)
-type SessionSocket = WebSocket & { _sessionToken?: string };
+type SessionSocket = WebSocket & {
+  _sessionToken?: string;
+  _deviceTokenId?: number;
+};
 
 interface Waiter {
   clientId: string;
@@ -63,6 +70,12 @@ export class ConnectionRegistry implements OnModuleInit {
         }
       },
     );
+    void this.clusterBus.subscribe(
+      DEVICE_TOKEN_SCOPE_CHANGED_CHANNEL,
+      (event: DeviceTokenScopeChangedEvent) => {
+        this.disconnectLocalDeviceTokenSessions(event.deviceTokenId);
+      },
+    );
   }
 
   // ── socket 生命周期(gateway 调) ──
@@ -104,6 +117,18 @@ export class ConnectionRegistry implements OnModuleInit {
   }
   hasLocal(clientId: string) {
     return this.sockets.has(clientId);
+  }
+
+  private disconnectLocalDeviceTokenSessions(deviceTokenId: number): void {
+    for (const socket of this.sockets.values()) {
+      const sessionSocket = socket as SessionSocket;
+      if (
+        sessionSocket._deviceTokenId === deviceTokenId &&
+        sessionSocket.readyState === 1
+      ) {
+        sessionSocket.close(4002, 'device token scope updated');
+      }
+    }
   }
 
   private deliverLocalJob(clientId: string, job: unknown): boolean {

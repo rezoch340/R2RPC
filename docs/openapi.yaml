@@ -29,6 +29,29 @@ paths:
       summary: 列表:所有 device token(含明文、project 名、在线设备数)
       tags:
         - device-token
+  /device-tokens/{id}/projects:
+    patch:
+      operationId: DeviceTokenController_updateProjects
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDeviceTokenProjectsDto'
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 替换 device token 的功能组作用域
+      tags:
+        - device-token
   /device-tokens/{id}/revoke:
     post:
       operationId: DeviceTokenController_revoke
@@ -676,6 +699,29 @@ paths:
       summary: 列表:所有 access token(含明文、project 名)
       tags:
         - access-token
+  /access-tokens/{id}/projects:
+    patch:
+      operationId: AccessTokenController_updateProjects
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAccessTokenProjectsDto'
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 替换 access token 的功能组作用域
+      tags:
+        - access-token
   /access-tokens/{id}/revoke:
     post:
       operationId: AccessTokenController_revoke
@@ -981,6 +1027,16 @@ components:
       required:
         - name
         - projects
+    UpdateDeviceTokenProjectsDto:
+      type: object
+      properties:
+        projects:
+          description: 更新后的完整功能组名称列表
+          type: array
+          items:
+            type: string
+      required:
+        - projects
     CreateProjectDto:
       type: object
       properties:
@@ -1121,6 +1177,16 @@ components:
           type: string
       required:
         - name
+        - projects
+    UpdateAccessTokenProjectsDto:
+      type: object
+      properties:
+        projects:
+          description: 更新后的完整功能组名称列表
+          type: array
+          items:
+            type: string
+      required:
         - projects
     InvokeDto:
       type: object

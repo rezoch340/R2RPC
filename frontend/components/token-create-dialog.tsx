@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { FormDialog } from '@/components/form-dialog';
+import { TokenProjectSelector } from '@/components/token-project-selector';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -119,30 +120,11 @@ export function TokenCreateDialog({
             }
           />
         </div>
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">功能组</legend>
-          <div className="grid max-h-48 gap-2 overflow-y-auto rounded-xl border p-3 sm:grid-cols-2">
-            {projects.map((project) => (
-              <label
-                key={project.id}
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedProjects.includes(project.name)}
-                  className="size-4 accent-primary"
-                  onChange={() => toggleProject(project.name)}
-                />
-                <span>{project.name}</span>
-              </label>
-            ))}
-            {projects.length === 0 ? (
-              <p className="col-span-full py-3 text-center text-sm text-muted-foreground">
-                暂无可选功能组
-              </p>
-            ) : null}
-          </div>
-        </fieldset>
+        <TokenProjectSelector
+          projects={projects}
+          selectedProjectNames={selectedProjects}
+          onToggle={toggleProject}
+        />
       </FormDialog>
     </>
   );

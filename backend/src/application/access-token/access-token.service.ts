@@ -38,18 +38,9 @@ export class AccessTokenService {
     description?: string;
     createdBy?: number;
   }) {
-    // 去重 project 名,避免复合 PK 冲突
-    const projectNames = [...new Set(input.projects)];
-
-    // 验证 project 存在,解析 project id
-    const projectIds: number[] = [];
-    for (const projectName of projectNames) {
-      const projectId = await this.projects.idByName(projectName);
-      if (projectId === null) {
-        throw new BadRequestException(`功能组不存在: ${projectName}`);
-      }
-      projectIds.push(projectId);
-    }
+    const { projectNames, projectIds } = await this.resolveProjectSelection(
+      input.projects,
+    );
 
     // 生成 token(明文可回看,per 设计)
     const token = 'rk_' + randomBytes(24).toString('base64url');
@@ -86,6 +77,37 @@ export class AccessTokenService {
       token, // 明文 token(plain)
       projects: projectNames, // project 名供回显
     };
+  }
+
+  async updateProjects(accessTokenId: number, projectsInput: string[]) {
+    const { projectNames, projectIds } =
+      await this.resolveProjectSelection(projectsInput);
+    const accessTokenRecord = await this.database.transaction(
+      async (transaction) => {
+        const [tokenRecord] = await transaction
+          .select()
+          .from(accessTokens)
+          .where(alive(accessTokens, eq(accessTokens.id, accessTokenId)))
+          .limit(1);
+        if (!tokenRecord) {
+          throw new NotFoundException('Token 不存在');
+        }
+
+        await transaction
+          .delete(accessTokenProjects)
+          .where(eq(accessTokenProjects.tokenId, accessTokenId));
+        await transaction.insert(accessTokenProjects).values(
+          projectIds.map((projectId) => ({
+            tokenId: accessTokenId,
+            projectId,
+          })),
+        );
+        return tokenRecord;
+      },
+    );
+
+    await this.deleteAccessTokenCache(accessTokenRecord.token);
+    return { ...accessTokenRecord, projects: projectNames };
   }
 
   /**
@@ -137,13 +159,7 @@ export class AccessTokenService {
 
     const accessTokenRecord = result[0];
     if (accessTokenRecord?.token) {
-      // key 格式需与 AccessTokenGuard 完全一致(sha256 摘要明文 token)
-      const cacheKey = `invoke:token:${createHash('sha256').update(accessTokenRecord.token).digest('hex')}`;
-      try {
-        await this.redis.client.del(cacheKey);
-      } catch {
-        // fail-open: 缓存删失败不阻断撤销,最长 60s 后自然过期
-      }
+      await this.deleteAccessTokenCache(accessTokenRecord.token);
     }
 
     return accessTokenRecord;
@@ -194,13 +210,34 @@ export class AccessTokenService {
     }
     const accessTokenRecord = deletedTokens[0] as { token?: string };
     if (accessTokenRecord.token) {
-      const cacheKey = `invoke:token:${createHash('sha256').update(accessTokenRecord.token).digest('hex')}`;
-      try {
-        await this.redis.client.del(cacheKey);
-      } catch {
-        // fail-open: 缓存删失败不阻断,最长 60s 自然过期
-      }
+      await this.deleteAccessTokenCache(accessTokenRecord.token);
     }
     return { deleted: true };
+  }
+
+  private async resolveProjectSelection(projectsInput: string[]) {
+    const projectNames = [...new Set(projectsInput)];
+    if (projectNames.length === 0) {
+      throw new BadRequestException('至少选择一个功能组');
+    }
+
+    const projectIds: number[] = [];
+    for (const projectName of projectNames) {
+      const projectId = await this.projects.idByName(projectName);
+      if (projectId === null) {
+        throw new BadRequestException(`功能组不存在: ${projectName}`);
+      }
+      projectIds.push(projectId);
+    }
+    return { projectNames, projectIds };
+  }
+
+  private async deleteAccessTokenCache(plaintextToken: string): Promise<void> {
+    const cacheKey = `invoke:token:${createHash('sha256').update(plaintextToken).digest('hex')}`;
+    try {
+      await this.redis.client.del(cacheKey);
+    } catch {
+      // fail-open:缓存删失败不阻断写操作,最长 60s 后自然过期
+    }
   }
 }

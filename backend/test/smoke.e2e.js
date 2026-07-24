@@ -1256,6 +1256,72 @@ async function main() {
     );
     assert(outOfScope.status === 403, 'access token 越 project 作用域返回 403');
 
+    const editableAccessToken = await httpRequest(
+      'POST',
+      '/access-tokens',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-editable-access`,
+        projects: [projectNames.main],
+      },
+      administratorAccessToken,
+    );
+    cleanup.accessTokenIds.push(editableAccessToken.json.id);
+    const warmEditableAccessToken = await httpRequest(
+      'GET',
+      `/rpc/clientQueue?project=${encodeURIComponent(projectNames.main)}`,
+      undefined,
+      editableAccessToken.json.token,
+    );
+    assert(
+      warmEditableAccessToken.status === 200,
+      '待编辑 access token 正缓存可预热',
+    );
+    const updateAccessTokenProjects = await httpRequest(
+      'PATCH',
+      `/access-tokens/${editableAccessToken.json.id}/projects`,
+      {
+        projects: [projectNames.other, projectNames.empty, projectNames.other],
+      },
+      administratorAccessToken,
+    );
+    assert(
+      updateAccessTokenProjects.status === 200 &&
+        updateAccessTokenProjects.json.projects.length === 2 &&
+        updateAccessTokenProjects.json.projects.includes(projectNames.other) &&
+        updateAccessTokenProjects.json.projects.includes(projectNames.empty),
+      'access token 可二次编辑功能组并自动去重',
+    );
+    const removedAccessTokenScope = await httpRequest(
+      'GET',
+      `/rpc/clientQueue?project=${encodeURIComponent(projectNames.main)}`,
+      undefined,
+      editableAccessToken.json.token,
+    );
+    assert(
+      removedAccessTokenScope.status === 403,
+      'access token 删除的功能组作用域立即失效',
+    );
+    const addedAccessTokenScope = await httpRequest(
+      'GET',
+      `/rpc/clientQueue?project=${encodeURIComponent(projectNames.other)}`,
+      undefined,
+      editableAccessToken.json.token,
+    );
+    assert(
+      addedAccessTokenScope.status === 200,
+      'access token 新增的功能组作用域立即生效',
+    );
+    const invalidAccessTokenUpdate = await httpRequest(
+      'PATCH',
+      `/access-tokens/${editableAccessToken.json.id}/projects`,
+      { projects: [`${TEST_RESOURCE_PREFIX}-missing`] },
+      administratorAccessToken,
+    );
+    assert(
+      invalidAccessTokenUpdate.status === 400,
+      'access token 功能组编辑拒绝不存在的功能组',
+    );
+
     const expiredAccess = await httpRequest(
       'POST',
       '/access-tokens',
@@ -1404,6 +1470,73 @@ async function main() {
             token.onlineDeviceCount === 0,
         ),
       'GET /device-tokens 返回作用域和在线设备数',
+    );
+
+    const editableDeviceToken = await httpRequest(
+      'POST',
+      '/device-tokens',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-editable-device`,
+        projects: [projectNames.main],
+      },
+      administratorAccessToken,
+    );
+    cleanup.deviceTokenIds.push(editableDeviceToken.json.id);
+    const editableDeviceConnection = connectDevice({
+      token: editableDeviceToken.json.token,
+      clientId: `${TEST_RESOURCE_PREFIX}-editable-device-before`,
+    });
+    const originalScopeWelcome = await editableDeviceConnection.waitMessage(
+      (message) => message.type === 'welcome',
+    );
+    assert(
+      originalScopeWelcome.projects.length === 1,
+      '待编辑 device token 可按原功能组作用域连接',
+    );
+    const updateDeviceTokenProjects = await httpRequest(
+      'PATCH',
+      `/device-tokens/${editableDeviceToken.json.id}/projects`,
+      {
+        projects: [projectNames.other, projectNames.empty, projectNames.other],
+      },
+      administratorAccessToken,
+    );
+    assert(
+      updateDeviceTokenProjects.status === 200 &&
+        updateDeviceTokenProjects.json.projects.length === 2 &&
+        updateDeviceTokenProjects.json.projects.includes(projectNames.other) &&
+        updateDeviceTokenProjects.json.projects.includes(projectNames.empty),
+      'device token 可二次编辑功能组并自动去重',
+    );
+    const replacedScopeClose = await Promise.race([
+      editableDeviceConnection.closed,
+      sleep(7000).then(() => ({ code: null, reason: 'timeout' })),
+    ]);
+    assert(
+      replacedScopeClose.code === 4002,
+      'device token 功能组更新后主动断开旧作用域连接',
+    );
+    const updatedDeviceConnection = connectDevice({
+      token: editableDeviceToken.json.token,
+      clientId: `${TEST_RESOURCE_PREFIX}-editable-device-after`,
+    });
+    const updatedScopeWelcome = await updatedDeviceConnection.waitMessage(
+      (message) => message.type === 'welcome',
+    );
+    assert(
+      updatedScopeWelcome.projects.length === 2,
+      'device token 重连后使用更新后的功能组作用域',
+    );
+    await closeDevice(updatedDeviceConnection);
+    const invalidDeviceTokenUpdate = await httpRequest(
+      'PATCH',
+      `/device-tokens/${editableDeviceToken.json.id}/projects`,
+      { projects: [`${TEST_RESOURCE_PREFIX}-missing`] },
+      administratorAccessToken,
+    );
+    assert(
+      invalidDeviceTokenUpdate.status === 400,
+      'device token 功能组编辑拒绝不存在的功能组',
     );
 
     await expectWebSocketClose(

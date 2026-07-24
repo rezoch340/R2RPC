@@ -4,7 +4,7 @@
 
 ## 1. 完成度
 
-后端既定 backlog #1–#15 与管理前端 #16 全部完成。代码包含 35 个 HTTP 路径模板、1 个设备
+后端既定 backlog #1–#15 与管理前端 #16 全部完成。代码包含 37 个 HTTP 路径模板、1 个设备
 WebSocket 网关、API/Worker 双进程、15 张 PostgreSQL 表、9 个数据库迁移和 9 个管理页面。
 
 | 领域 | 能力 | 状态 | 黑盒覆盖 |
@@ -14,8 +14,8 @@ WebSocket 网关、API/Worker 双进程、15 张 PostgreSQL 表、9 个数据库
 | 用户 | CRUD、资料、改密、enabled、管理员隔离、旧 JWT 吊销 | ✅ | ✅ |
 | 系统审计 | 谁在何时做了什么、安全 metadata、筛选分页 | ✅ | ✅ |
 | Project | CRUD、enabled、GroupInfo | ✅ | ✅ |
-| Access token | `rk_`、project 作用域、过期/撤销/软删 | ✅ | ✅ |
-| Device token | `dk_`、project 绑定、过期/撤销/软删 | ✅ | ✅ |
+| Access token | `rk_`、project 作用域二次编辑、过期/撤销/软删、缓存失效 | ✅ | ✅ |
+| Device token | `dk_`、project 作用域二次编辑、旧连接断开、过期/撤销/软删 | ✅ | ✅ |
 | 设备 | WS 自注册、持久态、列表/详情、stale | ✅ | 公开面 ✅ |
 | RPC | 轮询、指定设备、成功/失败/超时/无设备/离线 | ✅ | ✅ |
 | 限流 | `[256,1024]` maxInFlight、跳过满设备、rejected | ✅ | ✅ |
@@ -84,9 +84,11 @@ metadata 只包含安全白名单字段，不保存密码或 token 明文。RPC/
 ### Tokens
 
 - `GET|POST /access-tokens`
+- `PATCH /access-tokens/:id/projects`
 - `POST /access-tokens/:id/revoke`
 - `DELETE /access-tokens/:id`
 - `GET|POST /device-tokens`
+- `PATCH /device-tokens/:id/projects`
 - `POST /device-tokens/:id/revoke`
 - `DELETE /device-tokens/:id`
 
@@ -264,11 +266,12 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 `pnpm smoke` 与 `pnpm test:e2e` 执行同一套完整性测试：
 
-- 145 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
+- 155 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
 - 覆盖全部 HTTP controller 方法。
 - 覆盖系统操作日志、筛选、普通用户权限委派和密码不泄露。
 - 覆盖权限组编辑、嵌套权限、用户已分配组、新旧关联入口和 root-only 写隔离。
 - 覆盖资料修改、改密新旧密码登录，以及管理员资料/密码/启停/删除/RBAC 关系隔离。
+- 覆盖两类令牌二次编辑功能组、Access Token 缓存失效和 Device Token 旧作用域连接断开重连。
 - 覆盖 WS 鉴权、心跳、ping、读超时、分片/超大帧拒绝。
 - 使用 256 个并发 HTTP invoke 真实占满 WS 设备在途槽。
 - 覆盖目标设备 result 身份匹配与重复结果去重。
