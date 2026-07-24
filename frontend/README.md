@@ -14,6 +14,9 @@ shadcn/base-nova 和 TanStack Query。
 - 权限组：组内权限、权限目录、两张表独立筛选分页和 root-only 写隔离
 - 系统日志：登录、控制面读取、拒绝访问、业务写入、多字段服务端筛选分页和安全 metadata
 
+令牌明文和 JSON 载荷统一使用公共复制按钮；Clipboard API 在非安全上下文不可用时会自动
+回退到兼容复制，不要求通过 HTTPS 或 localhost 打开控制台。
+
 ## 本地运行
 
 ```bash

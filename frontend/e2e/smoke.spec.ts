@@ -129,6 +129,21 @@ test('访问令牌和设备令牌均可二次编辑功能组', async ({ page }) 
   }
 });
 
+test('非安全上下文缺少 Clipboard API 时仍可复制令牌', async ({ page }) => {
+  const runtimeErrors: Error[] = [];
+  page.on('pageerror', (runtimeError) => runtimeErrors.push(runtimeError));
+  await page.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, 'clipboard', {
+      configurable: true,
+      get: () => undefined,
+    });
+  });
+  await page.goto('/access-tokens');
+  await page.getByRole('button', { name: '复制令牌' }).first().click();
+  await expect(page.getByText('令牌已复制')).toBeVisible();
+  expect(runtimeErrors).toEqual([]);
+});
+
 test('请求日志详情从右侧打开且 AppAudit Step 默认收起', async ({ page }) => {
   await page.goto('/request-logs');
   const detailButtons = page.getByRole('button', { name: '查看请求详情' });
