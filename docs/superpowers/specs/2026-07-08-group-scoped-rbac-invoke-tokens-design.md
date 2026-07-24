@@ -91,7 +91,7 @@ access_token_groups  token_id FK→access_tokens, group_id FK→groups, PK(token
 - **设备登录**:`POST /api/client/login { clientId, secret }`(**去掉 group**)。校验 → device JWT 带该设备的 group 列表;返回 wsUrl。
 - **WS 网关**:连上后按设备的**每个 group_id** 登记 presence(`group:clients:{groupId}` + `presence:{clientId}`),心跳刷新,断线从所有组清理。
 - **invoke**:`:group` 名字 → group_id;鉴权走 AccessTokenGuard;调度按 group_id 选在线设备(现有轮询逻辑不变,只是 key 换成 group_id)。`request_logs` 记 access_token_id。
-- **access token 管理**(后台,`@RequirePermission`):`POST /access-tokens`(勾选设备组 + 过期时间,返回明文)、`GET /access-tokens`(列表带明文)、`POST /access-tokens/:id/revoke`。
+- **access token 管理**(后台,`@RequirePermission`):`POST /access-tokens`(勾选设备组 + 过期时间,返回明文)、`GET /access-tokens`(列表带明文)、`PATCH /access-tokens/:id/projects`(事务替换作用域并清缓存)、`POST /access-tokens/:id/revoke`。
 - **RBAC 管理**(后台):角色/权限 CRUD、给用户分配角色、给角色挂权限(由 `RbacService` 实现)。
 - **auth**:`GET /auth/me` 返回 `{ id, username, isRoot, permissions }`。
 

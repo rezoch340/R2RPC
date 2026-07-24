@@ -5,6 +5,10 @@ import {
 } from '@nestjs/common';
 import { and, eq, sql } from 'drizzle-orm';
 import { createHash, randomBytes } from 'node:crypto';
+import {
+  DEVICE_TOKEN_SCOPE_CHANGED_CHANNEL,
+  type DeviceTokenScopeChangedEvent,
+} from '../../common/constants/device-token-events';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
@@ -46,16 +50,9 @@ export class DeviceTokenService {
     description?: string;
     createdBy?: number;
   }) {
-    const projectNames = [...new Set(input.projects)];
-
-    const projectIds: number[] = [];
-    for (const projectName of projectNames) {
-      const projectId = await this.projects.idByName(projectName);
-      if (projectId === null) {
-        throw new BadRequestException(`功能组不存在: ${projectName}`);
-      }
-      projectIds.push(projectId);
-    }
+    const { projectNames, projectIds } = await this.resolveProjectSelection(
+      input.projects,
+    );
 
     const token = 'dk_' + randomBytes(24).toString('base64url');
 
@@ -81,6 +78,38 @@ export class DeviceTokenService {
     });
 
     return { ...result, token, projects: projectNames };
+  }
+
+  async updateProjects(deviceTokenId: number, projectsInput: string[]) {
+    const { projectNames, projectIds } =
+      await this.resolveProjectSelection(projectsInput);
+    const deviceTokenRecord = await this.database.transaction(
+      async (transaction) => {
+        const [tokenRecord] = await transaction
+          .select()
+          .from(deviceTokens)
+          .where(alive(deviceTokens, eq(deviceTokens.id, deviceTokenId)))
+          .limit(1);
+        if (!tokenRecord) {
+          throw new NotFoundException('Device token 不存在');
+        }
+
+        await transaction
+          .delete(deviceTokenProjects)
+          .where(eq(deviceTokenProjects.tokenId, deviceTokenId));
+        await transaction.insert(deviceTokenProjects).values(
+          projectIds.map((projectId) => ({
+            tokenId: deviceTokenId,
+            projectId,
+          })),
+        );
+        return tokenRecord;
+      },
+    );
+
+    await this.deleteWebSocketCache(deviceTokenRecord.token);
+    await this.notifyScopeChanged(deviceTokenId);
+    return { ...deviceTokenRecord, projects: projectNames };
   }
 
   /**
@@ -261,6 +290,35 @@ export class DeviceTokenService {
       await this.redis.client.del(this.webSocketCacheKey(plaintextToken));
     } catch {
       // fail-open:缓存删失败不阻断撤销/删除,最长 TTL 后自然过期
+    }
+  }
+
+  private async resolveProjectSelection(projectsInput: string[]) {
+    const projectNames = [...new Set(projectsInput)];
+    if (projectNames.length === 0) {
+      throw new BadRequestException('至少选择一个功能组');
+    }
+
+    const projectIds: number[] = [];
+    for (const projectName of projectNames) {
+      const projectId = await this.projects.idByName(projectName);
+      if (projectId === null) {
+        throw new BadRequestException(`功能组不存在: ${projectName}`);
+      }
+      projectIds.push(projectId);
+    }
+    return { projectNames, projectIds };
+  }
+
+  private async notifyScopeChanged(deviceTokenId: number): Promise<void> {
+    const event: DeviceTokenScopeChangedEvent = { deviceTokenId };
+    try {
+      await this.redis.client.publish(
+        DEVICE_TOKEN_SCOPE_CHANGED_CHANNEL,
+        JSON.stringify(event),
+      );
+    } catch {
+      // fail-open:数据库作用域已更新;连接最迟在下次重连时获取新作用域
     }
   }
 }

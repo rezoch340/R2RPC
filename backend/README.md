@@ -137,9 +137,10 @@ BASE_URL=http://127.0.0.1:3000 pnpm smoke
 - 覆盖设备通过真实 WS 上报 AppAudit 成功/失败 Step、非法审计隔离和 Monitor API 读取
 - 覆盖用户资料、改密和管理员资料/密码/启停/删除/RBAC 角色关系隔离
 - 覆盖权限组编辑、嵌套权限、用户分组查询和非 root 持 `manage/rbac` 仍被拒绝
+- 覆盖两类令牌二次编辑功能组、缓存即时失效和 Device Token 旧作用域连接断开重连
 - 覆盖登录成功/失败、控制面读取、Guard 拒绝、业务写入、筛选和密码不泄露
 - 通过 monitor/metrics API 观察 Worker 冷路径
-- 当前为 145 项运行时检查
+- 当前为 155 项运行时检查
 
 `test/assert-blackbox-e2e.js` 会拒绝 E2E 导入持久层客户端或应用内部服务。
 

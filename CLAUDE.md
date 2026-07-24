@@ -27,7 +27,7 @@ pnpm start:worker          # Worker 进程(独立!--entryFile worker)
 pnpm db:generate           # drizzle-kit 从 src/**/*.schema.ts 生成迁移(见坑)
 pnpm db:migrate            # 应用迁移(独立步骤,绝不在 app 启动时跑)
 pnpm seed:admin            # 种子 admin + demo projects + RBAC 权限(幂等,可重跑)
-pnpm smoke                 # 145 项纯 HTTP/WS 黑盒完整性冒烟，需 API+Worker 在跑
+pnpm smoke                 # 155 项纯 HTTP/WS 黑盒完整性冒烟，需 API+Worker 在跑
 pnpm test:e2e              # 与 smoke 相同；先执行黑盒边界守卫
 pnpm test:integration:retention | test:integration:device-stale
 pnpm test:integration:metrics | test:integration:max-inflight # 内部直连检查，明确不是 E2E
@@ -61,8 +61,8 @@ pnpm test:e2e              # 浏览器黑盒,只访问 UI 与公开 HTTP API
 ## Device-model 三概念(`src/application/`)
 
 - **project**(`projects/`,旧名 group):功能组;设备与两类 token 都挂到它上。
-- **device token**(`device-token/`,明文前缀 `dk_`):设备**自注册上线**凭证,建时勾 project;设备继承该 token 的 project(不自报能力)。
-- **access token**(`access-token/`,前缀 `rk_`):**调用方 invoke** 凭证,勾 project。
+- **device token**(`device-token/`,明文前缀 `dk_`):设备**自注册上线**凭证,可二次编辑 project;设备继承该 token 的 project(不自报能力),作用域更新会断开旧连接后重连。
+- **access token**(`access-token/`,前缀 `rk_`):**调用方 invoke** 凭证,可二次编辑 project，更新后立即清除鉴权缓存。
 - 旧 client-login(clients/client_groups/密码登录)**已删**,设备一律 device-token 自注册(WS `?token=<dk_>&clientId=<SDK自生成>`)。
 
 ## 两条主链路

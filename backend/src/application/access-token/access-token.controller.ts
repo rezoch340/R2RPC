@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Req,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import type { AuthedRequest } from '../../common/types/authed-request';
 import { AccessTokenService } from './access-token.service';
 import { CreateAccessTokenDto } from './dto/create-access-token.dto';
+import { UpdateAccessTokenProjectsDto } from './dto/update-access-token-projects.dto';
 
 @ApiTags('access-token')
 @ApiBearerAuth()
@@ -50,6 +52,24 @@ export class AccessTokenController {
   @ApiOperation({ summary: '列表:所有 access token(含明文、project 名)' })
   list() {
     return this.tokens.list();
+  }
+
+  @Patch(':id/projects')
+  @RequirePermission('manage', 'access-token')
+  @SystemAudit({
+    name: '修改 Access Token 功能组',
+    action: 'update',
+    subject: 'access-token',
+    targetType: 'access-token',
+    targetParameter: 'id',
+    metadataBodyFields: ['projects'],
+  })
+  @ApiOperation({ summary: '替换 access token 的功能组作用域' })
+  updateProjects(
+    @Param('id', ParseIntPipe) accessTokenId: number,
+    @Body() input: UpdateAccessTokenProjectsDto,
+  ) {
+    return this.tokens.updateProjects(accessTokenId, input.projects);
   }
 
   // 撤销 token

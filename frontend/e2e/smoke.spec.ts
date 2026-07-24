@@ -111,6 +111,24 @@ test('分页器支持页码、每页上限和跳页', async ({ page }) => {
   await expect(page.getByRole('option', { name: '200 条/页' })).toHaveCount(0);
 });
 
+test('访问令牌和设备令牌均可二次编辑功能组', async ({ page }) => {
+  for (const route of ['/access-tokens', '/device-tokens']) {
+    await page.goto(route);
+    await page.getByRole('button', { name: '编辑功能组' }).first().click();
+    const editDialog = page.getByRole('dialog');
+    await expect(
+      editDialog.getByRole('heading', { name: '编辑令牌功能组' }),
+    ).toBeVisible();
+    await expect(editDialog.getByRole('checkbox').first()).toBeVisible();
+    const selectedProjectCount = await editDialog
+      .getByRole('checkbox', { checked: true })
+      .count();
+    expect(selectedProjectCount).toBeGreaterThan(0);
+    await page.keyboard.press('Escape');
+    await expect(editDialog).toBeHidden();
+  }
+});
+
 test('请求日志详情从右侧打开且 AppAudit Step 默认收起', async ({ page }) => {
   await page.goto('/request-logs');
   const detailButtons = page.getByRole('button', { name: '查看请求详情' });

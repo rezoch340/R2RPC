@@ -8,7 +8,7 @@ shadcn/base-nova 和 TanStack Query。
 - 运行概览：累计请求、在线设备、功能组、延迟和近 7 天折线趋势
 - 功能组：创建、启停、删除、派生运行态、字段筛选和分页
 - 设备：在线态、平台、IP、并发上限、扩展信息、字段筛选和分页
-- Access Token / Device Token：创建、复制、撤销、删除、功能组授权、字段筛选和分页
+- Access Token / Device Token：创建、复制、二次编辑功能组、撤销、删除、字段筛选和分页
 - 请求日志：HTTP 服务端筛选分页、Manticore payload 懒加载和 AppAudit Step
 - 后台账号：资料、改密、启停、删除、权限组分配、字段筛选和分页
 - 权限组：组内权限、权限目录、两张表独立筛选分页和 root-only 写隔离

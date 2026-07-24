@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, ShieldX, Trash2 } from 'lucide-react';
+import { Check, Copy, Pencil, ShieldX, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
@@ -16,6 +16,7 @@ import {
   TokenCreateDialog,
   type CreateTokenValues,
 } from '@/components/token-create-dialog';
+import { TokenProjectsDialog } from '@/components/token-projects-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getRequestErrorMessage, requestApi } from '@/lib/api-client';
@@ -32,6 +33,11 @@ interface TokenFilters {
   name: string;
   project: string;
   status: string;
+}
+
+interface UpdateTokenProjectsInput {
+  token: TokenRecord;
+  projectNames: string[];
 }
 
 const EMPTY_FILTERS: TokenFilters = {
@@ -63,6 +69,7 @@ export function TokenManagementPage({
   const [appliedFilters, setAppliedFilters] =
     useState<TokenFilters>(EMPTY_FILTERS);
   const [copiedTokenId, setCopiedTokenId] = useState<number | null>(null);
+  const [editingToken, setEditingToken] = useState<TokenRecord | null>(null);
   const [pendingAction, setPendingAction] = useState<TokenAction | null>(null);
   const queryClient = useQueryClient();
 
@@ -105,6 +112,21 @@ export function TokenManagementPage({
     },
     onError: (error) =>
       toast.error(getRequestErrorMessage(error, '操作令牌失败')),
+  });
+
+  const updateProjectsMutation = useMutation({
+    mutationFn: (input: UpdateTokenProjectsInput) =>
+      requestApi<TokenRecord>(`${resourcePath}/${input.token.id}/projects`, {
+        method: 'PATCH',
+        body: JSON.stringify({ projects: input.projectNames }),
+      }),
+    onSuccess: async () => {
+      toast.success('令牌功能组已更新');
+      setEditingToken(null);
+      await queryClient.invalidateQueries({ queryKey: [resourceQueryKey] });
+    },
+    onError: (error) =>
+      toast.error(getRequestErrorMessage(error, '更新令牌功能组失败')),
   });
 
   const filteredTokens = useMemo(() => {
@@ -252,9 +274,17 @@ export function TokenManagementPage({
     {
       key: 'actions',
       header: '操作',
-      className: 'w-20',
+      className: 'w-28',
       render: (token) => (
         <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="编辑功能组"
+            onClick={() => setEditingToken(token)}
+          >
+            <Pencil />
+          </Button>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -317,7 +347,7 @@ export function TokenManagementPage({
         isLoading={tokensQuery.isLoading}
         emptyMessage="暂无令牌"
         rowKey={(token) => token.id}
-        tableClassName="min-w-[1100px] table-fixed"
+        tableClassName="min-w-[1140px] table-fixed"
         footer={
           <Pagination
             page={pagination.page}
@@ -329,6 +359,21 @@ export function TokenManagementPage({
           />
         }
       />
+      {editingToken ? (
+        <TokenProjectsDialog
+          token={editingToken}
+          projects={projectsQuery.data ?? []}
+          isSubmitting={updateProjectsMutation.isPending}
+          disconnectsDevices={showOnlineDevices}
+          onClose={() => setEditingToken(null)}
+          onSave={async (projectNames) => {
+            await updateProjectsMutation.mutateAsync({
+              token: editingToken,
+              projectNames,
+            });
+          }}
+        />
+      ) : null}
       <ConfirmDialog
         open={pendingAction !== null}
         onOpenChange={(open) => {

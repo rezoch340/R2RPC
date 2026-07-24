@@ -153,8 +153,8 @@ GET /system-logs
 
 - 新增 `system_logs` 后 Drizzle 识别 15 张表；迁移总数为 9。
 - 种子权限 18 条，operator 的 `read/*` 权限 8 条。
-- OpenAPI 导出 35 个 HTTP 路径模板。
+- OpenAPI 导出 37 个 HTTP 路径模板。
 - Jest 8 个 suite、24 个测试全部通过。
 - 隔离 PostgreSQL/Redis/Manticore + API + Worker 环境中，完整黑盒
-  `145 passed, 0 failed`。
+  `155 passed, 0 failed`。
 - E2E 边界守卫确认测试只访问 HTTP/WebSocket；build、lint 和 Prettier check 全部通过。

@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 令牌功能组二次编辑
+- 新增 `PATCH /access-tokens/:id/projects` 与 `PATCH /device-tokens/:id/projects`，以事务替换两类令牌的完整功能组作用域，拒绝空选择和不存在的功能组。
+- Access Token 更新后立即清除 Guard 正缓存，删除和新增的调用作用域随下一次请求生效。
+- Device Token 更新后清除 WS 鉴权缓存，并通过 Redis pub/sub 通知所有 API 实例断开该令牌的旧作用域连接；设备重连后继承新功能组。
+- 两类令牌管理页新增“编辑功能组”入口，共用可滚动多选组件并回显现有选择。
+
 ### 全列表筛选、分页与日志详情
 - 功能组、设备、Device Token、Access Token、后台账号、权限组和权限目录补齐字段筛选与分页；请求日志、系统日志保留服务端分页并扩展可筛选字段。
 - 全部列表默认每页 10 条、最大 100 条；分页器显示当前记录区间、数字页码、首尾省略号、每页条数和指定页跳转，并作为表格页脚连成一体。
@@ -24,7 +30,7 @@
 - 修复通过局域网 IP 打开开发前端时 HMR WebSocket 被 Next.js 来源检查拒绝的问题；自动加入本机 IPv4 地址，并支持 `NEXT_ALLOWED_DEV_ORIGINS` 补充自定义开发域名。
 - 修复请求日志与系统日志翻页时短暂清空表格造成的闪屏；新页请求期间保留上一页数据，响应完成后原位替换。侧栏切换全部管理页面时先按权限预取公开接口，再提交路由切换，避免首次进入页面闪加载骨架。
 - 系统日志扩展为完整控制面访问审计：记录登录成功/失败、全部 JWT 读取和 Guard/路由阶段拒绝；RPC/WS 数据面继续使用独立日志链路。
-- 最终验证：前端 Playwright **8 passed**，前端 lint 与生产构建通过；后端 Jest **8 suites / 24 tests**、完整 HTTP/WebSocket 黑盒 **145 passed、0 failed**。
+- 最终验证：前端 Playwright **9 passed**，前端 lint 与生产构建通过；后端 Jest **8 suites / 24 tests**、完整 HTTP/WebSocket 黑盒 **155 passed、0 failed**。
 
 ### 系统操作审计日志
 - 盘点全部 14 张旧表：业务实体均具有语义名称与 `description`；关系表名称由复合外键表达，请求日志/聚合表按日志规则豁免，不机械增加无意义的 `name`。
@@ -33,7 +39,7 @@
 - metadata 只采集安全 path/body/query 字段，不复制完整 body；密码和 token 明文不会写入系统日志，RPC/WS 数据面不重复写入。
 - 新增 `GET /system-logs`，使用 `read/system-log`，支持操作者、action、subject、状态、时间和分页筛选；系统日志无修改/删除 API。
 - project 创建接口补齐已有 `description` 列的输入能力和数据库长度校验。
-- 种子权限现为 18 条，operator 的 `read/*` 权限为 8 条；当前验证为 Jest **8 suites / 24 tests**、OpenAPI **35 个路径模板**、完整黑盒 **145 passed、0 failed**。
+- 种子权限现为 18 条，operator 的 `read/*` 权限为 8 条；当前验证为 Jest **8 suites / 24 tests**、OpenAPI **37 个路径模板**、完整黑盒 **155 passed、0 failed**。
 
 ### 权限组管理
 - 复用现有 `roles`、`permissions`、`role_permissions`、`user_roles`，明确 Role 即权限组；用户可分配多个权限组，授权继续取所有有效组权限的并集，无数据库迁移。

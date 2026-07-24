@@ -5,7 +5,7 @@
 ## 状态
 
 - 后端 backlog #1–#15：全部完成
-- 35 个 HTTP 路径模板 + `/api/client/ws`
+- 37 个 HTTP 路径模板 + `/api/client/ws`
 - NestJS API / Worker 双进程
 - PostgreSQL + Redis/BullMQ + Manticore
 - 设备可随 WS `result` 上报 AppAudit V1 结构化日志 Step
@@ -14,7 +14,8 @@
 - 系统操作审计覆盖登录成功/失败、控制面读取、Guard 拒绝和业务写操作，且不记录密码/token 明文
 - Next.js 16 + shadcn 管理前端覆盖全部后台管理能力
 - 全部实体表支持字段筛选与分页，默认 10 条/页、最大 100 条/页
-- 145 项纯 HTTP/WS 黑盒冒烟
+- Access Token 与 Device Token 均可二次编辑功能组；鉴权缓存立即失效，Device Token 的旧作用域连接会主动断开并按新作用域重连
+- 155 项纯 HTTP/WS 黑盒冒烟
 - 前端浏览器 E2E 只通过 UI 与公开 HTTP API，不直连持久层
 - 设备 SDK：不在本仓库范围
 
