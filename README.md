@@ -1,6 +1,6 @@
 # RER0RPC
 
-设备侧 RPC 中继后端。调用方通过 HTTP 把任务派发给在线 WebSocket 设备，设备执行后实时回传结果。
+设备侧 RPC 中继平台。调用方通过 HTTP 把任务派发给在线 WebSocket 设备，设备执行后实时回传结果；后台通过独立管理控制台管理功能组、设备、令牌、账号和日志。
 
 ## 状态
 
@@ -11,9 +11,11 @@
 - 设备可随 WS `result` 上报 AppAudit V1 结构化日志 Step
 - 后台账号支持资料修改与改密；`isRoot` 管理员账号只能由本人修改
 - Role 已升级为 FlowCore 风格权限组；RBAC 写操作仅种子管理员可执行
-- 系统操作审计可查询“谁在何时做了什么”，且不记录密码/token 明文
-- 139 项纯 HTTP/WS 黑盒冒烟
-- 管理前端与设备 SDK：不在本仓库范围
+- 系统操作审计覆盖登录成功/失败、控制面读取、Guard 拒绝和业务写操作，且不记录密码/token 明文
+- Next.js 16 + shadcn 管理前端覆盖全部后台管理能力
+- 143 项纯 HTTP/WS 黑盒冒烟
+- 前端浏览器 E2E 只通过 UI 与公开 HTTP API，不直连持久层
+- 设备 SDK：不在本仓库范围
 
 ## 快速开始
 
@@ -25,12 +27,18 @@ sh deploy/dev-up.sh
 cd backend
 pnpm dev:api
 pnpm dev:worker
+
+# 3. 第三个终端启动管理前端
+cd ../frontend
+pnpm install
+pnpm dev
 ```
 
 默认：
 
 - API：`http://127.0.0.1:3000`
 - Swagger：`http://127.0.0.1:3000/docs`
+- 管理前端：`http://127.0.0.1:3001`
 - 管理员：`admin / admin123456`
 
 ## 验证
@@ -40,6 +48,11 @@ cd backend
 pnpm lint:check
 pnpm test
 pnpm smoke
+
+cd ../frontend
+pnpm lint
+pnpm build
+E2E_API_URL=http://127.0.0.1:3000 pnpm test:e2e
 ```
 
 `pnpm lint:check` 强制可读变量名和控制流复杂度上限。`pnpm smoke` 与 `pnpm test:e2e` 是黑盒完整性测试，只通过运行中的 HTTP/WebSocket 接口验证系统，不直接连接数据库或 Redis。
@@ -48,6 +61,7 @@ pnpm smoke
 
 ```text
 backend/   NestJS API、Worker、迁移和测试
+frontend/  Next.js + shadcn 管理控制台与浏览器黑盒
 deploy/    本地 PostgreSQL/Redis/Manticore 编排
 docs/      当前文档、OpenAPI、历史设计与归档
 ```
@@ -58,6 +72,7 @@ docs/      当前文档、OpenAPI、历史设计与归档
 - [当前核心能力矩阵](docs/RER0RPC-核心功能统计.md)
 - [后端进度台账](docs/后端进度.md)
 - [后端开发说明](backend/README.md)
+- [前端开发说明](frontend/README.md)
 - [部署与本地基础设施](deploy/README.md)
 - [工程规范](docs/design-conventions.md)
 - [设备 AppAudit V1 接入协议](docs/device-app-audit.md)

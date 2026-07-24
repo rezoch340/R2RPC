@@ -3,13 +3,13 @@
 > 更新日期：2026-07-24。用于把当前仓库状态交给新的开发任务；重写开工阶段的旧提示词已归档到 `docs/archive/2026-07-08-新版开工提示词.md`。
 
 ```markdown
-# RER0RPC 后端继续开发
+# RER0RPC 全栈继续开发
 
 仓库：`/Users/lpitiless/Documents/RER0RPC`
 
 ## 当前事实
 
-- 活代码全部在 `backend/`，NestJS 11 + TypeScript + Drizzle。
+- 活代码在 `backend/` 与 `frontend/`：NestJS 11 + Drizzle，Next.js 16 + shadcn。
 - PostgreSQL 是业务权威库，Redis 承担 presence/队列/分布式协调，Manticore 保存 payload 和设备 AppAudit Step。
 - API 与 Worker 是独立进程：`src/main.ts`、`src/worker.ts`。
 - 设备使用 `dk_` device token 连接 `/api/client/ws`。
@@ -17,9 +17,11 @@
 - 设备可在 WS `result.appAudit` 上报 V1 执行 Step，契约见 `docs/device-app-audit.md`。
 - 后台使用 JWT + CASL RBAC。
 - `roles` 是权限组；读操作使用 `read/rbac`，所有 RBAC 写操作仅 `isRoot` 种子管理员可执行。
-- 后台 mutation 通过 `@SystemAudit` 记录“谁在何时做了什么”，查询权限为 `read/system-log`。
+- 系统日志记录登录、控制面读取、Guard 拒绝和后台 mutation；mutation 通过 `@SystemAudit`
+  记录准确的“谁在何时做了什么”，查询权限为 `read/system-log`。
 - 后台账号支持资料修改和改密；`isRoot` 管理员资料、密码、启停、删除和 RBAC 关系只能由本人修改。
 - 后端 backlog #1–#15 已全部完成。
+- 管理前端 #16 已完成，覆盖全部后台管理公开面；默认端口 3001。
 
 ## 先读
 
@@ -27,11 +29,13 @@
 2. `docs/后端进度.md`
 3. `docs/design-conventions.md`
 4. `docs/项目总览-中文.md`
-5. 涉及设备日志时读 `docs/device-app-audit.md`
-6. 涉及后台账号写入时读 `docs/superpowers/specs/2026-07-24-administrator-account-isolation-design.md`
-7. 涉及权限组时读 `docs/superpowers/specs/2026-07-24-permission-groups-design.md`
-8. 涉及后台写操作时读 `docs/superpowers/specs/2026-07-24-system-audit-logs-design.md`
-9. 与任务最接近的 source、test、schema 和历史 plan
+5. 改前端先读 `frontend/README.md`
+6. 涉及设备日志时读 `docs/device-app-audit.md`
+7. 涉及后台账号写入时读 `docs/superpowers/specs/2026-07-24-administrator-account-isolation-design.md`
+8. 涉及权限组时读 `docs/superpowers/specs/2026-07-24-permission-groups-design.md`
+9. 涉及后台写操作时读 `docs/superpowers/specs/2026-07-24-system-audit-logs-design.md`
+10. 涉及前端架构时读 `docs/superpowers/specs/2026-07-24-management-frontend-design.md`
+11. 与任务最接近的 source、test、schema 和历史 plan
 
 ## 修改规则
 
@@ -46,7 +50,10 @@
 - 代码注释使用中文。
 - 任何以用户为目标的新写入口都必须接入 `AdministratorAccountPolicyService`，请求者编号只取 JWT 上下文。
 - 所有 RBAC 写入口必须叠加 `RootGuard`；权限组读取必须批量组装，禁止 N+1。
-- 新增后台 mutation 必须声明 `@SystemAudit`，只列安全 metadata，禁止记录密码/token 明文。
+- 新增后台 mutation 必须声明 `@SystemAudit`；自动访问审计只列安全 metadata，禁止记录
+  密码/token 明文，也不得把 RPC/WS 数据面重复写入系统日志。
+- 前端只能打公开 HTTP API；RBAC 显隐不能替代后端 Guard。
+- 前端页面/组件/E2E 同样禁止含糊缩写，优先公共原语但不做 mega CRUD 抽象。
 
 ## 必跑验证
 
@@ -61,6 +68,17 @@ pnpm smoke
 ```
 
 `pnpm smoke`/`pnpm test:e2e` 必须只访问运行中的 HTTP/WS 接口。禁止 E2E 导入应用模块、数据库/Redis/Manticore 客户端或执行查询；`test/assert-blackbox-e2e.js` 会检查这一边界。
+
+在 `frontend/`：
+
+```bash
+pnpm lint
+pnpm build
+E2E_API_URL=http://127.0.0.1:3000 pnpm test:e2e
+```
+
+前端 Playwright 也只能通过浏览器与公开 HTTP API 验证，边界由
+`test/assert-blackbox-e2e.cjs` 强制。
 
 底层 retention/stale/metrics/maxInFlight 算法的直连检查属于 `pnpm test:integration:*`，不得称为 E2E。
 

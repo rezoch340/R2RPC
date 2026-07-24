@@ -15,11 +15,14 @@
 - [x] 增加全局审计拦截器，记录成功/失败结果。
 - [x] 只采集显式白名单 metadata，不复制完整 body。
 - [x] 覆盖用户、project、token 和 RBAC mutation。
+- [x] 覆盖登录成功/失败和全部 JWT 控制面读取。
+- [x] 在全局异常过滤器补记 Guard/路由阶段拒绝并避免重复日志。
+- [x] 保持 RPC invoke、设备 WS 与 AppAudit 数据面日志独立。
 
 ## Task 3：验证
 
-- [x] 单元测试覆盖人类可读摘要、安全字段和失败结果。
-- [x] 纯 HTTP 黑盒验证系统日志可读且不泄露密码。
+- [x] 单元测试覆盖推导、人类可读摘要、登录、安全字段和失败结果。
+- [x] 纯 HTTP 黑盒验证登录、读取、Guard 拒绝可读且不泄露密码。
 - [x] 重新生成 OpenAPI。
 - [x] 更新全部现行文档和进度台账。
 - [x] 运行 build、lint、Prettier、Jest 和完整 HTTP/WS smoke。
@@ -28,6 +31,6 @@
 
 - Drizzle：15 张表、9 个迁移。
 - OpenAPI：35 个 HTTP 路径模板。
-- Jest：7 个 suite、17 个测试通过。
-- 完整黑盒：139 passed / 0 failed，只使用 HTTP 与真实 WebSocket。
+- Jest：8 个 suite、24 个测试通过。
+- 完整黑盒：143 passed / 0 failed，只使用 HTTP 与真实 WebSocket。
 - build、`pnpm lint:check`、Prettier check、OpenAPI 生成和 E2E 边界守卫全部通过。

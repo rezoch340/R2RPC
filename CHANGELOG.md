@@ -4,14 +4,26 @@
 
 ## [Unreleased]
 
+### FlowCore 风格管理前端
+- 新建 `frontend/`：Next.js 16、React 19、Tailwind CSS 4、shadcn 和 TanStack Query，默认端口 3001。
+- 覆盖运行概览、功能组、设备、Access Token、Device Token、请求日志/AppAudit、后台账号、权限组和系统日志全部管理公开面。
+- 账号菜单支持本人改密；root 目标写入口和 RBAC 写入口按后端隔离规则显隐，后端 Guard 继续作为最终授权边界。
+- 请求日志与系统日志使用服务端筛选分页，请求 payload 和设备 AppAudit Step 按 requestId 懒加载。
+- 新增前端完整变量名门禁、ESLint、Next.js 生产构建和 Playwright 浏览器冒烟；边界守卫禁止 E2E 导入后端或直连 PG/Redis/Manticore。
+- 新增前端生产 Dockerfile、运行时 `frontend.yaml` 和可覆盖基础设施端口；后端增加可由 `CORS_ORIGIN` 限定的 CORS。
+- 修复系统审计拦截器读取无请求体 mutation 时抛错的问题，Access Token 与 Device Token 撤销接口恢复正常。
+- 修复通过局域网 IP 打开开发前端时 HMR WebSocket 被 Next.js 来源检查拒绝的问题；自动加入本机 IPv4 地址，并支持 `NEXT_ALLOWED_DEV_ORIGINS` 补充自定义开发域名。
+- 系统日志扩展为完整控制面访问审计：记录登录成功/失败、全部 JWT 读取和 Guard/路由阶段拒绝；RPC/WS 数据面继续使用独立日志链路。
+- 最终验证：前端 Playwright **4 passed**，前端 lint 与生产构建通过；后端 Jest **8 suites / 24 tests**、完整 HTTP/WebSocket 黑盒 **143 passed、0 failed**。
+
 ### 系统操作审计日志
 - 盘点全部 14 张旧表：业务实体均具有语义名称与 `description`；关系表名称由复合外键表达，请求日志/聚合表按日志规则豁免，不机械增加无意义的 `name`。
 - 新增第 15 张表 `system_logs` 和迁移 `0008`，包含操作 `name/description`、操作者快照、动作、对象、安全 metadata、HTTP 结果、IP、User-Agent 和时间。
-- 新增全局 `SystemAuditInterceptor` 与显式 `@SystemAudit` 元数据，覆盖用户、project、两类 token 和 RBAC 全部业务 mutation；成功和 controller/service 失败均可记录。
-- metadata 只采集每个端点声明的白名单字段，不复制完整 body；密码和 token 明文不会写入系统日志。
+- 新增全局 `SystemAuditInterceptor` 与显式 `@SystemAudit` 元数据，覆盖用户、project、两类 token 和 RBAC 全部业务 mutation；后续扩展为自动记录登录、控制面读取及 Guard/路由阶段拒绝。
+- metadata 只采集安全 path/body/query 字段，不复制完整 body；密码和 token 明文不会写入系统日志，RPC/WS 数据面不重复写入。
 - 新增 `GET /system-logs`，使用 `read/system-log`，支持操作者、action、subject、状态、时间和分页筛选；系统日志无修改/删除 API。
 - project 创建接口补齐已有 `description` 列的输入能力和数据库长度校验。
-- 种子权限现为 18 条，operator 的 `read/*` 权限为 8 条；当前验证为 Jest **7 suites / 17 tests**、OpenAPI **35 个路径模板**、完整黑盒 **139 passed、0 failed**。
+- 种子权限现为 18 条，operator 的 `read/*` 权限为 8 条；当前验证为 Jest **8 suites / 24 tests**、OpenAPI **35 个路径模板**、完整黑盒 **143 passed、0 failed**。
 
 ### FlowCore 风格权限组
 - 复用现有 `roles`、`permissions`、`role_permissions`、`user_roles`，明确 Role 即权限组；用户可分配多个权限组，授权继续取所有有效组权限的并集，无数据库迁移。

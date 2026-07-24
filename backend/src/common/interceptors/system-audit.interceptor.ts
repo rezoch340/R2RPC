@@ -22,6 +22,7 @@ import {
   SystemAuditDefinition,
 } from '../decorators/system-audit.decorator';
 import type { AuthedRequest } from '../types/authed-request';
+import { inferSystemAuditDefinition } from './system-audit-definition';
 import { buildSystemAuditEntry } from './system-audit-entry';
 
 @Injectable()
@@ -37,21 +38,24 @@ export class SystemAuditInterceptor implements NestInterceptor {
     executionContext: ExecutionContext,
     next: CallHandler,
   ): Observable<unknown> {
-    const definition = this.reflector.get<SystemAuditDefinition>(
+    const request = executionContext.switchToHttp().getRequest<AuthedRequest>();
+    const explicitDefinition = this.reflector.get<SystemAuditDefinition>(
       SYSTEM_AUDIT_KEY,
       executionContext.getHandler(),
     );
+    const definition =
+      explicitDefinition ?? inferSystemAuditDefinition(request);
     if (!definition) {
       return next.handle();
     }
-    const request = executionContext.switchToHttp().getRequest<AuthedRequest>();
     const response = executionContext
       .switchToHttp()
       .getResponse<{ statusCode: number }>();
     return next.handle().pipe(
       concatMap((responseBody: unknown) =>
         from(
-          this.recordSafely(
+          this.recordAndMark(
+            request,
             buildSystemAuditEntry({
               definition,
               request,
@@ -64,7 +68,8 @@ export class SystemAuditInterceptor implements NestInterceptor {
       ),
       catchError((handlerError: unknown) =>
         from(
-          this.recordSafely(
+          this.recordAndMark(
+            request,
             buildSystemAuditEntry({
               definition,
               request,
@@ -76,6 +81,14 @@ export class SystemAuditInterceptor implements NestInterceptor {
         ).pipe(mergeMap(() => throwError(() => handlerError))),
       ),
     );
+  }
+
+  private async recordAndMark(
+    request: AuthedRequest,
+    input: Parameters<SystemLogsService['create']>[0],
+  ): Promise<void> {
+    request.systemAuditRecorded = true;
+    await this.recordSafely(input);
   }
 
   private async recordSafely(

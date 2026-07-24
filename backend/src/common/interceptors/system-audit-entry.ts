@@ -20,6 +20,20 @@ function readObjectField(input: unknown, fieldName?: string): unknown {
     : undefined;
 }
 
+function readObjectPath(input: unknown, fieldPath?: string): unknown {
+  if (!fieldPath) {
+    return undefined;
+  }
+  let currentValue = input;
+  for (const fieldName of fieldPath.split('.')) {
+    currentValue = readObjectField(currentValue, fieldName);
+    if (currentValue === undefined) {
+      return undefined;
+    }
+  }
+  return currentValue;
+}
+
 function toIdentifier(input: unknown): string | null {
   if (typeof input === 'string' && input.length > 0) {
     return input.slice(0, 128);
@@ -37,7 +51,7 @@ function safeMetadataValue(input: unknown): unknown {
     typeof input === 'boolean' ||
     input === null
   ) {
-    return input;
+    return typeof input === 'string' ? input.slice(0, 512) : input;
   }
   if (Array.isArray(input)) {
     const safeValues = input
@@ -54,13 +68,19 @@ function collectMetadata(
 ): Record<string, unknown> {
   const metadata: Record<string, unknown> = {};
   for (const fieldName of definition.metadataParameters ?? []) {
-    const value = safeMetadataValue(request.params[fieldName]);
+    const value = safeMetadataValue(readObjectField(request.params, fieldName));
     if (value !== undefined) {
       metadata[fieldName] = value;
     }
   }
   for (const fieldName of definition.metadataBodyFields ?? []) {
-    const value = safeMetadataValue(request.body[fieldName]);
+    const value = safeMetadataValue(readObjectField(request.body, fieldName));
+    if (value !== undefined) {
+      metadata[fieldName] = value;
+    }
+  }
+  for (const fieldName of definition.metadataQueryFields ?? []) {
+    const value = safeMetadataValue(readObjectField(request.query, fieldName));
     if (value !== undefined) {
       metadata[fieldName] = value;
     }
@@ -116,7 +136,7 @@ function resolveTargetId(
   responseBody: unknown,
 ): string | null {
   const parameterValue = definition.targetParameter
-    ? request.params[definition.targetParameter]
+    ? readObjectField(request.params, definition.targetParameter)
     : undefined;
   return (
     toIdentifier(parameterValue) ??
@@ -130,7 +150,7 @@ function resolveTargetName(
   responseBody: unknown,
 ): string | null {
   const bodyValue = definition.targetNameField
-    ? request.body[definition.targetNameField]
+    ? readObjectField(request.body, definition.targetNameField)
     : undefined;
   return (
     toIdentifier(bodyValue) ??
@@ -141,6 +161,34 @@ function resolveTargetName(
 function userAgentOf(request: AuthedRequest): string | null {
   const userAgent = request.headers['user-agent'];
   return typeof userAgent === 'string' ? userAgent.slice(0, 512) : null;
+}
+
+function actorIdentity(
+  definition: SystemAuditDefinition,
+  request: AuthedRequest,
+  responseBody: unknown,
+): { userId: number; username: string } {
+  const responseUserId = readObjectPath(
+    responseBody,
+    definition.actorUserIdResponsePath,
+  );
+  const responseUsername = toIdentifier(
+    readObjectPath(responseBody, definition.actorUsernameResponsePath),
+  );
+  const bodyUsername = toIdentifier(
+    readObjectField(request.body, definition.actorUsernameBodyField),
+  );
+  return {
+    userId:
+      request.user?.id ??
+      (typeof responseUserId === 'number' &&
+      Number.isInteger(responseUserId) &&
+      responseUserId > 0
+        ? responseUserId
+        : 0),
+    username:
+      request.user?.username ?? responseUsername ?? bodyUsername ?? 'anonymous',
+  };
 }
 
 export function buildSystemAuditEntry(
@@ -157,19 +205,23 @@ export function buildSystemAuditEntry(
     input.responseBody,
   );
   const metadata = collectMetadata(input.definition, input.request);
-  const actorUsername = input.request.user?.username ?? 'unknown';
+  const actor = actorIdentity(
+    input.definition,
+    input.request,
+    input.responseBody,
+  );
   return {
     name: input.definition.name,
     description: buildDescription({
-      actorUsername,
+      actorUsername: actor.username,
       definition: input.definition,
       targetId,
       targetName,
       metadata,
       status: input.status,
     }),
-    actorUserId: input.request.user?.id ?? 0,
-    actorUsername,
+    actorUserId: actor.userId,
+    actorUsername: actor.username,
     action: input.definition.action,
     subject: input.definition.subject,
     targetType: input.definition.targetType,

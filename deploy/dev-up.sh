@@ -6,7 +6,7 @@ HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 BACKEND="$HERE/../backend"
 
 echo "==> 启动基础设施 (postgres / redis / manticore)"
-docker compose -f "$HERE/docker-compose.yml" up -d
+docker compose -f "$HERE/docker-compose.yml" up -d postgres redis manticore
 
 echo "==> 等待 Postgres 就绪"
 until docker compose -f "$HERE/docker-compose.yml" exec -T postgres pg_isready -U rer0rpc -d rer0rpc >/dev/null 2>&1; do

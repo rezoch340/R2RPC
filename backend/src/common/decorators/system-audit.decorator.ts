@@ -7,11 +7,15 @@ export interface SystemAuditDefinition {
   action: string;
   subject: string;
   targetType: string;
+  actorUsernameBodyField?: string;
+  actorUserIdResponsePath?: string;
+  actorUsernameResponsePath?: string;
   targetParameter?: string;
   targetNameField?: string;
   targetResponseField?: string;
   metadataParameters?: string[];
   metadataBodyFields?: string[];
+  metadataQueryFields?: string[];
 }
 
 export const SystemAudit = (definition: SystemAuditDefinition) =>

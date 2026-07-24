@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: rer0rpc
       POSTGRES_DB: rer0rpc
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -25,7 +25,7 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -39,8 +39,8 @@ services:
     container_name: rer0rpc-manticore
     restart: unless-stopped
     ports:
-      - "9308:9308"   # HTTP JSON API
-      - "9306:9306"   # MySQL 协议
+      - "${MANTICORE_HTTP_PORT:-9308}:9308"   # HTTP JSON API
+      - "${MANTICORE_MYSQL_PORT:-9306}:9306"   # MySQL 协议
     ulimits:
       nproc: 65535
       nofile:
@@ -48,6 +48,16 @@ services:
         hard: 65535
     volumes:
       - manticoredata:/var/lib/manticore
+
+  frontend:
+    build:
+      context: ../frontend
+    container_name: rer0rpc-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3001}:3001"
+    volumes:
+      - ./frontend.yaml:/app/frontend.yaml:ro
 
 volumes:
   pgdata:

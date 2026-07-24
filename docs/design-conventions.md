@@ -114,10 +114,13 @@ nest g resource application/{module} --no-spec
 ### 系统操作审计
 
 - 后台业务 mutation 必须显式添加 `@SystemAudit`，名称应能直接组成“操作者 + 操作 + 对象”。
-- 审计 metadata 只能列出已确认安全的 path/body 白名单字段；禁止复制完整 body，密码和两类
+- 登录成功/失败和全部 JWT 控制面读取由全局拦截器自动记录；Guard/路由阶段拒绝由全局异常
+  过滤器补记，并用请求标记避免与拦截器重复写入。
+- 审计 metadata 只能列出已确认安全的 path/body/query 白名单字段；禁止复制完整 body，密码和两类
   token 明文永远不能进入系统日志。
 - `system_logs` 是不可变追加事实，不使用软删除，不提供更新或删除 API。
-- 系统操作日志、RPC `request_logs` 和设备 AppAudit 分开建模，禁止互相塞字段。
+- RPC invoke、设备 WebSocket 与 AppAudit 属于数据面，继续写请求日志/协议日志，不进入
+  高频控制面系统日志；三类日志禁止互相塞字段。
 - 审计写入失败只记录服务端 error，不得把已成功的业务操作伪装成失败。
 
 ### 架构原则:分布式 + 冷热路径
@@ -233,12 +236,22 @@ async fillAndSave(input: {
 
 ## 二、前端设计规范
 
+### 技术栈与边界
+
+- Next.js 16 App Router + React 19 + Tailwind CSS 4 + shadcn/base-nova + TanStack Query。
+- 前端只访问后端公开 HTTP API，禁止导入 `backend/src`、数据库、Redis 或 Manticore 客户端。
+- RBAC 前端显隐只改善体验，不能替代后端 Guard；不得因按钮隐藏而弱化服务端授权。
+- 后端地址按运行时 YAML、`NEXT_PUBLIC_API_URL`、当前主机 + API 端口顺序解析；生产使用
+  `CORS_ORIGIN` 明确允许控制台来源。
+- Next.js 开发服务器自动允许本机 IPv4 网卡地址访问 HMR；反向代理或自定义开发域名通过
+  `NEXT_ALLOWED_DEV_ORIGINS` 显式补充，不允许用全开放通配符绕过开发资源来源检查。
+
 ### 数据驱动公共组件
 
 - 能复用的 UI 一律抽到 `components/`,做成**数据驱动**:
   页面只声明**数据**(字段 / 列定义)+ 传 **action**(回调),不在 `page.tsx` 堆大段 JSX。
-- 典型基准件:`FilterBar`、`DataTable`(columns 可设 `meta.align: 'left' | 'center' | 'right'`,
-  actions 列用 `align:'right'`)、`PageHeader`、`NoPermission`、`Pager`、`RowActions`。
+- 典型基准件：`DataTable`、`PageHeader`、`PermissionBoundary`、`Pagination`、`RowActions`、
+  `FormDialog`、`ConfirmDialog`、`SearchInput`、`JsonBlock`。
 - 新块出现先看 `components/` 有没有现成的,有就复用;**≥2 处重复(或明显可复用原语)才抽,
   单处别过度抽象(YAGNI)。**
 
@@ -254,6 +267,20 @@ async fillAndSave(input: {
 
 - 纯展示组件不加 `'use client'`;带 hook / handler 的才加。
 - 重构保持视觉 / 行为不变(className 结构照旧)。
+
+### 查询与表单
+
+- 小型实体列表一次加载后在浏览器过滤；请求日志、系统日志等大表走服务端筛选和分页。
+- 请求详情的 payload/AppAudit 必须按 requestId 懒加载，列表不得携带大字段。
+- Mutation 成功后只失效相关 TanStack Query key，不全局清空缓存。
+- 表单组件只抽通用外壳；项目选择、权限矩阵、AppAudit Step 等特殊控件保留领域组件，
+  禁止做充满逃生口的 mega CRUD 配置层。
+
+### 前端命名门禁
+
+- 页面、组件、E2E 与工具脚本执行和后端相同的完整语义命名规则。
+- `frontend/test/assert-readable-source.cjs` 扫描 `app/`、`components/`、`lib/`、`e2e/` 和
+  `test/`；`pnpm lint` 必须在 ESLint 前通过该门禁。
 
 ---
 
@@ -273,6 +300,10 @@ async fillAndSave(input: {
 - `pnpm test:e2e` 与 `pnpm smoke` 跑同一套完整性黑盒测试；测试进程只允许使用 HTTP 和 WebSocket 公共接口。
 - **E2E 绝不直连数据库/Redis/Manticore**，不导入 Nest 应用模块或内部 service，不执行 SQL；Worker 结果必须通过 `/monitor/*`、`/metrics/*` 等公开接口观察。
 - `test/assert-blackbox-e2e.js` 是强制边界守卫，新增 E2E 文件必须被它扫描。
+- 前端 `test/assert-blackbox-e2e.cjs` 执行同一边界：Playwright 只能操作浏览器和公开 HTTP
+  API，不得使用持久层作为测试捷径。
 - 必须真实覆盖 WS，不用内存 sink 替代：鉴权、welcome、heartbeat、服务端 ping、读超时、异常帧、RPC job/result、AppAudit、来源身份和去重均走真实 socket。
 - 底层维护算法若没有公开控制面，可写 `*.integration.ts` 直接构造 PG/Redis 状态，但命令必须放在 `test:integration:*`，明确标注**非 E2E**。
 - 正确流程：启动隔离基础设施 → 迁移和种子 → 启动 API + Worker → 运行 `pnpm smoke`。
+- 前端完整流程：同一真实 API/Worker 运行时 → `E2E_API_URL=<api> pnpm test:e2e`；不允许
+  用数据库造数据后再冒充 E2E。
