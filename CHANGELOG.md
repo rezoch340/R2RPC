@@ -13,8 +13,9 @@
 - 新增前端生产 Dockerfile、运行时 `frontend.yaml` 和可覆盖基础设施端口；后端增加可由 `CORS_ORIGIN` 限定的 CORS。
 - 修复系统审计拦截器读取无请求体 mutation 时抛错的问题，Access Token 与 Device Token 撤销接口恢复正常。
 - 修复通过局域网 IP 打开开发前端时 HMR WebSocket 被 Next.js 来源检查拒绝的问题；自动加入本机 IPv4 地址，并支持 `NEXT_ALLOWED_DEV_ORIGINS` 补充自定义开发域名。
+- 修复请求日志与系统日志翻页时短暂清空表格造成的闪屏；新页请求期间保留上一页数据，响应完成后原位替换。侧栏切换全部管理页面时先按权限预取公开接口，再提交路由切换，避免首次进入页面闪加载骨架。
 - 系统日志扩展为完整控制面访问审计：记录登录成功/失败、全部 JWT 读取和 Guard/路由阶段拒绝；RPC/WS 数据面继续使用独立日志链路。
-- 最终验证：前端 Playwright **4 passed**，前端 lint 与生产构建通过；后端 Jest **8 suites / 24 tests**、完整 HTTP/WebSocket 黑盒 **143 passed、0 failed**。
+- 最终验证：前端 Playwright **5 passed**，前端 lint 与生产构建通过；后端 Jest **8 suites / 24 tests**、完整 HTTP/WebSocket 黑盒 **143 passed、0 failed**。
 
 ### 系统操作审计日志
 - 盘点全部 14 张旧表：业务实体均具有语义名称与 `description`；关系表名称由复合外键表达，请求日志/聚合表按日志规则豁免，不机械增加无意义的 `name`。

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Eye, RotateCcw, Search } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { PageHeader } from '@/components/page-header';
@@ -77,6 +77,7 @@ export default function RequestLogsPage() {
       requestApi<PaginatedResponse<RequestLogRecord>>(
         `/monitor/requests${queryString}`,
       ),
+    placeholderData: keepPreviousData,
   });
 
   function updateDraftFilter(key: keyof RequestFilters, value: string) {
