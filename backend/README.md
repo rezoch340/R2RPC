@@ -1,98 +1,145 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# RER0RPC Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+NestJS 11 后端，采用 API/Worker 双进程：
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+- API：HTTP、Swagger、设备 WebSocket、RPC 热路径
+- Worker：BullMQ 日志消费、Manticore payload/AppAudit、日指标、定时维护
 
-## Description
+## 依赖
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- Node.js 24+
+- pnpm
+- PostgreSQL 16
+- Redis 7
+- Manticore Search
 
-## Project setup
+基础设施可从仓库根目录启动：
 
 ```bash
-$ pnpm install
+sh deploy/dev-up.sh
 ```
 
-## Compile and run the project
+## 配置
+
+默认读取当前目录的 `config.yaml`，可用 `CONFIG_FILE` 指向其他 YAML。
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+cp config.example.yaml config.yaml
 ```
 
-## Run tests
+配置包含：
+
+- `app.port`、`app.globalPrefix`、`app.publicWsUrl`
+- PostgreSQL
+- Redis
+- JWT
+- Manticore
+- 原始日志和日聚合保留策略
+
+配置由 zod 校验，非法值会让进程启动失败。
+
+## 初始化
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm install
+pnpm db:migrate
+pnpm seed:admin
 ```
 
-## Deployment
+迁移是独立部署步骤，API/Worker 启动时不会自动修改数据库。
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## 运行
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+pnpm dev:api       # HTTP + WS，默认端口 3000
+pnpm dev:worker    # BullMQ + 维护任务
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+生产编译和入口：
 
-## Resources
+```bash
+pnpm build
+node dist/main.js
+node dist/worker.js
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+Swagger 位于 `/docs`，设备 WebSocket 位于 `/api/client/ws`。
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+## 测试
 
-## Support
+### 单元测试
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```bash
+pnpm test
+```
 
-## Stay in touch
+### 黑盒 E2E / 完整性冒烟
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+先启动基础设施、API 和 Worker：
 
-## License
+```bash
+pnpm smoke
+# 等价：
+pnpm test:e2e
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+可指定目标：
+
+```bash
+BASE_URL=http://127.0.0.1:3000 pnpm smoke
+```
+
+黑盒套件：
+
+- 只使用 `fetch` 和 WebSocket 客户端访问公开接口
+- 覆盖所有 HTTP controller 方法
+- 覆盖 WS 鉴权、welcome、heartbeat、ping、读超时、分片和超大帧
+- 覆盖 RPC 成功、失败、超时、身份匹配、去重和 maxInFlight
+- 覆盖设备通过真实 WS 上报 AppAudit 成功/失败 Step、非法审计隔离和 Monitor API 读取
+- 通过 monitor/metrics API 观察 Worker 冷路径
+- 当前为 121 项运行时检查
+
+`test/assert-blackbox-e2e.js` 会拒绝 E2E 导入持久层客户端或应用内部服务。
+
+### 内部集成检查
+
+下列命令直接构造 PG/Redis 状态，属于算法集成检查，明确不是 E2E：
+
+```bash
+pnpm test:integration:retention
+pnpm test:integration:device-stale
+pnpm test:integration:metrics
+pnpm test:integration:max-inflight
+```
+
+## 质量检查
+
+```bash
+pnpm build
+pnpm lint:check    # 只检查，不改文件
+pnpm lint          # 检查并执行 ESLint 可自动修复项
+pnpm format
+```
+
+命名门禁覆盖 `src/` 和 `test/`：拒绝单/双字母变量及团队禁止缩写。ESLint 同时强制圈复杂度 ≤ 10、嵌套深度 ≤ 3、单函数语句数 ≤ 40、条件分支使用花括号并移除多余 `else`。
+
+## OpenAPI
+
+```bash
+pnpm openapi:gen
+```
+
+生成文件：`../docs/openapi.yaml`。
+
+## 关键目录
+
+```text
+src/application/      业务模块
+src/infrastructure/   config/db/redis/queue/search/ws
+src/common/           guard/decorator/filter/db helper
+src/scripts/          迁移、种子、OpenAPI、内部集成检查
+drizzle/              SQL 迁移
+test/                 纯接口黑盒冒烟与边界守卫
+```
+
+设备侧 Step 契约见 `../docs/device-app-audit.md`。

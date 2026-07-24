@@ -36,17 +36,19 @@ const ALL_PERMISSIONS: Array<{ action: string; subject: string }> = [
 ];
 
 // operator 角色只挂 read/* 权限(只读,无 create/delete/invoke/manage)
-const OPERATOR_PERMISSIONS = ALL_PERMISSIONS.filter((p) => p.action === 'read');
+const OPERATOR_PERMISSIONS = ALL_PERMISSIONS.filter(
+  (permission) => permission.action === 'read',
+);
 
 async function main() {
-  const cfg = new ConfigService();
-  const pool = new Pool(cfg.db);
-  const db = drizzle(pool);
+  const configuration = new ConfigService();
+  const connectionPool = new Pool(configuration.db);
+  const database = drizzle(connectionPool);
 
   const username = process.env.ADMIN_USER || 'admin';
   const password = process.env.ADMIN_PASSWORD || 'admin123456';
 
-  await db
+  await database
     .insert(users)
     .values({
       username,
@@ -56,7 +58,7 @@ async function main() {
     })
     .onConflictDoNothing();
   // 若管理员已存在(上面 onConflictDoNothing 跳过),补一次置 root,保证幂等重跑也生效
-  await db
+  await database
     .update(users)
     .set({ isRoot: true })
     .where(eq(users.username, username));
@@ -64,46 +66,56 @@ async function main() {
   console.log(`管理员已就绪: ${username}(初始密码: ${password}, isRoot: true)`);
 
   // demo 功能组: cn-nodes / us-nodes(幂等)
-  await db
+  await database
     .insert(projects)
     .values(DEMO_PROJECTS.map((name) => ({ name })))
     .onConflictDoNothing();
   // 权限全集(幂等,唯一约束 action+subject)
-  await db.insert(permissions).values(ALL_PERMISSIONS).onConflictDoNothing();
-  const permRows = await db.select().from(permissions);
-  const permIdByKey = new Map(
-    permRows.map((p) => [`${p.action}:${p.subject}`, p.id]),
+  await database
+    .insert(permissions)
+    .values(ALL_PERMISSIONS)
+    .onConflictDoNothing();
+  const permissionRecords = await database.select().from(permissions);
+  const permissionIdByKey = new Map(
+    permissionRecords.map((permission) => [
+      `${permission.action}:${permission.subject}`,
+      permission.id,
+    ]),
   );
 
   // operator 角色(幂等)
-  await db
+  await database
     .insert(roles)
     .values({ name: 'operator', description: '只读角色:仅拥有 read/* 权限' })
     .onConflictDoNothing();
-  const [operatorRole] = await db
+  const [operatorRole] = await database
     .select({ id: roles.id })
     .from(roles)
     .where(eq(roles.name, 'operator'))
     .limit(1);
 
   // operator 挂 read/* 权限(幂等)
-  for (const p of OPERATOR_PERMISSIONS) {
-    const permissionId = permIdByKey.get(`${p.action}:${p.subject}`);
-    if (!operatorRole || !permissionId) continue;
-    await db
+  for (const permission of OPERATOR_PERMISSIONS) {
+    const permissionId = permissionIdByKey.get(
+      `${permission.action}:${permission.subject}`,
+    );
+    if (!operatorRole || !permissionId) {
+      continue;
+    }
+    await database
       .insert(rolePermissions)
       .values({ roleId: operatorRole.id, permissionId })
       .onConflictDoNothing();
   }
 
   console.log(
-    `RBAC 已就绪: 权限 ${permRows.length} 条, operator 角色挂 read/* 共 ${OPERATOR_PERMISSIONS.length} 条`,
+    `RBAC 已就绪: 权限 ${permissionRecords.length} 条, operator 角色挂 read/* 共 ${OPERATOR_PERMISSIONS.length} 条`,
   );
 
-  await pool.end();
+  await connectionPool.end();
 }
 
-main().catch((e) => {
-  console.error(e);
+main().catch((error) => {
+  console.error(error);
   process.exit(1);
 });

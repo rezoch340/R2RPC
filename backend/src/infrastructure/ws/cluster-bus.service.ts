@@ -6,28 +6,33 @@ import { RedisService } from '../redis/redis.service';
 @Injectable()
 export class ClusterBus implements OnModuleDestroy {
   private readonly logger = new Logger('ClusterBus');
-  private readonly sub: Redis;
+  private readonly subscriber: Redis;
   private readonly handlers = new Map<
     string,
-    (msg: any) => void | Promise<void>
+    (message: any) => void | Promise<void>
   >();
 
-  constructor(private readonly redis: RedisService) {
+  constructor(private readonly redisService: RedisService) {
     // 在构造函数里建(而非 onModuleInit):Nest 的 onModuleInit 按 providers 数组声明顺序调用,
     // 不保证依赖方(ConnectionRegistry)晚于本类初始化——ConnectionRegistry.onModuleInit 里同步调了
-    // subscribe(),若 this.sub 还没建好就会炸。redis.client 在 RedisService 构造函数里已同步就绪,
+    // subscribe(),若 this.subscriber 还没建好就会炸。redis.client 在 RedisService 构造函数里已同步就绪,
     // 这里直接用,不用等 onModuleInit,从根上去掉这个初始化顺序依赖。
     // subscriber 连接不能跑普通命令,所以 publish 用主连接 redis.client。duplicate() 复制配置新建连接。
-    this.sub = this.redis.client.duplicate();
-    this.sub.on('error', (e) => this.logger.warn(`sub: ${e.message}`));
-    this.sub.on('message', (channel, payload) => {
-      const h = this.handlers.get(channel);
-      if (!h) return;
+    this.subscriber = this.redisService.client.duplicate();
+    this.subscriber.on('error', (error) =>
+      this.logger.warn(`subscriber: ${error.message}`),
+    );
+    this.subscriber.on('message', (channel, payload) => {
+      const handler = this.handlers.get(channel);
+      if (!handler) {
+        return;
+      }
       try {
-        void Promise.resolve(h(JSON.parse(payload))).catch((e) =>
-          this.logger.warn(
-            `handler err on ${channel}: ${(e as Error).message}`,
-          ),
+        void Promise.resolve(handler(JSON.parse(payload))).catch(
+          (handlerError) =>
+            this.logger.warn(
+              `handler error on ${channel}: ${(handlerError as Error).message}`,
+            ),
         );
       } catch {
         this.logger.warn(`bad msg on ${channel}`);
@@ -37,17 +42,17 @@ export class ClusterBus implements OnModuleDestroy {
 
   async subscribe(
     channel: string,
-    handler: (msg: any) => void | Promise<void>,
+    handler: (message: any) => void | Promise<void>,
   ) {
     this.handlers.set(channel, handler);
-    await this.sub.subscribe(channel);
+    await this.subscriber.subscribe(channel);
   }
 
-  async publish(channel: string, msg: unknown) {
-    await this.redis.client.publish(channel, JSON.stringify(msg));
+  async publish(channel: string, message: unknown) {
+    await this.redisService.client.publish(channel, JSON.stringify(message));
   }
 
   onModuleDestroy() {
-    this.sub?.disconnect();
+    this.subscriber?.disconnect();
   }
 }

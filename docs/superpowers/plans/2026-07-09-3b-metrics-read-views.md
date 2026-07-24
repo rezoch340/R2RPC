@@ -1,5 +1,7 @@
 # 3b: 指标读视图(weekly + trend)实现计划
 
+> 状态：✅ 已完成，本文保留实施时任务顺序，不作为当前进度或测试命令真源。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development(推荐)或 superpowers:executing-plans。Steps 用 `- [ ]`。
 
 **Goal:** 给 metrics 加两个读聚合表的派生视图 API:`GET /metrics/weekly`(近7天设备指标,读 `device_daily_metrics`)+ `GET /metrics/trend`(按天序列、补零,读 `rpc_daily_metrics`),对齐老系统 WeeklyMetric/TrendPoint。**不动 `overview`**(它扫 request_logs,retention 封顶 3 天、成本有界)。GroupSummary/GroupInfo 归 #8。

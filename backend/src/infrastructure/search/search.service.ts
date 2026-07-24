@@ -8,39 +8,63 @@ const TABLE = 'request_logs';
 export class SearchService implements OnModuleInit {
   private readonly logger = new Logger('Search');
   private ready = false;
-  constructor(private readonly cfg: ConfigService) {}
+  constructor(private readonly configuration: ConfigService) {}
   private get base() {
-    return this.cfg.manticore.url;
+    return this.configuration.manticore.url;
   }
 
   async onModuleInit() {
     // 启动即尝试建表;失败不阻断启动(indexPayload 时会再建)
-    await this.ensureTable().catch((e) =>
-      this.logger.warn(`Manticore 建表失败(稍后重试): ${(e as Error).message}`),
+    await this.ensureTable().catch((error) =>
+      this.logger.warn(
+        `Manticore 建表失败(稍后重试): ${(error as Error).message}`,
+      ),
     );
   }
 
   async ensureTable() {
     await this.rawSql(
-      `CREATE TABLE IF NOT EXISTS ${TABLE} (request_id string, project_name string, action_name string, client_id string, status string, http_code int, latency_ms int, created_at string, finished_at string, request_payload_json text, response_payload_json text, error_message text)`,
+      `CREATE TABLE IF NOT EXISTS ${TABLE} (request_id string, project_name string, action_name string, client_id string, status string, http_code int, latency_ms int, created_at string, finished_at string, request_payload_json text, response_payload_json text, app_audit_json text, error_message text)`,
     );
+    await this.ensureAppAuditColumn();
     this.ready = true;
   }
 
+  // 兼容已有 Manticore 数据卷；搜索索引 schema 由本 service 管理，不属于 PostgreSQL migration。
+  private async ensureAppAuditColumn() {
+    const hasColumn = async () =>
+      /\bapp_audit_json\b/i.test(await this.rawSql(`DESC ${TABLE}`));
+    if (await hasColumn()) {
+      return;
+    }
+    try {
+      await this.rawSql(`ALTER TABLE ${TABLE} ADD COLUMN app_audit_json text`);
+    } catch (error) {
+      // 多 API/Worker 并发启动时可能由另一实例先补列；复查后再决定是否抛错。
+      if (!(await hasColumn())) {
+        throw error;
+      }
+    }
+  }
+
   // 写入完整 payload 文档;用 request_id 派生的确定性 id 做 upsert(重试幂等)
-  async indexPayload(doc: Record<string, unknown>): Promise<void> {
-    if (!this.ready) await this.ensureTable();
-    const res = await fetch(`${this.base}/replace`, {
+  async indexPayload(document: Record<string, unknown>): Promise<void> {
+    if (!this.ready) {
+      await this.ensureTable();
+    }
+    const response = await fetch(`${this.base}/replace`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         index: TABLE,
-        id: this.docId(String(doc.request_id)),
-        doc,
+        id: this.docId(String(document.request_id)),
+        doc: document,
       }),
     });
-    if (!res.ok) {
-      throw new Error(`Manticore replace ${res.status}: ${await res.text()}`);
+    if (!response.ok) {
+      throw new Error(
+        `Manticore replace ${response.status}: ${await response.text()}`,
+      );
     }
   }
 
@@ -49,7 +73,7 @@ export class SearchService implements OnModuleInit {
     requestId: string,
   ): Promise<Record<string, unknown> | null> {
     try {
-      const res = await fetch(`${this.base}/search`, {
+      const response = await fetch(`${this.base}/search`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -58,24 +82,28 @@ export class SearchService implements OnModuleInit {
           limit: 1,
         }),
       });
-      if (!res.ok) return null;
-      const json = (await res.json()) as {
+      if (!response.ok) {
+        return null;
+      }
+      const searchResult = (await response.json()) as {
         hits?: { hits?: Array<{ _source?: Record<string, unknown> }> };
       };
-      return json.hits?.hits?.[0]?._source ?? null;
+      return searchResult.hits?.hits?.[0]?._source ?? null;
     } catch {
       return null;
     }
   }
 
   private async rawSql(query: string): Promise<string> {
-    const res = await fetch(`${this.base}/cli`, {
+    const response = await fetch(`${this.base}/cli`, {
       method: 'POST',
       headers: { 'content-type': 'text/plain' },
       body: query,
     });
-    if (!res.ok) throw new Error(`Manticore SQL ${res.status}`);
-    return res.text();
+    if (!response.ok) {
+      throw new Error(`Manticore SQL ${response.status}`);
+    }
+    return response.text();
   }
 
   // uuid -> 52 位安全整数 id(用于 /replace 幂等;碰撞概率极低,MVP 可接受)

@@ -1,5 +1,7 @@
 # #7: 用户 enabled + last_login_at 实现计划
 
+> 状态：✅ 已完成，本文保留实施时任务顺序，不作为当前进度或测试命令真源。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development(推荐)。Steps 用 `- [ ]`。
 
 **Goal:** users 加 `enabled`(禁用登录 + 每请求吊销)+ `last_login_at`(登录更新);`POST /users/:id/enabled` 启停;列表暴露二者。

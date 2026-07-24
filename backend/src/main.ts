@@ -15,26 +15,30 @@ async function bootstrap() {
     );
   });
 
-  const app = await NestFactory.create(AppModule);
-  const cfg = app.get(ConfigService);
+  const application = await NestFactory.create(AppModule);
+  const configuration = application.get(ConfigService);
 
-  if (cfg.app.globalPrefix) app.setGlobalPrefix(cfg.app.globalPrefix);
-  app.useWebSocketAdapter(new WsAdapter(app));
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  app.useGlobalFilters(new AllExceptionsFilter());
-  app.enableShutdownHooks();
+  if (configuration.app.globalPrefix) {
+    application.setGlobalPrefix(configuration.app.globalPrefix);
+  }
+  application.useWebSocketAdapter(new WsAdapter(application));
+  application.useGlobalPipes(
+    new ValidationPipe({ whitelist: true, transform: true }),
+  );
+  application.useGlobalFilters(new AllExceptionsFilter());
+  application.enableShutdownHooks();
 
-  const swaggerCfg = new DocumentBuilder()
+  const swaggerConfiguration = new DocumentBuilder()
     .setTitle('RER0RPC API')
     .setVersion('0.1')
     .addBearerAuth()
     .build();
   SwaggerModule.setup(
     'docs',
-    app,
-    SwaggerModule.createDocument(app, swaggerCfg),
+    application,
+    SwaggerModule.createDocument(application, swaggerConfiguration),
   );
 
-  await app.listen(cfg.app.port);
+  await application.listen(configuration.app.port);
 }
 void bootstrap();

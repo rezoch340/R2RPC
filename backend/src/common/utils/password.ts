@@ -10,7 +10,9 @@ export function hashPassword(password: string): string {
 // 校验密码;timingSafeEqual 防时序侧信道
 export function verifyPassword(password: string, stored: string): boolean {
   const [scheme, saltHex, hashHex] = stored.split('$');
-  if (scheme !== 'scrypt' || !saltHex || !hashHex) return false;
+  if (scheme !== 'scrypt' || !saltHex || !hashHex) {
+    return false;
+  }
   const hash = scryptSync(password, Buffer.from(saltHex, 'hex'), 64);
   const expected = Buffer.from(hashHex, 'hex');
   return hash.length === expected.length && timingSafeEqual(hash, expected);

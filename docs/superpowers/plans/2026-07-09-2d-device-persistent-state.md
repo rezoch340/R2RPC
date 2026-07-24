@@ -1,5 +1,7 @@
 # 2d: 设备持久态(stale 扫描 + 列表/详情 API + platform/ip/extra/status)实现计划
 
+> 状态：✅ 已完成，本文保留实施时任务顺序，不作为当前进度或测试命令真源。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`).
 
 **Goal:** device-model epic 收尾。给 `devices` 落齐 `platform/last_ip/extra/status` 列;上线时从连接捕获 platform/ip/extra 并置 `status='online'`;加**后台 stale 扫描 worker**(PG `online=true` 但 Redis presence 已过期 → 置 `offline`+`status='stale'`);加**设备列表/详情只读 API**(`read/device`)。

@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { validateDeviceAppAudit } from '../../common/app-audit/app-audit.schema';
+import type { AppAudit } from '../../common/app-audit/app-audit.types';
 import { ProjectsService } from '../projects/projects.service';
 import { QueueService } from '../../infrastructure/queue/queue.service';
 import { ConnectionRegistry } from '../../infrastructure/ws/connection.registry';
@@ -25,6 +27,7 @@ interface DeviceResult {
   httpCode?: number;
   payload?: unknown;
   error?: string;
+  appAudit?: unknown;
 }
 
 export interface InvokeResponse {
@@ -42,30 +45,71 @@ export interface InvokeResponse {
 export class RpcService {
   private readonly logger = new Logger('Rpc');
   constructor(
-    private readonly projects: ProjectsService,
-    private readonly presence: PresenceService,
-    private readonly registry: ConnectionRegistry,
-    private readonly queue: QueueService,
+    private readonly projectsService: ProjectsService,
+    private readonly presenceService: PresenceService,
+    private readonly connectionRegistry: ConnectionRegistry,
+    private readonly queueService: QueueService,
     private readonly requestLogs: RequestLogsService,
   ) {}
 
   // RPC invoke 热路径(可分布式):project 名→project id -> 选设备 -> 注册 waiter -> 跨实例下发 job -> 等 result / 超时 -> 入队日志
-  async invoke(p: InvokeParams): Promise<InvokeResponse> {
+  async invoke(input: InvokeParams): Promise<InvokeResponse> {
     const requestId = randomUUID();
-    const timeoutSeconds = p.timeoutSeconds ?? 20;
-    const timeoutMs = timeoutSeconds * 1000;
+    const timeoutSeconds = input.timeoutSeconds ?? 20;
+    const timeoutMilliseconds = timeoutSeconds * 1000;
     const startedAt = Date.now();
 
-    // project 名 -> {id, enabled}(DB 查询;不存在 404、禁用 403,均不算基础设施异常)
-    let proj: { id: number; enabled: boolean } | null;
+    const projectResolution = await this.resolveProject(
+      input,
+      requestId,
+      startedAt,
+    );
+    if (typeof projectResolution !== 'number') {
+      return projectResolution;
+    }
+
+    const deviceSelection = await this.selectDevice(
+      input,
+      requestId,
+      projectResolution,
+      startedAt,
+    );
+    if (typeof deviceSelection !== 'string') {
+      return deviceSelection;
+    }
+
     try {
-      proj = await this.projects.findEnabledIdByName(p.project);
-    } catch (e) {
+      return await this.dispatchAndAwaitResult(
+        input,
+        requestId,
+        deviceSelection,
+        startedAt,
+        timeoutSeconds,
+        timeoutMilliseconds,
+      );
+    } finally {
+      // 每次 acquire 精确配对一次 release(error/unavailable/success/timeout 全覆盖)
+      await this.presenceService
+        .releaseSlot(deviceSelection)
+        .catch(() => undefined);
+    }
+  }
+
+  private async resolveProject(
+    input: InvokeParams,
+    requestId: string,
+    startedAt: number,
+  ): Promise<number | InvokeResponse> {
+    // project 名 -> {id, enabled}(DB 查询;不存在 404、禁用 403,均不算基础设施异常)
+    let project: { id: number; enabled: boolean } | null;
+    try {
+      project = await this.projectsService.findEnabledIdByName(input.project);
+    } catch (error) {
       this.logger.error(
-        `功能组解析失败(基础设施异常): ${(e as Error).message}`,
+        `功能组解析失败(基础设施异常): ${(error as Error).message}`,
       );
       return this.fail(
-        p,
+        input,
         requestId,
         null,
         startedAt,
@@ -74,9 +118,9 @@ export class RpcService {
         '基础设施异常,无法调度',
       );
     }
-    if (!proj) {
+    if (!project) {
       return this.fail(
-        p,
+        input,
         requestId,
         null,
         startedAt,
@@ -85,9 +129,9 @@ export class RpcService {
         '功能组不存在',
       );
     }
-    if (!proj.enabled) {
+    if (!project.enabled) {
       return this.fail(
-        p,
+        input,
         requestId,
         null,
         startedAt,
@@ -96,71 +140,193 @@ export class RpcService {
         '功能组已停用',
       );
     }
-    const projectId = proj.id;
+    return project.id;
+  }
 
+  private async selectDevice(
+    input: InvokeParams,
+    requestId: string,
+    projectId: number,
+    startedAt: number,
+  ): Promise<string | InvokeResponse> {
     // 选目标设备 + 占在途槽(合一步,边挑边占):
     //  - 指定 clientId:校验在线 → 占其槽,满则 rejected;
     //  - 未指定:组内 RR 轮询挑第一个未满设备并占槽,全满才 rejected(组饱和)。
-    // 到达下面 dispatch try 时槽必已占(由 finally releaseSlot 释放);占槽成功到出 try 之间无 await,
-    // catch 不会泄漏已占的槽。基础设施(redis)异常也要留取证脊柱。
-    let clientId = p.clientId ?? null;
     try {
-      if (clientId) {
-        if (!(await this.presence.isOnline(clientId))) {
-          return this.fail(
-            p,
-            requestId,
-            clientId,
-            startedAt,
-            'offline',
-            503,
-            '指定设备不在线',
-          );
-        }
-        const maxInFlight = await this.presence.getMaxInFlight(clientId);
-        if (!(await this.presence.tryAcquireSlot(clientId, maxInFlight))) {
-          return this.fail(
-            p,
-            requestId,
-            clientId,
-            startedAt,
-            'rejected',
-            429,
-            '设备在途任务已满',
-          );
-        }
-      } else {
-        const picked = await this.presence.pickOnlineAcquire(projectId);
-        if (picked === 'no_device') {
-          return this.fail(
-            p,
-            requestId,
-            null,
-            startedAt,
-            'no_device',
-            503,
-            '功能组内无在线设备',
-          );
-        }
-        if (picked === 'saturated') {
-          return this.fail(
-            p,
-            requestId,
-            null,
-            startedAt,
-            'rejected',
-            429,
-            '功能组内设备在途任务均已满',
-          );
-        }
-        clientId = picked.clientId;
+      if (input.clientId) {
+        return await this.acquireRequestedDevice(
+          input,
+          requestId,
+          input.clientId,
+          startedAt,
+        );
       }
-    } catch (e) {
+      return await this.acquireAvailableDevice(
+        input,
+        requestId,
+        projectId,
+        startedAt,
+      );
+    } catch (error) {
       this.logger.error(
-        `设备选择/占槽失败(基础设施异常): ${(e as Error).message}`,
+        `设备选择/占槽失败(基础设施异常): ${(error as Error).message}`,
       );
       return this.fail(
-        p,
+        input,
+        requestId,
+        input.clientId ?? null,
+        startedAt,
+        'error',
+        503,
+        '基础设施异常,无法调度',
+      );
+    }
+  }
+
+  private async acquireRequestedDevice(
+    input: InvokeParams,
+    requestId: string,
+    clientId: string,
+    startedAt: number,
+  ): Promise<string | InvokeResponse> {
+    const isOnline = await this.presenceService.isOnline(clientId);
+    if (!isOnline) {
+      return this.fail(
+        input,
+        requestId,
+        clientId,
+        startedAt,
+        'offline',
+        503,
+        '指定设备不在线',
+      );
+    }
+    const maximumInFlight = await this.presenceService.getMaxInFlight(clientId);
+    const acquired = await this.presenceService.tryAcquireSlot(
+      clientId,
+      maximumInFlight,
+    );
+    if (!acquired) {
+      return this.fail(
+        input,
+        requestId,
+        clientId,
+        startedAt,
+        'rejected',
+        429,
+        '设备在途任务已满',
+      );
+    }
+    return clientId;
+  }
+
+  private async acquireAvailableDevice(
+    input: InvokeParams,
+    requestId: string,
+    projectId: number,
+    startedAt: number,
+  ): Promise<string | InvokeResponse> {
+    const selection = await this.presenceService.pickOnlineAcquire(projectId);
+    if (selection === 'no_device') {
+      return this.fail(
+        input,
+        requestId,
+        null,
+        startedAt,
+        'no_device',
+        503,
+        '功能组内无在线设备',
+      );
+    }
+    if (selection === 'saturated') {
+      return this.fail(
+        input,
+        requestId,
+        null,
+        startedAt,
+        'rejected',
+        429,
+        '功能组内设备在途任务均已满',
+      );
+    }
+    return selection.clientId;
+  }
+
+  private async dispatchAndAwaitResult(
+    input: InvokeParams,
+    requestId: string,
+    clientId: string,
+    startedAt: number,
+    timeoutSeconds: number,
+    timeoutMilliseconds: number,
+  ): Promise<InvokeResponse> {
+    const job = {
+      type: 'job',
+      requestId,
+      project: input.project,
+      action: input.action,
+      payload: input.payload,
+      timeoutSeconds,
+      deadlineAt: startedAt + timeoutMilliseconds,
+    };
+
+    // 先同步注册本地 waiter,再 await 写 redis 等待方标记,最后才 dispatch ——
+    // 不依赖 ioredis 的 FIFO 顺序,严格保证 waiter 落地早于 job 被设备处理、result 回流。
+    const resultPromise = this.connectionRegistry.registerWaiter<DeviceResult>(
+      requestId,
+      clientId,
+      timeoutMilliseconds,
+    );
+    // dispatch 失败时 cancelWaiter 会拒绝该 Promise;提前挂处理器避免 unhandled rejection。
+    resultPromise.catch(() => undefined);
+
+    const dispatchFailure = await this.dispatchJob(
+      input,
+      job,
+      requestId,
+      clientId,
+      startedAt,
+      timeoutMilliseconds,
+    );
+    if (dispatchFailure) {
+      return dispatchFailure;
+    }
+
+    try {
+      const result = await resultPromise;
+      return this.success(input, requestId, clientId, startedAt, result);
+    } catch {
+      return this.fail(
+        input,
+        requestId,
+        clientId,
+        startedAt,
+        'timeout',
+        504,
+        `超时(${timeoutSeconds}s)`,
+      );
+    }
+  }
+
+  private async dispatchJob(
+    input: InvokeParams,
+    job: object,
+    requestId: string,
+    clientId: string,
+    startedAt: number,
+    timeoutMilliseconds: number,
+  ): Promise<InvokeResponse | null> {
+    let dispatched: boolean;
+    try {
+      await this.connectionRegistry.markWaiting(requestId, timeoutMilliseconds);
+      dispatched = await this.connectionRegistry.dispatchJob(clientId, job);
+    } catch (error) {
+      this.connectionRegistry.cancelWaiter(requestId, 'dispatch_error');
+      this.logger.error(
+        `job 派发失败(基础设施异常): ${(error as Error).message}`,
+      );
+      return this.fail(
+        input,
         requestId,
         clientId,
         startedAt,
@@ -169,95 +335,79 @@ export class RpcService {
         '基础设施异常,无法调度',
       );
     }
-    try {
-      const job = {
-        type: 'job',
-        requestId,
-        project: p.project,
-        action: p.action,
-        payload: p.payload,
-        timeoutSeconds,
-        deadlineAt: startedAt + timeoutMs, // startedAt/timeoutMs 已在 invoke 作用域
-      };
-
-      // 先同步注册本地 waiter,再 await 写 redis 等待方标记,最后才 dispatch ——
-      // 不依赖 ioredis 的 FIFO 顺序,严格保证 waiter 落地早于 job 被设备处理、result 回流。
-      // dispatch 失败/异常分支下面会 cancelWaiter 直接 reject 而不 await 它,这里挂个空 catch
-      // 防止那种情况下产生 unhandled rejection 把进程带崩(redis 故障绝不能挂死进程)。
-      const resultP = this.registry.registerWaiter<DeviceResult>(
-        requestId,
-        clientId,
-        timeoutMs,
-      );
-      resultP.catch(() => {});
-
-      let dispatched: boolean;
-      try {
-        // markWaiting 必须 await 完再 dispatch,不依赖 ioredis 的 FIFO 顺序
-        await this.registry.markWaiting(requestId, timeoutMs);
-        dispatched = await this.registry.dispatchJob(clientId, job);
-      } catch (e) {
-        this.registry.cancelWaiter(requestId, 'dispatch_error');
-        this.logger.error(
-          `job 派发失败(基础设施异常): ${(e as Error).message}`,
-        );
-        return this.fail(
-          p,
-          requestId,
-          clientId,
-          startedAt,
-          'error',
-          503,
-          '基础设施异常,无法调度',
-        );
-      }
-      if (!dispatched) {
-        this.registry.cancelWaiter(requestId, 'unavailable');
-        return this.fail(
-          p,
-          requestId,
-          clientId,
-          startedAt,
-          'unavailable',
-          503,
-          '设备连接已断开',
-        );
-      }
-
-      try {
-        const result = await resultP;
-        const isOk = result.is_ok ?? result.status === 'ok';
-        const resp: InvokeResponse = {
-          requestId,
-          clientId,
-          is_ok: !!isOk,
-          status: result.status ?? (isOk ? 'ok' : 'error'),
-          httpCode: result.httpCode ?? 200,
-          latencyMs: Date.now() - startedAt,
-          payload: result.payload,
-          error: result.error,
-        };
-        void this.enqueueLog(p, resp, startedAt, result.payload);
-        return resp;
-      } catch {
-        return this.fail(
-          p,
-          requestId,
-          clientId,
-          startedAt,
-          'timeout',
-          504,
-          `超时(${timeoutSeconds}s)`,
-        );
-      }
-    } finally {
-      // 每次 acquire 精确配对一次 release(error/unavailable/success/timeout 全覆盖)
-      await this.presence.releaseSlot(clientId).catch(() => undefined);
+    if (dispatched) {
+      return null;
     }
+    this.connectionRegistry.cancelWaiter(requestId, 'unavailable');
+    return this.fail(
+      input,
+      requestId,
+      clientId,
+      startedAt,
+      'unavailable',
+      503,
+      '设备连接已断开',
+    );
+  }
+
+  private success(
+    input: InvokeParams,
+    requestId: string,
+    clientId: string,
+    startedAt: number,
+    result: DeviceResult,
+  ): InvokeResponse {
+    const isSuccessful = result.is_ok ?? result.status === 'ok';
+    const response: InvokeResponse = {
+      requestId,
+      clientId,
+      is_ok: Boolean(isSuccessful),
+      status: this.resultStatus(result.status, isSuccessful),
+      httpCode: result.httpCode ?? 200,
+      latencyMs: Date.now() - startedAt,
+      payload: result.payload,
+      error: result.error,
+    };
+    const appAudit = this.validAppAudit(result.appAudit, requestId);
+    void this.enqueueRequestLog(
+      input,
+      response,
+      startedAt,
+      result.payload,
+      appAudit,
+    );
+    return response;
+  }
+
+  private resultStatus(
+    reportedStatus: string | undefined,
+    isSuccessful: boolean,
+  ): string {
+    if (reportedStatus) {
+      return reportedStatus;
+    }
+    return isSuccessful ? 'ok' : 'error';
+  }
+
+  private validAppAudit(
+    reportedAppAudit: unknown,
+    requestId: string,
+  ): AppAudit | null {
+    if (reportedAppAudit === undefined) {
+      return null;
+    }
+    const validation = validateDeviceAppAudit(reportedAppAudit);
+    if (validation.success) {
+      return validation.data;
+    }
+    this.logger.warn(
+      `设备 appAudit 已丢弃: requestId=${requestId}, 原因=${validation.reason}`,
+    );
+    return null;
   }
 
   private fail(
-    p: InvokeParams,
+    input: InvokeParams,
     requestId: string,
     clientId: string | null,
     startedAt: number,
@@ -265,7 +415,7 @@ export class RpcService {
     httpCode: number,
     error: string,
   ): InvokeResponse {
-    const resp: InvokeResponse = {
+    const response: InvokeResponse = {
       requestId,
       clientId,
       is_ok: false,
@@ -274,50 +424,55 @@ export class RpcService {
       latencyMs: Date.now() - startedAt,
       error,
     };
-    void this.enqueueLog(p, resp, startedAt, null);
-    return resp;
+    void this.enqueueRequestLog(input, response, startedAt, null, null);
+    return response;
   }
 
   // 入队请求日志(冷路径)。Redis/BullMQ 不可用时降级同步写 PG 脊柱(task7 补全)。
-  private async enqueueLog(
-    p: InvokeParams,
-    resp: InvokeResponse,
+  private async enqueueRequestLog(
+    input: InvokeParams,
+    response: InvokeResponse,
     startedAt: number,
     responsePayload: unknown,
+    appAudit: AppAudit | null,
   ) {
     const job: RequestLogJob = {
-      requestId: resp.requestId,
-      project: p.project,
-      action: p.action,
-      clientId: resp.clientId,
+      requestId: response.requestId,
+      project: input.project,
+      action: input.action,
+      clientId: response.clientId,
       requesterUserId: null,
-      accessTokenId: p.accessTokenId ?? null,
-      status: resp.status,
-      httpCode: resp.httpCode,
-      latencyMs: resp.latencyMs,
-      error: resp.error ?? null,
-      requestPayload: p.payload,
+      accessTokenId: input.accessTokenId ?? null,
+      status: response.status,
+      httpCode: response.httpCode,
+      latencyMs: response.latencyMs,
+      error: response.error ?? null,
+      requestPayload: input.payload,
       responsePayload,
+      appAudit,
       createdAt: new Date(startedAt).toISOString(),
       finishedAt: new Date().toISOString(),
     };
     try {
       // 入队加超时:BullMQ 在 redis 挂时会一直重试而不报错,超时即视为失败走降级
       await Promise.race([
-        this.queue.enqueueRequestLog(job),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('enqueue timeout')), 3000),
-        ),
+        this.queueService.enqueueRequestLog(job),
+        new Promise((unusedResolve, reject) => {
+          void unusedResolve;
+          setTimeout(() => reject(new Error('enqueue timeout')), 3000);
+        }),
       ]);
-    } catch (e) {
+    } catch (error) {
       // Redis/BullMQ 不可用:降级同步写 PG 脊柱,payload 缺失标 unavailable,保证至少有取证记录
       this.logger.warn(
-        `入队请求日志失败,降级同步写 PG 脊柱: ${(e as Error).message}`,
+        `入队请求日志失败,降级同步写 PG 脊柱: ${(error as Error).message}`,
       );
       await this.requestLogs
         .writeSpine(job, 'unavailable')
-        .catch((err) =>
-          this.logger.error(`降级写脊柱也失败: ${(err as Error).message}`),
+        .catch((writeError) =>
+          this.logger.error(
+            `降级写脊柱也失败: ${(writeError as Error).message}`,
+          ),
         );
     }
   }

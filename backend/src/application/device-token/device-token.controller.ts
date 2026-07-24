@@ -23,13 +23,13 @@ export class DeviceTokenController {
   @Post()
   @RequirePermission('manage', 'device-token')
   @ApiOperation({ summary: '生成 device token(返回明文,供 SDK 配置)' })
-  create(@Body() dto: CreateDeviceTokenDto, @Req() req: AuthedRequest) {
+  create(@Body() input: CreateDeviceTokenDto, @Req() request: AuthedRequest) {
     return this.tokens.create({
-      name: dto.name,
-      projects: dto.projects,
-      description: dto.description,
-      expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
-      createdBy: req.user?.id,
+      name: input.name,
+      projects: input.projects,
+      description: input.description,
+      expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
+      createdBy: request.user?.id,
     });
   }
 
@@ -45,14 +45,14 @@ export class DeviceTokenController {
   @Post(':id/revoke')
   @RequirePermission('manage', 'device-token')
   @ApiOperation({ summary: '撤销 device token' })
-  revoke(@Param('id', ParseIntPipe) id: number) {
-    return this.tokens.revoke(id);
+  revoke(@Param('id', ParseIntPipe) deviceTokenId: number) {
+    return this.tokens.revoke(deviceTokenId);
   }
 
   @Delete(':id')
   @RequirePermission('manage', 'device-token')
   @ApiOperation({ summary: '删除 device token(软删,与撤销正交)' })
-  delete(@Param('id', ParseIntPipe) id: number) {
-    return this.tokens.delete(id);
+  delete(@Param('id', ParseIntPipe) deviceTokenId: number) {
+    return this.tokens.delete(deviceTokenId);
   }
 }

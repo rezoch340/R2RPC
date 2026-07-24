@@ -1,5 +1,7 @@
 # #4: maxInFlight 在途并发限流(+ #10 rejected)实现计划
 
+> 状态：✅ 已完成，本文保留实施时任务顺序，不作为当前进度或测试命令真源。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development(推荐)。Steps 用 `- [ ]`。
 
 **Goal:** 单设备在途任务上限:设备 WS 连接自报 `?maxInFlight`(夹 [256,1024]),invoke 派发前查该设备在途数,满则返 `rejected`/429。在途计数走 Redis(跨实例),acquire/release 精确配对。捎带交付 #10 的 `rejected` 状态。
@@ -328,7 +330,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/scripts/max-infligh
 - 完成记录顶部加:
 ```markdown
 ### 2026-07-09 · #4 maxInFlight 在途并发限流(+ #10 rejected) — PR #<n>
-- 设备 WS 连接 `?maxInFlight` 自报,服务端夹 [256,1024](默认512),存 Redis `device:maxinflight:{cid}`(TTL 随 presence 刷)+ devices 行 + welcome 回带。迁移 `0006`。
+- 设备 WS 连接 `?maxInFlight` 自报,服务端夹到 `[256,1024]`(默认 512),存 Redis `device:maxinflight:{cid}`(TTL 随 presence 刷)+ devices 行 + welcome 回带。迁移 `0006`。
 - 在途计数 Redis `device:inflight:{cid}`:invoke 选到设备后 `tryAcquireSlot`(INCR,超上限自减回退→`rejected`/429),派发段 try/finally `releaseSlot`(DECR)保证 error/unavailable/success/timeout 全覆盖恰好一次;连接 `resetInFlight`、下线 offline 清理防泄漏。
 - **#10 rejected 状态**随本项交付(队列满)。多设备"轮询跳过满设备"的组饱和精确判 = 延后 refinement(单设备项已精确;cap 256 极少触发)。
 - 验证:build/lint/format 绿;直连冒烟 `maxinflight:smoke`(acquire/release 4 断言)绿;e2e smoke welcome/devices maxInFlight 断言绿。

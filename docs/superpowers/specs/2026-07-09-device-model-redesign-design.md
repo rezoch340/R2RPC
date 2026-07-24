@@ -1,5 +1,7 @@
 # 设备接入模型重构(device-model redesign)设计文档
 
+> 状态：✅ 已实施，作为历史设计归档；当前能力与命令以 `docs/RER0RPC-核心功能统计.md` 为准。
+
 > **性质:** epic 级设计北极星。定架构与决策,不含实现细节(SQL/端点级细节在各子项 spec 里)。
 > **状态:** 设计已与用户对齐(2026-07-09 更新:device token 天然绑定 project、砍 client_groups)。待用户终审后逐子项 spec → plan → 实现。
 > **生成:** 2026-07-09。

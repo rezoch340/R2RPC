@@ -7,12 +7,13 @@ import { QUEUE } from './queue.constants';
 @Injectable()
 export class QueueService {
   constructor(
-    @InjectQueue(QUEUE.REQUEST_LOG) private readonly requestLog: Queue,
+    @InjectQueue(QUEUE.REQUEST_LOG)
+    private readonly requestLogQueue: Queue,
   ) {}
 
   // 入队一条请求日志任务(脊柱 + payload 文档由 worker 落库);失败重试 3 次,耗尽转 dead-letter
-  enqueueRequestLog(data: object) {
-    return this.requestLog.add('log', data, {
+  enqueueRequestLog(requestLog: object) {
+    return this.requestLogQueue.add('log', requestLog, {
       attempts: 3,
       backoff: { type: 'exponential', delay: 2000 },
       removeOnComplete: true,

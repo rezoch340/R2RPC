@@ -29,10 +29,10 @@ export const devices = pgTable(
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
-  (t) => [
+  (table) => [
     uniqueIndex('devices_client_id_uq')
-      .on(t.clientId)
-      .where(sql`${t.deletedAt} IS NULL`),
-    index('devices_device_token_id_idx').on(t.deviceTokenId),
+      .on(table.clientId)
+      .where(sql`${table.deletedAt} IS NULL`),
+    index('devices_device_token_id_idx').on(table.deviceTokenId),
   ],
 );

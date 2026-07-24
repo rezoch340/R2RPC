@@ -21,9 +21,9 @@ import { RpcService } from './rpc.service';
 @Controller()
 export class RpcController {
   constructor(
-    private readonly rpc: RpcService,
-    private readonly presence: PresenceService,
-    private readonly projects: ProjectsService,
+    private readonly rpcService: RpcService,
+    private readonly presenceService: PresenceService,
+    private readonly projectsService: ProjectsService,
   ) {}
 
   // invoke 走独立 access token 体系(非用户 JWT/RBAC):@Public 跳过全局 JwtAuthGuard/PermissionGuard,
@@ -37,17 +37,17 @@ export class RpcController {
   invoke(
     @Param('project') project: string,
     @Param('action') action: string,
-    @Body() dto: InvokeDto,
+    @Body() input: InvokeDto,
     @Query('clientId') clientId: string | undefined,
-    @Req() req: { accessToken?: { id: number } },
+    @Req() request: { accessToken?: { id: number } },
   ) {
-    return this.rpc.invoke({
+    return this.rpcService.invoke({
       project,
       action,
-      payload: dto.payload,
-      timeoutSeconds: dto.timeoutSeconds,
+      payload: input.payload,
+      timeoutSeconds: input.timeoutSeconds,
       clientId,
-      accessTokenId: req.accessToken?.id,
+      accessTokenId: request.accessToken?.id,
     });
   }
 
@@ -60,10 +60,18 @@ export class RpcController {
     @Query('clientId') clientId?: string,
   ) {
     if (clientId) {
-      return { clientId, online: await this.presence.isOnline(clientId) };
+      return {
+        clientId,
+        online: await this.presenceService.isOnline(clientId),
+      };
     }
-    const projectId = await this.projects.idByName(project);
-    if (!projectId) return { project, online: [] };
-    return { project, online: await this.presence.listOnline(projectId) };
+    const projectId = await this.projectsService.idByName(project);
+    if (!projectId) {
+      return { project, online: [] };
+    }
+    return {
+      project,
+      online: await this.presenceService.listOnline(projectId),
+    };
   }
 }

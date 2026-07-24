@@ -11,23 +11,25 @@ export class ConfigService {
   readonly all: AppConfig;
 
   constructor() {
-    const file = process.env.CONFIG_FILE
+    const configurationFile = process.env.CONFIG_FILE
       ? resolve(process.env.CONFIG_FILE)
       : resolve(process.cwd(), 'config.yaml');
-    let raw: unknown;
+    let configurationSource: unknown;
     try {
-      raw = load(readFileSync(file, 'utf8'));
-    } catch (e) {
-      throw new Error(`读取配置文件失败: ${file} — ${(e as Error).message}`);
+      configurationSource = load(readFileSync(configurationFile, 'utf8'));
+    } catch (error) {
+      throw new Error(
+        `读取配置文件失败: ${configurationFile} — ${(error as Error).message}`,
+      );
     }
-    const parsed = configSchema.safeParse(raw);
-    if (!parsed.success) {
+    const validation = configSchema.safeParse(configurationSource);
+    if (!validation.success) {
       this.logger.error('配置校验失败,进程终止:');
-      this.logger.error(JSON.stringify(parsed.error.format(), null, 2));
+      this.logger.error(JSON.stringify(validation.error.format(), null, 2));
       throw new Error('配置校验失败,启动终止');
     }
-    this.all = Object.freeze(parsed.data);
-    this.logger.log(`配置已加载: ${file}`);
+    this.all = Object.freeze(validation.data);
+    this.logger.log(`配置已加载: ${configurationFile}`);
   }
 
   get app() {

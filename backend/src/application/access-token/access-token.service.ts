@@ -20,8 +20,8 @@ export class AccessTokenService {
     private readonly redis: RedisService,
   ) {}
 
-  private get db() {
-    return this.dbService.db;
+  private get database() {
+    return this.dbService.database;
   }
 
   /**
@@ -44,20 +44,20 @@ export class AccessTokenService {
     // 验证 project 存在,解析 project id
     const projectIds: number[] = [];
     for (const projectName of projectNames) {
-      const gid = await this.projects.idByName(projectName);
-      if (gid === null) {
+      const projectId = await this.projects.idByName(projectName);
+      if (projectId === null) {
         throw new BadRequestException(`功能组不存在: ${projectName}`);
       }
-      projectIds.push(gid);
+      projectIds.push(projectId);
     }
 
     // 生成 token(明文可回看,per 设计)
     const token = 'rk_' + randomBytes(24).toString('base64url');
 
     // 事务:插 accessTokens + accessTokenProjects
-    const result = await this.db.transaction(async (tx) => {
+    const result = await this.database.transaction(async (transaction) => {
       // 插 accessTokens,返回完整行
-      const insertResult = await tx
+      const insertResult = await transaction
         .insert(accessTokens)
         .values({
           name: input.name,
@@ -72,7 +72,7 @@ export class AccessTokenService {
 
       // 为每个 projectId 插 accessTokenProjects
       for (const projectId of projectIds) {
-        await tx.insert(accessTokenProjects).values({
+        await transaction.insert(accessTokenProjects).values({
           tokenId: tokenRow.id,
           projectId,
         });
@@ -93,15 +93,15 @@ export class AccessTokenService {
    */
   async list() {
     // ponytail: 简单 select + 内存 join;若列表超大,可建数据库 view
-    const tokens = await this.db
+    const tokenRecords = await this.database
       .select()
       .from(accessTokens)
       .where(alive(accessTokens));
 
     // 为每个 token 查其 project 名
     const result = await Promise.all(
-      tokens.map(async (t) => {
-        const projectNames = await this.db
+      tokenRecords.map(async (tokenRecord) => {
+        const projectNames = await this.database
           .select({ name: projects.name })
           .from(accessTokenProjects)
           // 软删 project 不进展示的 project 名列表(读到已删)
@@ -109,10 +109,10 @@ export class AccessTokenService {
             projects,
             alive(projects, eq(accessTokenProjects.projectId, projects.id)),
           )
-          .where(eq(accessTokenProjects.tokenId, t.id));
+          .where(eq(accessTokenProjects.tokenId, tokenRecord.id));
         return {
-          ...t,
-          projects: projectNames.map((g) => g.name),
+          ...tokenRecord,
+          projects: projectNames.map((projectRecord) => projectRecord.name),
         };
       }),
     );
@@ -124,29 +124,29 @@ export class AccessTokenService {
    * 撤销 token:更新 status='revoked',并同步删 redis 正缓存
    * (guard 侧对已验证过的 token 会缓存 60s,若不主动删,撤销后仍可再用满 60s)
    */
-  async revoke(id: number) {
-    const result = await this.db
+  async revoke(accessTokenId: number) {
+    const result = await this.database
       .update(accessTokens)
       .set({ status: 'revoked' })
-      .where(eq(accessTokens.id, id))
+      .where(eq(accessTokens.id, accessTokenId))
       .returning();
 
     if (result.length === 0) {
       throw new NotFoundException('Token 不存在');
     }
 
-    const row = result[0];
-    if (row?.token) {
+    const accessTokenRecord = result[0];
+    if (accessTokenRecord?.token) {
       // key 格式需与 AccessTokenGuard 完全一致(sha256 摘要明文 token)
-      const key = `invoke:token:${createHash('sha256').update(row.token).digest('hex')}`;
+      const cacheKey = `invoke:token:${createHash('sha256').update(accessTokenRecord.token).digest('hex')}`;
       try {
-        await this.redis.client.del(key);
+        await this.redis.client.del(cacheKey);
       } catch {
         // fail-open: 缓存删失败不阻断撤销,最长 60s 后自然过期
       }
     }
 
-    return row;
+    return accessTokenRecord;
   }
 
   /**
@@ -154,28 +154,28 @@ export class AccessTokenService {
    * 返回 { id, name, status, expiresAt, projectIds }
    */
   async findByToken(token: string) {
-    const [row] = await this.db
+    const [accessTokenRecord] = await this.database
       .select()
       .from(accessTokens)
       .where(alive(accessTokens, eq(accessTokens.token, token)))
       .limit(1);
 
-    if (!row) {
+    if (!accessTokenRecord) {
       return null;
     }
 
     // 查该 token 的所有 projectIds
-    const projectRows = await this.db
+    const projectRows = await this.database
       .select({ projectId: accessTokenProjects.projectId })
       .from(accessTokenProjects)
-      .where(eq(accessTokenProjects.tokenId, row.id));
+      .where(eq(accessTokenProjects.tokenId, accessTokenRecord.id));
 
     return {
-      id: row.id,
-      name: row.name,
-      status: row.status,
-      expiresAt: row.expiresAt,
-      projectIds: projectRows.map((gr) => gr.projectId),
+      id: accessTokenRecord.id,
+      name: accessTokenRecord.name,
+      status: accessTokenRecord.status,
+      expiresAt: accessTokenRecord.expiresAt,
+      projectIds: projectRows.map((projectRecord) => projectRecord.projectId),
     };
   }
 
@@ -183,20 +183,20 @@ export class AccessTokenService {
    * 软删 token(与 revoke 正交:revoke 改 status,delete 走软删)。
    * 同步删 redis 正缓存,确保已删 token 立即失效(findByToken 会因 alive() 过滤返回 null → guard 401)。
    */
-  async delete(id: number) {
-    const rows = await softDelete(
-      this.db,
+  async delete(accessTokenId: number) {
+    const deletedTokens = await softDelete(
+      this.database,
       accessTokens,
-      eq(accessTokens.id, id),
+      eq(accessTokens.id, accessTokenId),
     );
-    if (rows.length === 0) {
+    if (deletedTokens.length === 0) {
       throw new NotFoundException('Token 不存在');
     }
-    const row = rows[0] as { token?: string };
-    if (row.token) {
-      const key = `invoke:token:${createHash('sha256').update(row.token).digest('hex')}`;
+    const accessTokenRecord = deletedTokens[0] as { token?: string };
+    if (accessTokenRecord.token) {
+      const cacheKey = `invoke:token:${createHash('sha256').update(accessTokenRecord.token).digest('hex')}`;
       try {
-        await this.redis.client.del(key);
+        await this.redis.client.del(cacheKey);
       } catch {
         // fail-open: 缓存删失败不阻断,最长 60s 自然过期
       }

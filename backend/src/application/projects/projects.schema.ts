@@ -21,9 +21,9 @@ export const projects = pgTable(
       .defaultNow(),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
-  (t) => [
+  (table) => [
     uniqueIndex('projects_name_uq')
-      .on(t.name)
-      .where(sql`${t.deletedAt} IS NULL`),
+      .on(table.name)
+      .where(sql`${table.deletedAt} IS NULL`),
   ],
 );

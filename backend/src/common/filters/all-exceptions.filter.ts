@@ -19,7 +19,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger('Exception');
 
   catch(exception: unknown, host: ArgumentsHost) {
-    const res = host.switchToHttp().getResponse<HttpResponseLike>();
+    const response = host.switchToHttp().getResponse<HttpResponseLike>();
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
@@ -29,7 +29,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.getResponse()
         : 'Internal server error';
     this.logger.error(exception);
-    res.status(status).json({
+    response.status(status).json({
       statusCode: status,
       message,
       timestamp: new Date().toISOString(),

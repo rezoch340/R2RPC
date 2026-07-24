@@ -5,7 +5,12 @@ import {
   Param,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { QueryRequestOptionsDto } from './dto/query-request-options.dto';
 import { QueryRequestsDto } from './dto/query-requests.dto';
@@ -20,16 +25,16 @@ export class MonitorController {
   @Get('requests')
   @RequirePermission('read', 'monitor')
   @ApiOperation({ summary: '请求记录列表(查 PG 脊柱,不返 payload)' })
-  list(@Query() q: QueryRequestsDto) {
+  list(@Query() query: QueryRequestsDto) {
     return this.monitor.list({
-      project: q.project,
-      action: q.action,
-      clientId: q.clientId,
-      status: q.status,
-      from: q.from ? new Date(q.from) : undefined,
-      to: q.to ? new Date(q.to) : undefined,
-      page: q.page,
-      pageSize: q.pageSize,
+      project: query.project,
+      action: query.action,
+      clientId: query.clientId,
+      status: query.status,
+      from: query.from ? new Date(query.from) : undefined,
+      to: query.to ? new Date(query.to) : undefined,
+      page: query.page,
+      pageSize: query.pageSize,
     });
   }
 
@@ -39,20 +44,28 @@ export class MonitorController {
     summary:
       '请求筛选下拉选项(去重 project/action/client,联动过滤 + 实体仍存在)',
   })
-  requestOptions(@Query() q: QueryRequestOptionsDto) {
+  requestOptions(@Query() query: QueryRequestOptionsDto) {
     return this.monitor.requestOptions({
-      project: q.project,
-      action: q.action,
-      clientId: q.clientId,
+      project: query.project,
+      action: query.action,
+      clientId: query.clientId,
     });
   }
 
   @Get('requests/:requestId')
   @RequirePermission('read', 'monitor')
-  @ApiOperation({ summary: '请求详情(PG 脊柱 + 懒加载 Manticore payload)' })
+  @ApiOperation({
+    summary: '请求详情(PG 脊柱 + 懒加载 Manticore payload/AppAudit)',
+  })
+  @ApiOkResponse({
+    description:
+      '返回请求/响应 payload；设备上报且校验通过时 appAudit 为 V1 Step 结构，否则为 null',
+  })
   async detail(@Param('requestId') requestId: string) {
-    const d = await this.monitor.detail(requestId);
-    if (!d) throw new NotFoundException('请求日志不存在');
-    return d;
+    const requestDetail = await this.monitor.detail(requestId);
+    if (!requestDetail) {
+      throw new NotFoundException('请求日志不存在');
+    }
+    return requestDetail;
   }
 }

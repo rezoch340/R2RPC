@@ -24,13 +24,13 @@ export class AccessTokenController {
   @Post()
   @RequirePermission('manage', 'access-token')
   @ApiOperation({ summary: '生成 access token(返回明文)' })
-  create(@Body() dto: CreateAccessTokenDto, @Req() req: AuthedRequest) {
+  create(@Body() input: CreateAccessTokenDto, @Req() request: AuthedRequest) {
     return this.tokens.create({
-      name: dto.name,
-      projects: dto.projects,
-      description: dto.description,
-      expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
-      createdBy: req.user?.id,
+      name: input.name,
+      projects: input.projects,
+      description: input.description,
+      expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
+      createdBy: request.user?.id,
     });
   }
 
@@ -46,15 +46,15 @@ export class AccessTokenController {
   @Post(':id/revoke')
   @RequirePermission('manage', 'access-token')
   @ApiOperation({ summary: '撤销 access token' })
-  revoke(@Param('id', ParseIntPipe) id: number) {
-    return this.tokens.revoke(id);
+  revoke(@Param('id', ParseIntPipe) accessTokenId: number) {
+    return this.tokens.revoke(accessTokenId);
   }
 
   // 删除 token(软删,与撤销正交)
   @Delete(':id')
   @RequirePermission('manage', 'access-token')
   @ApiOperation({ summary: '删除 access token(软删,与撤销正交)' })
-  delete(@Param('id', ParseIntPipe) id: number) {
-    return this.tokens.delete(id);
+  delete(@Param('id', ParseIntPipe) accessTokenId: number) {
+    return this.tokens.delete(accessTokenId);
   }
 }

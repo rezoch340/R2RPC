@@ -1,6 +1,8 @@
 app:
   port: 3000
   globalPrefix: ''
+  # 设备侧看到的公网 WS 地址；不填时回退 ws://127.0.0.1:{port}
+  publicWsUrl: ws://127.0.0.1:3000/api/client/ws
 
 db:
   host: 127.0.0.1
@@ -21,3 +23,8 @@ jwt:
 
 manticore:
   url: http://127.0.0.1:9308
+
+retention:
+  rawRetentionDays: 3
+  keepLatestPerScope: 100
+  aggregateRetentionDays: 30

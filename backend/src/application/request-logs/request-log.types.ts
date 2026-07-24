@@ -1,3 +1,5 @@
+import type { AppAudit } from '../../common/app-audit/app-audit.types';
+
 // 请求日志队列任务体(热路径入队 / worker 消费 / 降级同步写共用)
 export interface RequestLogJob {
   requestId: string;
@@ -13,6 +15,7 @@ export interface RequestLogJob {
   error: string | null;
   requestPayload: unknown;
   responsePayload: unknown;
+  appAudit: AppAudit | null;
   createdAt: string;
   finishedAt: string;
 }

@@ -28,7 +28,9 @@ export class PermissionGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (isPublic) return true;
+    if (isPublic) {
+      return true;
+    }
 
     const { user } = context.switchToHttp().getRequest<AuthedRequest>();
 
@@ -37,15 +39,21 @@ export class PermissionGuard implements CanActivate {
       AUTHENTICATED_ONLY_KEY,
       [context.getHandler(), context.getClass()],
     );
-    if (authedOnly) return !!user;
+    if (authedOnly) {
+      return !!user;
+    }
 
     const required = this.reflector.get<RequiredPermission>(
       PERMISSION_KEY,
       context.getHandler(),
     );
-    if (!required) throw new ForbiddenException('未声明权限要求');
+    if (!required) {
+      throw new ForbiddenException('未声明权限要求');
+    }
 
-    if (user?.isRoot) return true;
+    if (user?.isRoot) {
+      return true;
+    }
 
     const ability = this.rbac.buildAbility(user?.permissions ?? []);
     if (!ability.can(required.action, required.subject)) {

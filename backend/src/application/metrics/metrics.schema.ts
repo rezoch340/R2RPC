@@ -36,10 +36,12 @@ export const deviceDailyMetrics = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [
-    primaryKey({ columns: [t.statDate, t.clientId, t.projectName] }),
-    index('device_daily_project_date').on(t.projectName, t.statDate),
-    index('device_daily_client_date').on(t.clientId, t.statDate),
+  (table) => [
+    primaryKey({
+      columns: [table.statDate, table.clientId, table.projectName],
+    }),
+    index('device_daily_project_date').on(table.projectName, table.statDate),
+    index('device_daily_client_date').on(table.clientId, table.statDate),
   ],
 );
 
@@ -71,11 +73,16 @@ export const rpcDailyMetrics = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [
+  (table) => [
     primaryKey({
-      columns: [t.statDate, t.projectName, t.actionName, t.clientId],
+      columns: [
+        table.statDate,
+        table.projectName,
+        table.actionName,
+        table.clientId,
+      ],
     }),
-    index('rpc_daily_project_date').on(t.projectName, t.statDate),
-    index('rpc_daily_action_date').on(t.actionName, t.statDate),
+    index('rpc_daily_project_date').on(table.projectName, table.statDate),
+    index('rpc_daily_action_date').on(table.actionName, table.statDate),
   ],
 );

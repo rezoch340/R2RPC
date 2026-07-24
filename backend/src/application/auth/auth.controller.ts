@@ -13,15 +13,15 @@ export class AuthController {
   @Public()
   @Post('login')
   @ApiOperation({ summary: '管理员登录,返回 JWT' })
-  login(@Body() dto: LoginDto) {
-    return this.auth.login(dto.username, dto.password);
+  login(@Body() input: LoginDto) {
+    return this.auth.login(input.username, input.password);
   }
 
   @Get('me')
   @ApiBearerAuth()
   @AuthenticatedOnly()
   @ApiOperation({ summary: '当前登录用户' })
-  me(@Req() req: { user: unknown }) {
-    return req.user;
+  me(@Req() request: { user: unknown }) {
+    return request.user;
   }
 }

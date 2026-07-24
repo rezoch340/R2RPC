@@ -1,5 +1,7 @@
 # 三套授权域 Implementation Plan
 
+> 状态：✅ 已完成，本文保留实施时任务顺序，不作为当前进度或测试命令真源。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement task-by-task. Steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** 给 RER0RPC 落地三套授权域:后台 CASL RBAC、设备组一等实体(设备多组)、invoke 独立 access token(按设备组作用域、可过期)。

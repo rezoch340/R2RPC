@@ -1,5 +1,7 @@
 # 2a: rename `groups → projects` 实现计划
 
+> 状态：✅ 已完成，本文保留实施时任务顺序，不作为当前进度或测试命令真源。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把"功能组"概念在整个后端从 `group` 彻底改名为 `project`(库 + 码 + 迁移 + Redis 键 + 权限 + WS 协议 + Manticore),无行为变化,`pnpm build/lint/smoke/retention:smoke` 全绿。

@@ -25,9 +25,9 @@ export const users = pgTable(
       .defaultNow(),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
-  (t) => [
+  (table) => [
     uniqueIndex('users_username_uq')
-      .on(t.username)
-      .where(sql`${t.deletedAt} IS NULL`),
+      .on(table.username)
+      .where(sql`${table.deletedAt} IS NULL`),
   ],
 );

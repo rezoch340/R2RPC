@@ -1,5 +1,7 @@
 # 3a: 指标聚合管道(日聚合表 + 完成累加 + 重启对账 + 清理)实现计划
 
+> 状态：✅ 已完成，本文保留实施时任务顺序，不作为当前进度或测试命令真源。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`)。
 
 **Goal:** 建两张日聚合表(`device_daily_metrics`/`rpc_daily_metrics`,对齐老系统)+ 每次 RPC 完成时累加(挂 `RequestLogProcessor`,靠 `writeSpine` 首插判去重)+ worker 启动从 `request_logs` 重灌最近 N 天对账 + 聚合表按天清理(30 天)。**只做写入管道 + 对账 + 清理**;读侧派生视图(weekly/trend/overview)是 3b。
