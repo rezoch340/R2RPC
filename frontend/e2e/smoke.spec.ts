@@ -72,14 +72,36 @@ test('手动 RPC 调试通过受权限保护的公开接口发起调用', async 
     await route.continue();
   });
 
-  await page.getByRole('button', { name: '发起调用' }).click();
+  const refreshContextButton = page.getByRole('button', {
+    name: '刷新上下文',
+  });
+  const invokeButton = page.getByRole('button', { name: '发起调用' });
+  const refreshContextButtonBoxBeforeInvocation =
+    await refreshContextButton.boundingBox();
+  const invokeButtonBoxBeforeInvocation = await invokeButton.boundingBox();
+
+  await invokeButton.click();
   await repeatedInvocationStarted;
   await expect(page.getByText('响应结果', { exact: true })).toBeVisible();
   await expect(page.getByText('实际请求', { exact: true })).toBeVisible();
   await expect(page.getByText('暂无调用结果', { exact: true })).toHaveCount(0);
+  await expect(refreshContextButton).toBeDisabled();
+  await expect(invokeButton).toBeDisabled();
+  await expect(refreshContextButton).toHaveCSS('opacity', '1');
+  await expect(invokeButton).toHaveCSS('opacity', '1');
+
+  const refreshContextButtonBoxDuringInvocation =
+    await refreshContextButton.boundingBox();
+  const invokeButtonBoxDuringInvocation = await invokeButton.boundingBox();
+  expect(refreshContextButtonBoxDuringInvocation).toEqual(
+    refreshContextButtonBoxBeforeInvocation,
+  );
+  expect(invokeButtonBoxDuringInvocation).toEqual(
+    invokeButtonBoxBeforeInvocation,
+  );
 
   releaseRepeatedInvocation?.();
-  await expect(page.getByRole('button', { name: '发起调用' })).toBeEnabled();
+  await expect(invokeButton).toBeEnabled();
 });
 
 test('全部数据列表提供字段筛选和分页', async ({ page }) => {
