@@ -22,6 +22,13 @@
 - 后台账号支持资料修改和改密；`isRoot` 管理员资料、密码、启停、删除和 RBAC 关系只能由本人修改。
 - 后端 backlog #1–#15 已全部完成。
 - 管理前端 #16 已完成，覆盖全部后台管理公开面；默认端口 3001。
+- 当前基线：OpenAPI 37 个路径模板、后端 HTTP/WebSocket 黑盒 155 passed、前端 Playwright
+  10 passed、Jest 8 suites / 24 tests。
+- 全部列表默认 10 条/页、最大 100 条/页；运行概览使用折线趋势图，请求详情使用宽版右侧
+  抽屉，AppAudit Step 默认收起。
+- 两类令牌均支持二次编辑 project；Access Token 更新立即失效鉴权缓存，Device Token 更新
+  会以 close 4002 断开旧连接并在重连后应用新作用域。
+- 令牌和 JSON 复制必须复用公共 `CopyButton`；非安全上下文使用兼容回退。
 
 ## 先读
 
@@ -53,6 +60,10 @@
 - 新增后台 mutation 必须声明 `@SystemAudit`；自动访问审计只列安全 metadata，禁止记录
   密码/token 明文，也不得把 RPC/WS 数据面重复写入系统日志。
 - 前端只能打公开 HTTP API；RBAC 显隐不能替代后端 Guard。
+- 前端复制功能必须使用 `CopyButton`/`lib/clipboard.ts`，禁止页面直接调用
+  `navigator.clipboard.writeText`。
+- 列表保持默认 10、最大 100 的分页规则；稳定短字段可筛选，长载荷、说明、令牌明文和高变化
+  扩展字段不作为筛选项。
 - 前端页面/组件/E2E 同样禁止含糊缩写，优先公共原语但不做 mega CRUD 抽象。
 
 ## 必跑验证
@@ -78,7 +89,7 @@ E2E_API_URL=http://127.0.0.1:3000 pnpm test:e2e
 ```
 
 前端 Playwright 也只能通过浏览器与公开 HTTP API 验证，边界由
-`test/assert-blackbox-e2e.cjs` 强制。
+`test/assert-blackbox-e2e.cjs` 强制；当前基线为 10 passed。
 
 底层 retention/stale/metrics/maxInFlight 算法的直连检查属于 `pnpm test:integration:*`，不得称为 E2E。
 

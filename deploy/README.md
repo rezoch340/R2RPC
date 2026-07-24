@@ -55,6 +55,10 @@ docker compose -f deploy/docker-compose.yml up -d --build frontend
 `3000` 端口；后端位于独立域名时设置 `apiUrl`，修改文件后重启 frontend 容器即可，无需重建。
 后端默认允许 CORS；生产设置 `CORS_ORIGIN` 限定控制台 Origin。
 
+令牌与 JSON 复制优先使用 Clipboard API；通过局域网 HTTP 访问时如果浏览器不提供该 API，
+公共复制组件会自动使用兼容回退。自定义开发域名或反向代理可通过
+`NEXT_ALLOWED_DEV_ORIGINS` 补充 Next.js HMR 允许来源。
+
 ## 完整性冒烟
 
 基础设施、API、Worker 都启动后：
@@ -64,9 +68,10 @@ cd backend
 pnpm smoke
 ```
 
-该命令执行 139 项纯 HTTP/WebSocket 黑盒检查，覆盖全部 HTTP controller 方法、系统操作审计、
-权限组、管理员账号隔离与改密、WS 协议和设备 AppAudit Step 冷路径，不直接连接数据库、
-Redis 或 Manticore。可用 `BASE_URL` 指向其他运行实例：
+该命令执行 155 项纯 HTTP/WebSocket 黑盒检查，覆盖全部 HTTP controller 方法、系统操作审计、
+权限组、管理员账号隔离与改密、两类令牌作用域二次编辑与缓存失效、Device Token 旧连接主动
+断开重连、WS 协议和设备 AppAudit Step 冷路径，不直接连接数据库、Redis 或 Manticore。
+可用 `BASE_URL` 指向其他运行实例：
 
 ```bash
 BASE_URL=http://127.0.0.1:3000 pnpm smoke
@@ -81,7 +86,8 @@ cd frontend
 E2E_API_URL=http://127.0.0.1:3000 pnpm test:e2e
 ```
 
-该测试通过登录 UI 获取 JWT 并逐页访问公开接口；边界守卫禁止导入后端或直连
+当前 Playwright 为 10 项，通过登录 UI 获取 JWT，覆盖全部管理页、筛选分页、令牌作用域编辑、
+非安全上下文复制回退、右侧日志详情、导航预取和登录保护；边界守卫禁止导入后端或直连
 PostgreSQL/Redis/Manticore。
 
 如果宿主机默认端口已被其他项目占用，请覆盖 compose 端口并用独立 `CONFIG_FILE` 对齐，

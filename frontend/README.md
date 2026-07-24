@@ -69,6 +69,8 @@ E2E_API_URL=http://127.0.0.1:3000 pnpm test:e2e
 
 前端 E2E 使用浏览器登录并访问公开 HTTP API。`test/assert-blackbox-e2e.cjs`
 会拒绝测试导入后端内部模块、数据库或 Redis 客户端；测试不直接连接任何持久层。
+当前 Playwright 基线为 **10 passed**，覆盖全部管理页、字段筛选分页、两类令牌功能组二次
+编辑、非安全上下文复制回退、请求详情抽屉、账号改密入口、移动导航、导航预取和登录保护。
 
 `pnpm lint` 会先执行命名门禁：组件、页面、E2E 和工具代码都禁止单/双字母变量及
 `cfg/ctx/req/res/dto/tx/svc` 等含糊缩写。
@@ -85,4 +87,5 @@ E2E_API_URL=http://127.0.0.1:3000 pnpm test:e2e
 - RBAC 只用于前端显隐；后端 Guard 始终是最终授权边界。
 - `isRoot` 目标的修改入口只对本人开放；RBAC 写入口只对 root 展示。
 - 请求详情从右侧抽屉打开，按 requestId 懒加载 payload 和 AppAudit；每个 AppAudit Step 默认收起，列表不携带大字段。
+- 复制交互统一使用 `CopyButton`；页面不得直接调用 `navigator.clipboard.writeText`。
 - 变量名写完整语义，优先保护子句，不堆叠长 `if/else`。

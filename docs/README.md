@@ -1,12 +1,19 @@
 # RER0RPC 文档索引
 
+> 更新日期：2026-07-24。当前验证基线为后端 HTTP/WebSocket 黑盒 **155 passed**、
+> 前端 Playwright **10 passed**、OpenAPI **37 个路径模板**。
+
 ## 当前有效文档
 
+- `../README.md`：仓库入口、状态与快速开始
+- `../backend/README.md`：后端配置、运行、接口行为和验证命令
+- `../frontend/README.md`：管理前端页面、运行时配置、交互规则和浏览器黑盒
+- `../deploy/README.md`：本地基础设施、容器和完整性验证
+- `../CHANGELOG.md`：按交付阶段记录的变更历史
 - `项目总览-中文.md`：当前架构与范围
 - `RER0RPC-核心功能统计.md`：当前能力矩阵
 - `后端进度.md`：唯一进度真源
 - `下一步-后端待办.md`：发布就绪待办
-- `../frontend/README.md`：管理前端页面、配置、命令和浏览器黑盒
 - `design-conventions.md`：工程规范
 - `device-app-audit.md`：设备上报结构化日志 Step 的当前协议
 - `superpowers/specs/2026-07-24-administrator-account-isolation-design.md`：管理员账号隔离与改密设计
@@ -16,13 +23,18 @@
 - `RER0RPC-新版开工提示词.md`：新任务交接提示
 - `openapi.yaml`：HTTP OpenAPI
 
+当前实现以运行代码、`openapi.yaml`、上述 README 和 `后端进度.md` 为准。发生 API、配置、
+验证基线或用户可见行为变化时，必须在同一变更中同步这些文档。
+
 ## 历史设计
 
 - `superpowers/specs/`：已经定稿并实施的设计
 - `superpowers/plans/`：已经执行的实现计划
+- `superpowers/README.md`：设计与计划的有效性边界
 
 这些文件保留当时的决策、任务顺序和验证记录，不作为当前命令或进度真源。
 其中的旧代码片段也只用于追溯，可能保留当时命名；禁止复制到活跃代码。活跃代码统一遵循 `design-conventions.md` 的完整变量名和复杂度门禁。
+历史文档中的较小测试数、路径数和实施步骤表示当时阶段快照，不代表当前功能回退或待办。
 
 ## 历史归档
 

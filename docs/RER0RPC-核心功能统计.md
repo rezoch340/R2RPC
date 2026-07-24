@@ -27,7 +27,7 @@ WebSocket 网关、API/Worker 双进程、15 张 PostgreSQL 表、9 个数据库
 | 分布式 | Redis session/waiter/pub-sub/结果去重 | ✅ | 单实例闭环 ✅ |
 | OpenAPI | 规范导出与生成脚本 | ✅ | build 校验 |
 | 代码质量 | 完整变量名、复杂度/嵌套/函数长度门禁 | ✅ | `pnpm lint:check` |
-| 管理前端 | Next.js + shadcn，完整后台公开面 | ✅ | Playwright + HTTP |
+| 管理前端 | Next.js + shadcn，完整后台公开面 | ✅ | Playwright 10 项 + HTTP |
 | 前端质量 | 页面/组件/E2E 完整变量名门禁、ESLint、生产构建 | ✅ | `frontend/pnpm lint` |
 
 ## 2. HTTP API
@@ -69,7 +69,8 @@ WebSocket 网关、API/Worker 双进程、15 张 PostgreSQL 表、9 个数据库
 
 - `GET /system-logs`
 
-要求 `read/system-log`，支持 `actorUsername/action/subject/status/from/to/page/pageSize`。
+要求 `read/system-log`，支持
+`name/actorUsername/action/subject/targetType/targetName/status/from/to/page/pageSize`。
 `system_logs` 只追加、不软删，没有修改和删除 API；记录登录成功/失败、控制面读取、
 Guard/路由阶段拒绝和后台 mutation。mutation 通过显式 `@SystemAudit` 保留准确业务语义；
 metadata 只包含安全白名单字段，不保存密码或 token 明文。RPC/WS 数据面不重复写入。
@@ -108,6 +109,10 @@ metadata 只包含安全白名单字段，不保存密码或 token 明文。RPC/
 - `GET /metrics/weekly`
 - `GET /metrics/trend`
 
+请求列表支持
+`project/action/clientId/status/payloadState/minimumLatencyMs/maximumLatencyMs/from/to/page/pageSize`；
+系统日志与请求日志的 `pageSize` 都默认 10、最大 100。
+
 完整 schema 见 `docs/openapi.yaml`。
 
 ### 管理前端路由
@@ -117,16 +122,18 @@ metadata 只包含安全白名单字段，不保存密码或 token 明文。RPC/
 | `/` | `/metrics/overview`、`/metrics/trend`、`/projects/info`、`/devices` |
 | `/projects` | `/projects`、`/projects/info`、启停与删除 |
 | `/devices` | `/devices` |
-| `/access-tokens` | `/access-tokens`、`/projects` |
-| `/device-tokens` | `/device-tokens`、`/projects` |
-| `/request-logs` | `/monitor/requests`、`/monitor/requests/:requestId` |
+| `/access-tokens` | `/access-tokens`、`PATCH /access-tokens/:id/projects`、`/projects` |
+| `/device-tokens` | `/device-tokens`、`PATCH /device-tokens/:id/projects`、`/projects` |
+| `/request-logs` | `/monitor/requests`、`/monitor/request-options`、`/monitor/requests/:requestId` |
 | `/users` | `/users`、`/rbac/users/:userId/roles` |
 | `/permission-groups` | `/rbac/roles`、`/rbac/permissions` 与关联接口 |
 | `/system-logs` | `/system-logs` |
 
 前端使用后台 JWT，按 `permissions` 和 `isRoot` 控制入口显隐；后端 Guard 始终执行真实授权。
 用户本人可从账号菜单改密，root 账号仍只允许本人修改。请求详情按需加载 Manticore payload 和
-AppAudit Step，列表不携带大字段。
+AppAudit Step，列表不携带大字段。运行概览使用近 7 天折线趋势图；请求详情为宽版右侧抽屉，
+所有 AppAudit Step 默认收起。令牌与 JSON 载荷统一使用 `CopyButton`，Clipboard API
+不可用或被拒绝时自动回退。
 
 ## 3. WebSocket 协议
 
@@ -197,6 +204,7 @@ GET /api/client/ws?token=<dk_...>&clientId=<device-id>&platform=<optional>&extra
 ### 约束
 
 - device token 无效、过期、撤销或软删：close `4001`
+- device token project 作用域更新：现有连接 close `4002`，重连后继承新作用域
 - 单帧大于 4 MiB：close `1009`
 - 数据分片 `FIN=0`：close `1009`
 - 每 5 秒服务端 ping
@@ -232,6 +240,7 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 - `device_tokens` / `device_token_projects`
 - `devices`
 - `request_logs`
+- `system_logs`
 - `device_daily_metrics`
 - `rpc_daily_metrics`
 
@@ -245,7 +254,8 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 - `rpc:rr:{projectId}`
 - `device:maxinflight:{clientId}`
 - `device:inflight:{clientId}`
-- BullMQ 队列与 Redis pub/sub
+- `ws:device-token-scope-changed` 集群事件频道
+- BullMQ 队列与其他 Redis pub/sub
 
 ### Manticore
 
@@ -280,8 +290,10 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 `test/assert-blackbox-e2e.js` 会静态拒绝 E2E 导入持久层客户端或应用内部服务。
 
-前端 `test/assert-blackbox-e2e.cjs` 使用同一口径，Playwright 只操作浏览器和公开 HTTP API；
-不会导入后端、数据库或 Redis。前端 `test/assert-readable-source.cjs` 覆盖页面、组件和 E2E。
+前端 `test/assert-blackbox-e2e.cjs` 使用同一口径，Playwright 当前 10 项，只操作浏览器和公开
+HTTP API；覆盖全部管理页、字段筛选与分页、两类令牌作用域编辑、非安全上下文复制回退、日志
+详情抽屉、账号改密入口、移动导航、导航预取和未登录跳转。测试不会导入后端、数据库或 Redis。
+前端 `test/assert-readable-source.cjs` 覆盖页面、组件和 E2E。
 
 Jest 当前为 8 个 suite、24 个测试，包含系统审计推导、登录/读取/拒绝访问、
 摘要/白名单/失败结果/无请求体回归、管理员策略分支以及
