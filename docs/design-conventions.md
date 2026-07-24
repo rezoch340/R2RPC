@@ -103,6 +103,23 @@ nest g resource application/{module} --no-spec
 - `isRoot` 用户修改其他受保护管理员的组关系时仍须经过
   `AdministratorAccountPolicyService`，身份闸不能绕过账号隔离策略。
 
+### 表的名称与描述
+
+- 业务实体必须有稳定的语义名称和 `description`；语义名称可以是 `name`、`username`、
+  `clientId` 或权限的 `action + subject`，禁止为了形式统一重复增加一个会漂移的 `name`。
+- 多对多关系表由复合外键唯一表达关系，不增加独立 `name`；可保留 `description` 说明关系。
+- 请求日志和派生聚合不是可命名实体，按日志/派生表规则豁免。
+- `system_logs` 为满足人类直接阅读，明确包含操作 `name` 和完整摘要 `description`。
+
+### 系统操作审计
+
+- 后台业务 mutation 必须显式添加 `@SystemAudit`，名称应能直接组成“操作者 + 操作 + 对象”。
+- 审计 metadata 只能列出已确认安全的 path/body 白名单字段；禁止复制完整 body，密码和两类
+  token 明文永远不能进入系统日志。
+- `system_logs` 是不可变追加事实，不使用软删除，不提供更新或删除 API。
+- 系统操作日志、RPC `request_logs` 和设备 AppAudit 分开建模，禁止互相塞字段。
+- 审计写入失败只记录服务端 error，不得把已成功的业务操作伪装成失败。
+
 ### 架构原则:分布式 + 冷热路径
 
 **可分布式部署**:app 实例**无状态**,可水平扩容;状态只放共享存储。

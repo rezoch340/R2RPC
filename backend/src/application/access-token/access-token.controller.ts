@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import type { AuthedRequest } from '../../common/types/authed-request';
 import { AccessTokenService } from './access-token.service';
 import { CreateAccessTokenDto } from './dto/create-access-token.dto';
@@ -23,6 +24,15 @@ export class AccessTokenController {
   // 生成 access token
   @Post()
   @RequirePermission('manage', 'access-token')
+  @SystemAudit({
+    name: '创建 Access Token',
+    action: 'create',
+    subject: 'access-token',
+    targetType: 'access-token',
+    targetNameField: 'name',
+    targetResponseField: 'id',
+    metadataBodyFields: ['projects', 'expiresAt'],
+  })
   @ApiOperation({ summary: '生成 access token(返回明文)' })
   create(@Body() input: CreateAccessTokenDto, @Req() request: AuthedRequest) {
     return this.tokens.create({
@@ -45,6 +55,14 @@ export class AccessTokenController {
   // 撤销 token
   @Post(':id/revoke')
   @RequirePermission('manage', 'access-token')
+  @SystemAudit({
+    name: '撤销 Access Token',
+    action: 'revoke',
+    subject: 'access-token',
+    targetType: 'access-token',
+    targetParameter: 'id',
+    targetNameField: 'name',
+  })
   @ApiOperation({ summary: '撤销 access token' })
   revoke(@Param('id', ParseIntPipe) accessTokenId: number) {
     return this.tokens.revoke(accessTokenId);
@@ -53,6 +71,13 @@ export class AccessTokenController {
   // 删除 token(软删,与撤销正交)
   @Delete(':id')
   @RequirePermission('manage', 'access-token')
+  @SystemAudit({
+    name: '删除 Access Token',
+    action: 'delete',
+    subject: 'access-token',
+    targetType: 'access-token',
+    targetParameter: 'id',
+  })
   @ApiOperation({ summary: '删除 access token(软删,与撤销正交)' })
   delete(@Param('id', ParseIntPipe) accessTokenId: number) {
     return this.tokens.delete(accessTokenId);

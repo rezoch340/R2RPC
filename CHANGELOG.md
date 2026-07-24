@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+### 系统操作审计日志
+- 盘点全部 14 张旧表：业务实体均具有语义名称与 `description`；关系表名称由复合外键表达，请求日志/聚合表按日志规则豁免，不机械增加无意义的 `name`。
+- 新增第 15 张表 `system_logs` 和迁移 `0008`，包含操作 `name/description`、操作者快照、动作、对象、安全 metadata、HTTP 结果、IP、User-Agent 和时间。
+- 新增全局 `SystemAuditInterceptor` 与显式 `@SystemAudit` 元数据，覆盖用户、project、两类 token 和 RBAC 全部业务 mutation；成功和 controller/service 失败均可记录。
+- metadata 只采集每个端点声明的白名单字段，不复制完整 body；密码和 token 明文不会写入系统日志。
+- 新增 `GET /system-logs`，使用 `read/system-log`，支持操作者、action、subject、状态、时间和分页筛选；系统日志无修改/删除 API。
+- project 创建接口补齐已有 `description` 列的输入能力和数据库长度校验。
+- 种子权限现为 18 条，operator 的 `read/*` 权限为 8 条；当前验证为 Jest **7 suites / 17 tests**、OpenAPI **35 个路径模板**、完整黑盒 **139 passed、0 failed**。
+
 ### FlowCore 风格权限组
 - 复用现有 `roles`、`permissions`、`role_permissions`、`user_roles`，明确 Role 即权限组；用户可分配多个权限组，授权继续取所有有效组权限的并集，无数据库迁移。
 - `GET /rbac/roles` 现返回嵌套权限；新增 `PATCH /rbac/roles/:id` 和 `GET /rbac/users/:userId/roles`。
@@ -11,7 +20,7 @@
 - 新增 `RootGuard` 并覆盖全部 RBAC 写接口；只有种子管理员可修改权限组、权限目录和用户分组，普通用户即使拥有 `manage/rbac` 仍返回 403。
 - RBAC 读接口统一使用新增的 `read/rbac`；种子权限增至 17 条，operator 的 `read/*` 权限增至 7 条，部署只需重跑 `pnpm seed:admin`。
 - 权限组权限采用固定批量查询组装，避免 N+1；新增 RootGuard 单元测试和纯 HTTP 黑盒权限组场景。
-- 当前验证为 Jest **6 suites / 14 tests**、OpenAPI **34 个路径模板**、完整黑盒 **136 passed、0 failed**，E2E 仍只访问 HTTP/WebSocket。
+- 该阶段验证为 Jest **6 suites / 14 tests**、OpenAPI **34 个路径模板**、完整黑盒 **136 passed、0 failed**，E2E 仍只访问 HTTP/WebSocket。
 
 ### 管理员账号隔离与改密
 - 参考 FlowCore 增加 `PATCH /users/:id` 资料修改和 `PATCH /users/:id/password` 改密接口；创建、列表、详情和写响应统一显式选择安全用户字段，不返回 `passwordHash`。

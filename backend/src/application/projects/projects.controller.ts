@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { SetEnabledDto } from './dto/set-enabled.dto';
 import { ProjectsService } from './projects.service';
@@ -35,13 +36,28 @@ export class ProjectsController {
 
   @Post()
   @RequirePermission('create', 'project')
+  @SystemAudit({
+    name: '创建功能组',
+    action: 'create',
+    subject: 'project',
+    targetType: 'project',
+    targetNameField: 'name',
+    targetResponseField: 'id',
+  })
   @ApiOperation({ summary: '创建功能组' })
   create(@Body() input: CreateProjectDto) {
-    return this.projects.create(input.name);
+    return this.projects.create(input.name, input.description);
   }
 
   @Delete(':id')
   @RequirePermission('delete', 'project')
+  @SystemAudit({
+    name: '删除功能组',
+    action: 'delete',
+    subject: 'project',
+    targetType: 'project',
+    targetParameter: 'id',
+  })
   @ApiOperation({ summary: '删除功能组' })
   remove(@Param('id', ParseIntPipe) projectId: number) {
     return this.projects.remove(projectId);
@@ -49,6 +65,15 @@ export class ProjectsController {
 
   @Post(':id/enabled')
   @RequirePermission('update', 'project')
+  @SystemAudit({
+    name: '设置功能组启用状态',
+    action: 'set-enabled',
+    subject: 'project',
+    targetType: 'project',
+    targetParameter: 'id',
+    targetNameField: 'name',
+    metadataBodyFields: ['enabled'],
+  })
   @ApiOperation({ summary: '启用/停用功能组(停用后 invoke 拒派)' })
   setEnabled(
     @Param('id', ParseIntPipe) projectId: number,

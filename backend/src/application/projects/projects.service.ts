@@ -64,13 +64,13 @@ export class ProjectsService {
     return projectRecord ?? null;
   }
 
-  async create(name: string) {
+  async create(name: string, description?: string) {
     if (await this.findByName(name)) {
       throw new ConflictException('功能组已存在');
     }
     const [createdProject] = await this.database
       .insert(projects)
-      .values({ name })
+      .values({ name, description })
       .returning();
     return createdProject;
   }

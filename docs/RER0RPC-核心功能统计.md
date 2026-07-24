@@ -4,14 +4,15 @@
 
 ## 1. 完成度
 
-后端既定 backlog #1–#14 全部完成。代码包含 34 个 HTTP 路径模板、1 个设备 WebSocket
-网关、API/Worker 双进程和 8 个数据库迁移。
+后端既定 backlog #1–#15 全部完成。代码包含 35 个 HTTP 路径模板、1 个设备 WebSocket
+网关、API/Worker 双进程、15 张 PostgreSQL 表和 9 个数据库迁移。
 
 | 领域 | 能力 | 状态 | 黑盒覆盖 |
 |---|---|---|---|
 | 认证 | 登录、JWT、`/auth/me` | ✅ | ✅ |
 | RBAC | 权限组、嵌套权限、用户分组、root-only 写隔离 | ✅ | ✅ |
 | 用户 | CRUD、资料、改密、enabled、管理员隔离、旧 JWT 吊销 | ✅ | ✅ |
+| 系统审计 | 谁在何时做了什么、安全 metadata、筛选分页 | ✅ | ✅ |
 | Project | CRUD、enabled、GroupInfo | ✅ | ✅ |
 | Access token | `rk_`、project 作用域、过期/撤销/软删 | ✅ | ✅ |
 | Device token | `dk_`、project 绑定、过期/撤销/软删 | ✅ | ✅ |
@@ -61,6 +62,14 @@
 `roles` 即权限组，一个用户可拥有多个权限组，最终权限取所有有效组的并集。三个读入口要求
 `read/rbac`；所有 RBAC 写入口要求 `manage/rbac` 并叠加 `RootGuard`，只有种子管理员可执行。
 普通账号即使被授予 `manage/rbac` 仍不能修改权限组、权限目录或用户分组。
+
+### System logs
+
+- `GET /system-logs`
+
+要求 `read/system-log`，支持 `actorUsername/action/subject/status/from/to/page/pageSize`。
+`system_logs` 只追加、不软删，没有修改和删除 API；后台 mutation 通过显式 `@SystemAudit`
+记录操作者、对象和结果。metadata 只包含端点白名单字段，不保存密码或 token 明文。
 
 ### Project
 
@@ -234,8 +243,9 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 `pnpm smoke` 与 `pnpm test:e2e` 执行同一套完整性测试：
 
-- 136 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
+- 139 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
 - 覆盖全部 HTTP controller 方法。
+- 覆盖系统操作日志、筛选、普通用户权限委派和密码不泄露。
 - 覆盖权限组编辑、嵌套权限、用户已分配组、新旧关联入口和 root-only 写隔离。
 - 覆盖资料修改、改密新旧密码登录，以及管理员资料/密码/启停/删除/RBAC 关系隔离。
 - 覆盖 WS 鉴权、心跳、ping、读超时、分片/超大帧拒绝。
@@ -246,8 +256,8 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 `test/assert-blackbox-e2e.js` 会静态拒绝 E2E 导入持久层客户端或应用内部服务。
 
-Jest 当前为 6 个 suite、14 个测试，包含管理员策略分支以及 RootGuard 的 root、非 root
-`manage/rbac` 和缺失身份分支。
+Jest 当前为 7 个 suite、17 个测试，包含系统审计摘要/白名单/失败结果、管理员策略分支以及
+RootGuard 的 root、非 root `manage/rbac` 和缺失身份分支。
 
 ### 内部集成
 

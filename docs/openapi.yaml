@@ -860,6 +860,66 @@ paths:
       summary: 请求详情(PG 脊柱 + 懒加载 Manticore payload/AppAudit)
       tags:
         - monitor
+  /system-logs:
+    get:
+      operationId: SystemLogsController_list
+      parameters:
+        - name: actorUsername
+          required: false
+          in: query
+          schema:
+            type: string
+        - name: action
+          required: false
+          in: query
+          schema:
+            type: string
+        - name: subject
+          required: false
+          in: query
+          schema:
+            type: string
+        - name: status
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - succeeded
+              - failed
+        - name: from
+          required: false
+          in: query
+          description: ISO 起始时间
+          schema:
+            type: string
+        - name: to
+          required: false
+          in: query
+          description: ISO 结束时间
+          schema:
+            type: string
+        - name: page
+          required: false
+          in: query
+          schema:
+            default: 1
+            type: number
+        - name: pageSize
+          required: false
+          in: query
+          schema:
+            maximum: 200
+            default: 20
+            type: number
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 系统操作审计日志列表
+      tags:
+        - system-logs
 info:
   title: RER0RPC API
   description: ''
@@ -895,6 +955,10 @@ components:
       properties:
         name:
           type: string
+          maxLength: 128
+        description:
+          type: string
+          maxLength: 255
       required:
         - name
     SetEnabledDto:

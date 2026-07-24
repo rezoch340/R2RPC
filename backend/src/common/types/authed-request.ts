@@ -9,10 +9,24 @@ export interface AccessTokenContext {
   projectIds: number[];
 }
 
+export interface AuthenticatedRequestHeaders extends Record<
+  string,
+  string | string[] | undefined
+> {
+  authorization?: string;
+  'user-agent'?: string;
+  'x-forwarded-for'?: string | string[];
+}
+
 export interface AuthedRequest {
-  headers: { authorization?: string };
+  body: Record<string, unknown>;
+  headers: AuthenticatedRequestHeaders;
+  ip?: string;
+  method: string;
+  originalUrl: string;
   params: Record<string, string | undefined>;
   query: Record<string, string | undefined>;
+  socket: { remoteAddress?: string };
   user?: AuthenticatedUser; // JwtStrategy.validate 填充
   accessToken?: AccessTokenContext; // AccessTokenGuard 填充
 }

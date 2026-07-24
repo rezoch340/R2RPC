@@ -9,6 +9,7 @@ export interface PermissionTuple {
 // 鉴权通过后挂在 request 上的用户身份:权限列表 + 是否 root(root 直通,不受权限约束)
 export interface AuthenticatedUser {
   id: number;
+  username: string;
   permissions: PermissionTuple[];
   isRoot: boolean;
 }

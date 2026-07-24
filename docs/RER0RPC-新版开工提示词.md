@@ -17,8 +17,9 @@
 - 设备可在 WS `result.appAudit` 上报 V1 执行 Step，契约见 `docs/device-app-audit.md`。
 - 后台使用 JWT + CASL RBAC。
 - `roles` 是权限组；读操作使用 `read/rbac`，所有 RBAC 写操作仅 `isRoot` 种子管理员可执行。
+- 后台 mutation 通过 `@SystemAudit` 记录“谁在何时做了什么”，查询权限为 `read/system-log`。
 - 后台账号支持资料修改和改密；`isRoot` 管理员资料、密码、启停、删除和 RBAC 关系只能由本人修改。
-- 后端 backlog #1–#14 已全部完成。
+- 后端 backlog #1–#15 已全部完成。
 
 ## 先读
 
@@ -29,7 +30,8 @@
 5. 涉及设备日志时读 `docs/device-app-audit.md`
 6. 涉及后台账号写入时读 `docs/superpowers/specs/2026-07-24-administrator-account-isolation-design.md`
 7. 涉及权限组时读 `docs/superpowers/specs/2026-07-24-permission-groups-design.md`
-8. 与任务最接近的 source、test、schema 和历史 plan
+8. 涉及后台写操作时读 `docs/superpowers/specs/2026-07-24-system-audit-logs-design.md`
+9. 与任务最接近的 source、test、schema 和历史 plan
 
 ## 修改规则
 
@@ -44,6 +46,7 @@
 - 代码注释使用中文。
 - 任何以用户为目标的新写入口都必须接入 `AdministratorAccountPolicyService`，请求者编号只取 JWT 上下文。
 - 所有 RBAC 写入口必须叠加 `RootGuard`；权限组读取必须批量组装，禁止 N+1。
+- 新增后台 mutation 必须声明 `@SystemAudit`，只列安全 metadata，禁止记录密码/token 明文。
 
 ## 必跑验证
 
