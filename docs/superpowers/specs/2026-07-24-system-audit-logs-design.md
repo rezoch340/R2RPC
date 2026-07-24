@@ -6,7 +6,8 @@
 
 ## 1. 当前表字段盘点
 
-当前 PostgreSQL 共 14 张表，不是每张表都有字面上的 `name` 和 `description`，也不应机械补齐：
+新增 `system_logs` 前 PostgreSQL 共 14 张表。原有表不是每张都有字面上的 `name` 和
+`description`，也不应机械补齐：
 
 | 类型 | 表 | 名称语义 | description |
 |---|---|---|---|
@@ -90,9 +91,12 @@ GET /system-logs
 
 可选参数：
 
+- `name`
 - `actorUsername`
 - `action`
 - `subject`
+- `targetType`
+- `targetName`
 - `status`
 - `from` / `to`
 - `page`，默认 1

@@ -92,10 +92,21 @@ Swagger 位于 `/docs`，设备 WebSocket 位于 `/api/client/ws`。
 
 完整设计见 `../docs/superpowers/specs/2026-07-24-permission-groups-design.md`。
 
+## 令牌功能组作用域
+
+- `PATCH /access-tokens/:id/projects` 与 `PATCH /device-tokens/:id/projects` 使用完整
+  `projects` 名称集合替换现有作用域；空数组和不存在的 project 会被拒绝，重复名称会去重。
+- Access Token 更新后立即删除 Guard 正缓存，新增与移除的作用域从下一次 RPC 请求开始生效。
+- Device Token 更新后删除 WS 鉴权缓存，并发布
+  `ws:device-token-scope-changed` 集群事件；所有 API 实例会以 close `4002` 断开该 token 的
+  现有连接，设备重连后继承新作用域。
+- 两类更新均写入系统操作审计；metadata 只记录编号和 project 集合，不记录 token 明文。
+
 ## 系统操作审计
 
 - `system_logs` 是不可变追加表，包含 `name`、`description`、操作者、动作、对象、结果、IP 和时间。
-- `GET /system-logs` 使用 `read/system-log`，支持操作者、action、subject、状态、时间和分页筛选。
+- `GET /system-logs` 使用 `read/system-log`，支持事件名称、操作者、action、subject、目标类型、
+  目标名称、状态、时间和分页筛选。
 - 登录成功/失败、JWT 控制面读取、Guard/路由阶段拒绝和后台 mutation 全部记录；mutation
   继续显式声明 `@SystemAudit` 以提供准确业务名称和对象。
 - metadata 只读取声明的安全 path/body/query 字段，不复制完整请求体，密码与 token 明文不会入库。
@@ -173,6 +184,8 @@ pnpm openapi:gen
 ```
 
 生成文件：`../docs/openapi.yaml`。
+
+当前导出基线为 37 个 HTTP 路径模板；设备 WebSocket 协议单独位于 `/api/client/ws`。
 
 ## 关键目录
 

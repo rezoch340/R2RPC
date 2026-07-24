@@ -103,6 +103,16 @@ nest g resource application/{module} --no-spec
 - `isRoot` 用户修改其他受保护管理员的组关系时仍须经过
   `AdministratorAccountPolicyService`，身份闸不能绕过账号隔离策略。
 
+### 令牌作用域更新
+
+- 两类令牌的 project 作用域更新都使用完整集合替换，必须在事务内校验 project、删除旧关联并
+  写入新关联；禁止逐项写入导致半更新。
+- Access Token 更新成功后立即删除 Guard 缓存；Device Token 更新成功后删除 WS 鉴权缓存，
+  再发布 `ws:device-token-scope-changed` 集群事件。
+- 每个 API 实例都必须订阅 Device Token 作用域事件，并以 close `4002` 断开该 token 的本地
+  连接；设备重连后只能从服务端返回的新作用域恢复。
+- 令牌作用域 mutation 必须接入系统审计，但 metadata 不得包含 token 明文。
+
 ### 表的名称与描述
 
 - 业务实体必须有稳定的语义名称和 `description`；语义名称可以是 `name`、`username`、
@@ -251,7 +261,7 @@ async fillAndSave(input: {
 - 能复用的 UI 一律抽到 `components/`,做成**数据驱动**:
   页面只声明**数据**(字段 / 列定义)+ 传 **action**(回调),不在 `page.tsx` 堆大段 JSX。
 - 典型基准件：`DataTable`、`PageHeader`、`PermissionBoundary`、`Pagination`、`RowActions`、
-  `FormDialog`、`ConfirmDialog`、`SearchInput`、`JsonBlock`。
+  `FormDialog`、`ConfirmDialog`、`SearchInput`、`JsonBlock`、`CopyButton`。
 - 新块出现先看 `components/` 有没有现成的,有就复用;**≥2 处重复(或明显可复用原语)才抽,
   单处别过度抽象(YAGNI)。**
 
@@ -276,6 +286,9 @@ async fillAndSave(input: {
 - 筛选项覆盖稳定、短小且有业务意义的表格字段；长载荷、说明、令牌明文和高变化扩展字段不提供筛选。
 - 请求详情的 payload/AppAudit 必须按 requestId 懒加载，列表不得携带大字段。
 - 请求详情使用右侧抽屉；AppAudit Step 默认收起，由用户按需展开。
+- 复制令牌或 JSON 时统一使用 `CopyButton` 和 `lib/clipboard.ts`；优先 Clipboard API，
+  缺失或权限拒绝时回退到隐藏文本框，不得让页面直接调用
+  `navigator.clipboard.writeText`。
 - Mutation 成功后只失效相关 TanStack Query key，不全局清空缓存。
 - 表单组件只抽通用外壳；项目选择、权限矩阵、AppAudit Step 等特殊控件保留领域组件，
   禁止做充满逃生口的 mega CRUD 配置层。
