@@ -23,7 +23,7 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { RbacService } from './rbac.service';
 
 @ApiTags('rbac')
-@ApiBearerAuth()
+@ApiBearerAuth('adminJwt')
 @Controller('rbac')
 export class RbacController {
   constructor(private readonly rbacService: RbacService) {}

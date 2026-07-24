@@ -17,7 +17,7 @@ import { QueryRequestsDto } from './dto/query-requests.dto';
 import { MonitorService } from './monitor.service';
 
 @ApiTags('monitor')
-@ApiBearerAuth()
+@ApiBearerAuth('adminJwt')
 @Controller('monitor')
 export class MonitorController {
   constructor(private readonly monitor: MonitorService) {}

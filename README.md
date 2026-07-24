@@ -6,6 +6,7 @@
 ![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+![License](https://img.shields.io/badge/license-UNLICENSED-red)
 
 > [!IMPORTANT]
 > **R2RPC 是 [manyuegong33/r0rpc](https://github.com/manyuegong33/r0rpc) 的分布式重构版本。**
@@ -19,7 +20,8 @@
 手动 RPC 调试、请求观测、设备 AppAudit Step 和系统操作审计。
 
 [快速开始](#快速开始) · [系统架构](#系统架构) · [统一配置](#统一配置) ·
-[验证与测试](#验证与测试) · [项目文档](#项目文档)
+[验证与测试](#验证与测试) · [项目文档](#项目文档) ·
+[GitHub 仓库](https://github.com/rezoch340/R2RPC)
 
 ---
 
@@ -473,6 +475,9 @@ R2RPC/
 ├── compose.yaml             完整容器编排
 ├── config.example.yaml      宿主机统一配置模板
 ├── CHANGELOG.md             变更记录
+├── CONTRIBUTING.md          贡献流程与质量门禁
+├── SECURITY.md              安全报告和生产安全基线
+├── LICENSE / NOTICE         当前许可状态与上游归属说明
 └── README.md
 ```
 
@@ -499,6 +504,11 @@ R2RPC/
 - [工程规范](docs/design-conventions.md)
 - [OpenAPI](docs/openapi.yaml)
 - [Changelog](CHANGELOG.md)
+- [贡献指南](CONTRIBUTING.md)
+- [安全策略](SECURITY.md)
+- [发布流程](docs/releasing.md)
+- [行为准则](CODE_OF_CONDUCT.md)
+- [许可与归属](LICENSE)
 
 ### 协议与设计
 
@@ -517,5 +527,12 @@ R2RPC/
 部署前应在 `deploy/config.yaml` 中替换 JWT 和管理员初始密码，收紧 CORS，配置 TLS/WSS，
 并按真实入口修改 `app.publicWsUrl`。数据库账号同时受 PostgreSQL 镜像首次引导参数约束；
 使用外部托管数据库时可移除 Compose 中的本地 PostgreSQL 服务。
+
+## 许可与发布
+
+当前仓库和 SDK 均为 **UNLICENSED / All Rights Reserved**。公开可见不等于获得复制、修改或
+分发许可；详细边界和上游归属见[`LICENSE`](LICENSE)与[`NOTICE`](NOTICE)。在权利人明确批准
+前，不得向公共 npm、Maven Central 或其他公开 Registry 发布制品。内部或正式发布步骤见
+[`docs/releasing.md`](docs/releasing.md)。
 
 完整说明见[`deploy/README.md`](deploy/README.md)。

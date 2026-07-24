@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+### OpenAPI、发布治理与 AppAudit 契约补全
+- OpenAPI 生成链路改为运行时 Swagger 与静态 YAML 共用同一配置和完整性补全器；39 个路径、
+  51 个操作全部提供详细说明、成功响应 schema、标准 4xx/500 响应和相对部署 Server。
+- 鉴权方案拆分为后台 `adminJwt` 与调用方 `accessToken`，修正公开/手动 RPC 的可选
+  `clientId` 以及指标 `project` 可选参数，避免 Swagger 将其错误标为必填。
+- 新增用户、令牌、功能组、设备、RBAC、RPC、监控、指标、系统日志和 AppAudit 的完整响应
+  schema；OpenAPI 生成时对遗漏或失效的 operation 映射直接失败。
+- 新增 `LICENSE`、`NOTICE`、安全策略、贡献指南、行为准则、发布流程、Pull Request 模板和
+  Issue 表单；补齐 GitHub 规范地址及 JavaScript/Android SDK 发布元数据。
+- 明确当前仓库及 SDK 为 `UNLICENSED / All Rights Reserved`，并记录
+  `manyuegong33/r0rpc` 的上游归属和当前无开源许可证状态。
+- AppAudit V1 文档补齐 strict object、全部字符串长度、数字范围、时区、连续序号、UTF-8
+  字节计算和 JSON 可序列化限制，并同步进入 OpenAPI 详情响应 schema。
+
 ### 项目更名为 R2RPC
 - 项目品牌、管理控制台、Swagger/OpenAPI、Docker 镜像、默认开发数据库、配置示例和全部文档
   统一更名为 R2RPC。

@@ -12,23 +12,51 @@ paths:
               $ref: '#/components/schemas/CreateDeviceTokenDto'
       responses:
         '201':
-          description: ''
+          description: 生成 device token(返回明文,供 SDK 配置)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceTokenRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 生成 device token(返回明文,供 SDK 配置)
       tags:
         - device-token
+      description: 生成 device token(返回明文,供 SDK 配置)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     get:
       operationId: DeviceTokenController_list
       parameters: []
       responses:
         '200':
-          description: ''
+          description: 列表:所有 device token(含明文、project 名、在线设备数)成功。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeviceTokenRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 列表:所有 device token(含明文、project 名、在线设备数)
       tags:
         - device-token
+      description: 列表:所有 device token(含明文、project 名、在线设备数)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /device-tokens/{id}/projects:
     patch:
       operationId: DeviceTokenController_updateProjects
@@ -46,12 +74,27 @@ paths:
               $ref: '#/components/schemas/UpdateDeviceTokenProjectsDto'
       responses:
         '200':
-          description: ''
+          description: 替换 device token 的功能组作用域成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceTokenRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 替换 device token 的功能组作用域
       tags:
         - device-token
+      description: 替换 device token 的功能组作用域。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /device-tokens/{id}/revoke:
     post:
       operationId: DeviceTokenController_revoke
@@ -63,12 +106,27 @@ paths:
             type: number
       responses:
         '201':
-          description: ''
+          description: 撤销 device token成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceTokenRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 撤销 device token
       tags:
         - device-token
+      description: 撤销 device token。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /device-tokens/{id}:
     delete:
       operationId: DeviceTokenController_delete
@@ -80,24 +138,54 @@ paths:
             type: number
       responses:
         '200':
-          description: ''
+          description: 删除 device token(软删,与撤销正交)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 删除 device token(软删,与撤销正交)
       tags:
         - device-token
+      description: 删除 device token(软删,与撤销正交)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /projects:
     get:
       operationId: ProjectsController_list
       parameters: []
       responses:
         '200':
-          description: ''
+          description: 功能组列表成功。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 功能组列表
       tags:
         - projects
+      description: 功能组列表。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     post:
       operationId: ProjectsController_create
       parameters: []
@@ -109,24 +197,54 @@ paths:
               $ref: '#/components/schemas/CreateProjectDto'
       responses:
         '201':
-          description: ''
+          description: 创建功能组成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 创建功能组
       tags:
         - projects
+      description: 创建功能组。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /projects/info:
     get:
       operationId: ProjectsController_info
       parameters: []
       responses:
         '200':
-          description: ''
+          description: 功能组派生统计(设备数/在线/近7天/成功率/运行态)成功。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectInfo'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 功能组派生统计(设备数/在线/近7天/成功率/运行态)
       tags:
         - projects
+      description: 功能组派生统计(设备数/在线/近7天/成功率/运行态)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /projects/{id}:
     delete:
       operationId: ProjectsController_remove
@@ -138,12 +256,25 @@ paths:
             type: number
       responses:
         '200':
-          description: ''
+          description: 删除功能组成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 删除功能组
       tags:
         - projects
+      description: 删除功能组。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /projects/{id}/enabled:
     post:
       operationId: ProjectsController_setEnabled
@@ -161,41 +292,85 @@ paths:
               $ref: '#/components/schemas/SetEnabledDto'
       responses:
         '201':
-          description: ''
+          description: 启用/停用功能组(停用后 invoke 拒派)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectEnabledResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 启用/停用功能组(停用后 invoke 拒派)
       tags:
         - projects
+      description: 启用/停用功能组(停用后 invoke 拒派)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /metrics/overview:
     get:
       operationId: MetricsController_overview
       parameters: []
       responses:
         '200':
-          description: ''
+          description: 指标总览(总量 / 成功失败 / 平均延迟 / 分状态 / 分组)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsOverview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 指标总览(总量 / 成功失败 / 平均延迟 / 分状态 / 分组)
       tags:
         - metrics
+      description: 指标总览(总量 / 成功失败 / 平均延迟 / 分状态 / 分组)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /metrics/weekly:
     get:
       operationId: MetricsController_weekly
       parameters:
         - name: project
-          required: true
+          required: false
           in: query
+          description: 可选功能组名称；省略时返回全部功能组。
           schema:
             type: string
       responses:
         '200':
-          description: ''
+          description: 近7天设备指标(按 clientId×project 汇总;可选 ?project)成功。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WeeklyDeviceMetrics'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 近7天设备指标(按 clientId×project 汇总;可选 ?project)
       tags:
         - metrics
+      description: 近7天设备指标(按 clientId×project 汇总;可选 ?project)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /metrics/trend:
     get:
       operationId: MetricsController_trend
@@ -215,24 +390,54 @@ paths:
             type: string
       responses:
         '200':
-          description: ''
+          description: 按天趋势序列(默认近7天,缺天补零;可选 ?days ?project)成功。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DailyTrendPoint'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 按天趋势序列(默认近7天,缺天补零;可选 ?days ?project)
       tags:
         - metrics
+      description: 按天趋势序列(默认近7天,缺天补零;可选 ?days ?project)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /devices:
     get:
       operationId: DevicesController_list
       parameters: []
       responses:
         '200':
-          description: ''
+          description: 设备列表(持久态:online/status/platform/last_ip/last_seen)成功。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Device'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 设备列表(持久态:online/status/platform/last_ip/last_seen)
       tags:
         - devices
+      description: 设备列表(持久态:online/status/platform/last_ip/last_seen)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /devices/{id}:
     get:
       operationId: DevicesController_get
@@ -244,12 +449,27 @@ paths:
             type: number
       responses:
         '200':
-          description: ''
+          description: 设备详情成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 设备详情
       tags:
         - devices
+      description: 设备详情。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rbac/roles:
     post:
       operationId: RbacController_createRole
@@ -262,23 +482,53 @@ paths:
               $ref: '#/components/schemas/CreateRoleDto'
       responses:
         '201':
-          description: ''
+          description: 创建权限组(仅种子管理员)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionGroup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 创建权限组(仅种子管理员)
       tags:
         - rbac
+      description: 创建权限组(仅种子管理员)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     get:
       operationId: RbacController_listRoles
       parameters: []
       responses:
         '200':
-          description: ''
+          description: 权限组列表(包含权限)成功。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PermissionGroup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 权限组列表(包含权限)
       tags:
         - rbac
+      description: 权限组列表(包含权限)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rbac/roles/{id}:
     patch:
       operationId: RbacController_updateRole
@@ -296,12 +546,29 @@ paths:
               $ref: '#/components/schemas/UpdateRoleDto'
       responses:
         '200':
-          description: ''
+          description: 编辑权限组(仅种子管理员)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionGroup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 编辑权限组(仅种子管理员)
       tags:
         - rbac
+      description: 编辑权限组(仅种子管理员)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     delete:
       operationId: RbacController_deleteRole
       parameters:
@@ -312,12 +579,27 @@ paths:
             type: number
       responses:
         '200':
-          description: ''
+          description: 删除权限组(仅种子管理员)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 删除权限组(仅种子管理员)
       tags:
         - rbac
+      description: 删除权限组(仅种子管理员)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rbac/permissions:
     post:
       operationId: RbacController_createPermission
@@ -330,23 +612,53 @@ paths:
               $ref: '#/components/schemas/CreatePermissionDto'
       responses:
         '201':
-          description: ''
+          description: 创建权限(仅种子管理员)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Permission'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 创建权限(仅种子管理员)
       tags:
         - rbac
+      description: 创建权限(仅种子管理员)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     get:
       operationId: RbacController_listPermissions
       parameters: []
       responses:
         '200':
-          description: ''
+          description: 列表:所有权限成功。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Permission'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 列表:所有权限
       tags:
         - rbac
+      description: 列表:所有权限。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rbac/permissions/{id}:
     delete:
       operationId: RbacController_deletePermission
@@ -358,12 +670,27 @@ paths:
             type: number
       responses:
         '200':
-          description: ''
+          description: 删除权限(仅种子管理员)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 删除权限(仅种子管理员)
       tags:
         - rbac
+      description: 删除权限(仅种子管理员)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rbac/roles/{roleId}/permissions:
     post:
       operationId: RbacController_attachPermissionFromBody
@@ -381,12 +708,29 @@ paths:
               $ref: '#/components/schemas/AttachPermissionDto'
       responses:
         '201':
-          description: ''
+          description: 权限组配置权限(请求体形式,仅种子管理员)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttachedResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 权限组配置权限(请求体形式,仅种子管理员)
       tags:
         - rbac
+      description: 权限组配置权限(请求体形式,仅种子管理员)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rbac/roles/{roleId}/permissions/{permissionId}:
     post:
       operationId: RbacController_attachPermission
@@ -403,12 +747,29 @@ paths:
             type: number
       responses:
         '201':
-          description: ''
+          description: 权限组配置权限(兼容 URL 形式,仅种子管理员)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttachedResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 权限组配置权限(兼容 URL 形式,仅种子管理员)
       tags:
         - rbac
+      description: 权限组配置权限(兼容 URL 形式,仅种子管理员)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     delete:
       operationId: RbacController_detachPermission
       parameters:
@@ -424,12 +785,27 @@ paths:
             type: number
       responses:
         '200':
-          description: ''
+          description: 权限组移除权限(仅种子管理员)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetachedResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 权限组移除权限(仅种子管理员)
       tags:
         - rbac
+      description: 权限组移除权限(仅种子管理员)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rbac/users/{userId}/roles:
     get:
       operationId: RbacController_listUserRoles
@@ -441,12 +817,29 @@ paths:
             type: number
       responses:
         '200':
-          description: ''
+          description: 用户已分配的权限组成功。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PermissionGroup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 用户已分配的权限组
       tags:
         - rbac
+      description: 用户已分配的权限组。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     post:
       operationId: RbacController_assignRoleFromBody
       parameters:
@@ -463,12 +856,29 @@ paths:
               $ref: '#/components/schemas/AssignRoleDto'
       responses:
         '201':
-          description: ''
+          description: 用户分配权限组(请求体形式,仅种子管理员)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignedResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 用户分配权限组(请求体形式,仅种子管理员)
       tags:
         - rbac
+      description: 用户分配权限组(请求体形式,仅种子管理员)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rbac/users/{userId}/roles/{roleId}:
     post:
       operationId: RbacController_assignRole
@@ -485,12 +895,29 @@ paths:
             type: number
       responses:
         '201':
-          description: ''
+          description: 用户分配权限组(兼容 URL 形式,仅种子管理员)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignedResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 用户分配权限组(兼容 URL 形式,仅种子管理员)
       tags:
         - rbac
+      description: 用户分配权限组(兼容 URL 形式,仅种子管理员)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     delete:
       operationId: RbacController_unassignRole
       parameters:
@@ -506,24 +933,54 @@ paths:
             type: number
       responses:
         '200':
-          description: ''
+          description: 用户移除权限组(仅种子管理员)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnassignedResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 用户移除权限组(仅种子管理员)
       tags:
         - rbac
+      description: 用户移除权限组(仅种子管理员)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /users:
     get:
       operationId: UsersController_list
       parameters: []
       responses:
         '200':
-          description: ''
+          description: 用户列表成功。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 用户列表
       tags:
         - users
+      description: 用户列表。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     post:
       operationId: UsersController_create
       parameters: []
@@ -535,12 +992,27 @@ paths:
               $ref: '#/components/schemas/CreateUserDto'
       responses:
         '201':
-          description: ''
+          description: 创建用户成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 创建用户
       tags:
         - users
+      description: 创建用户。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /users/{id}:
     get:
       operationId: UsersController_findOne
@@ -552,12 +1024,27 @@ paths:
             type: number
       responses:
         '200':
-          description: ''
+          description: 用户详情成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 用户详情
       tags:
         - users
+      description: 用户详情。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     patch:
       operationId: UsersController_update
       parameters:
@@ -574,12 +1061,27 @@ paths:
               $ref: '#/components/schemas/UpdateUserDto'
       responses:
         '200':
-          description: ''
+          description: 修改用户资料(管理员账号只能由本人修改)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 修改用户资料(管理员账号只能由本人修改)
       tags:
         - users
+      description: 修改用户资料(管理员账号只能由本人修改)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     delete:
       operationId: UsersController_remove
       parameters:
@@ -590,12 +1092,27 @@ paths:
             type: number
       responses:
         '200':
-          description: ''
+          description: 删除用户(管理员账号只能由本人修改)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 删除用户(管理员账号只能由本人修改)
       tags:
         - users
+      description: 删除用户(管理员账号只能由本人修改)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /users/{id}/password:
     patch:
       operationId: UsersController_setPassword
@@ -613,12 +1130,27 @@ paths:
               $ref: '#/components/schemas/UpdatePasswordDto'
       responses:
         '200':
-          description: ''
+          description: 修改用户密码(管理员账号只能由本人修改)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 修改用户密码(管理员账号只能由本人修改)
       tags:
         - users
+      description: 修改用户密码(管理员账号只能由本人修改)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /users/{id}/enabled:
     post:
       operationId: UsersController_setEnabled
@@ -636,12 +1168,27 @@ paths:
               $ref: '#/components/schemas/SetEnabledDto'
       responses:
         '201':
-          description: ''
+          description: 启用/停用用户(停用后禁止登录且立即吊销现有会话)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnabledResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 启用/停用用户(停用后禁止登录且立即吊销现有会话)
       tags:
         - users
+      description: 启用/停用用户(停用后禁止登录且立即吊销现有会话)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /auth/login:
     post:
       operationId: AuthController_login
@@ -654,22 +1201,49 @@ paths:
               $ref: '#/components/schemas/LoginDto'
       responses:
         '201':
-          description: ''
+          description: 管理员登录,返回 JWT成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       summary: 管理员登录,返回 JWT
       tags:
         - auth
+      description: 管理员登录,返回 JWT。本接口无需预先提供凭证。
+      security: []
   /auth/me:
     get:
       operationId: AuthController_me
       parameters: []
       responses:
         '200':
-          description: ''
+          description: 当前登录用户成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedUser'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 当前登录用户
       tags:
         - auth
+      description: 当前登录用户。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /access-tokens:
     post:
       operationId: AccessTokenController_create
@@ -682,23 +1256,51 @@ paths:
               $ref: '#/components/schemas/CreateAccessTokenDto'
       responses:
         '201':
-          description: ''
+          description: 生成 access token(返回明文)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessTokenRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 生成 access token(返回明文)
       tags:
         - access-token
+      description: 生成 access token(返回明文)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     get:
       operationId: AccessTokenController_list
       parameters: []
       responses:
         '200':
-          description: ''
+          description: 列表:所有 access token(含明文、project 名)成功。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccessTokenRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 列表:所有 access token(含明文、project 名)
       tags:
         - access-token
+      description: 列表:所有 access token(含明文、project 名)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /access-tokens/{id}/projects:
     patch:
       operationId: AccessTokenController_updateProjects
@@ -716,12 +1318,27 @@ paths:
               $ref: '#/components/schemas/UpdateAccessTokenProjectsDto'
       responses:
         '200':
-          description: ''
+          description: 替换 access token 的功能组作用域成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessTokenRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 替换 access token 的功能组作用域
       tags:
         - access-token
+      description: 替换 access token 的功能组作用域。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /access-tokens/{id}/revoke:
     post:
       operationId: AccessTokenController_revoke
@@ -733,12 +1350,27 @@ paths:
             type: number
       responses:
         '201':
-          description: ''
+          description: 撤销 access token成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessTokenRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 撤销 access token
       tags:
         - access-token
+      description: 撤销 access token。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /access-tokens/{id}:
     delete:
       operationId: AccessTokenController_delete
@@ -750,12 +1382,27 @@ paths:
             type: number
       responses:
         '200':
-          description: ''
+          description: 删除 access token(软删,与撤销正交)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 删除 access token(软删,与撤销正交)
       tags:
         - access-token
+      description: 删除 access token(软删,与撤销正交)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rpc/debug/options:
     get:
       operationId: RpcController_debugOptions
@@ -768,12 +1415,25 @@ paths:
             type: string
       responses:
         '200':
-          description: ''
+          description: 手动 RPC 调试可选功能组、历史 action 与在线设备成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RpcDebugOptions'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 手动 RPC 调试可选功能组、历史 action 与在线设备
       tags:
         - rpc
+      description: 手动 RPC 调试可选功能组、历史 action 与在线设备。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rpc/debug/invoke/{project}/{action}:
     post:
       operationId: RpcController_debugInvoke
@@ -788,6 +1448,12 @@ paths:
           in: path
           schema:
             type: string
+        - name: clientId
+          required: false
+          in: query
+          description: 可选目标设备 ID；省略时在功能组在线设备中轮询。
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -796,12 +1462,25 @@ paths:
               $ref: '#/components/schemas/InvokeDto'
       responses:
         '200':
-          description: ''
+          description: 使用后台权限手动发起 RPC 调试调用成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvokeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 使用后台权限手动发起 RPC 调试调用
       tags:
         - rpc
+      description: 使用后台权限手动发起 RPC 调试调用。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rpc/invoke/{project}/{action}:
     post:
       operationId: RpcController_invoke
@@ -816,6 +1495,12 @@ paths:
           in: path
           schema:
             type: string
+        - name: clientId
+          required: false
+          in: query
+          description: 可选目标设备 ID；省略时在功能组在线设备中轮询。
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -824,12 +1509,25 @@ paths:
               $ref: '#/components/schemas/InvokeDto'
       responses:
         '201':
-          description: ''
+          description: 调用 project 内在线设备执行 action(可选 ?clientId 指定设备)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvokeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - accessToken: []
       summary: 调用 project 内在线设备执行 action(可选 ?clientId 指定设备)
       tags:
         - rpc
+      description: '调用 project 内在线设备执行 action(可选 ?clientId 指定设备)。使用 Authorization: Bearer rk_… 访问令牌，并校验功能组作用域。'
   /rpc/clientQueue:
     get:
       operationId: RpcController_clientQueue
@@ -840,18 +1538,32 @@ paths:
           schema:
             type: string
         - name: clientId
-          required: true
+          required: false
           in: query
+          description: 可选设备 ID；提供时只查询该设备在线状态。
           schema:
             type: string
       responses:
         '200':
-          description: ''
+          description: project 内在线设备(或指定 clientId 的在线状态)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientQueueResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - accessToken: []
       summary: project 内在线设备(或指定 clientId 的在线状态)
       tags:
         - rpc
+      description: 'project 内在线设备(或指定 clientId 的在线状态)。使用 Authorization: Bearer rk_… 访问令牌，并校验功能组作用域。'
   /monitor/requests:
     get:
       operationId: MonitorController_list
@@ -918,12 +1630,25 @@ paths:
             type: number
       responses:
         '200':
-          description: ''
+          description: 请求记录列表(查 PG 脊柱,不返 payload)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestLogPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 请求记录列表(查 PG 脊柱,不返 payload)
       tags:
         - monitor
+      description: 请求记录列表(查 PG 脊柱,不返 payload)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /monitor/request-options:
     get:
       operationId: MonitorController_requestOptions
@@ -945,12 +1670,25 @@ paths:
             type: string
       responses:
         '200':
-          description: ''
+          description: 请求筛选下拉选项(去重 project/action/client,联动过滤 + 实体仍存在)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestOptions'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 请求筛选下拉选项(去重 project/action/client,联动过滤 + 实体仍存在)
       tags:
         - monitor
+      description: 请求筛选下拉选项(去重 project/action/client,联动过滤 + 实体仍存在)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /monitor/requests/{requestId}:
     get:
       operationId: MonitorController_detail
@@ -962,12 +1700,27 @@ paths:
             type: string
       responses:
         '200':
-          description: 返回请求/响应 payload；设备上报且校验通过时 appAudit 为 V1 Step 结构，否则为 null
+          description: 请求详情(PG 脊柱 + 懒加载 Manticore payload/AppAudit)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 请求详情(PG 脊柱 + 懒加载 Manticore payload/AppAudit)
       tags:
         - monitor
+      description: 请求详情(PG 脊柱 + 懒加载 Manticore payload/AppAudit)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /system-logs:
     get:
       operationId: SystemLogsController_list
@@ -1037,25 +1790,74 @@ paths:
             type: number
       responses:
         '200':
-          description: ''
+          description: 系统操作审计日志列表成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemLogPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
       security:
-        - bearer: []
+        - adminJwt: []
       summary: 系统操作审计日志列表
       tags:
         - system-logs
+      description: 系统操作审计日志列表。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
 info:
   title: R2RPC API
-  description: ''
-  version: '0.1'
-  contact: {}
-tags: []
-servers: []
+  description: R2RPC 管理控制面、调用方 RPC 与监控查询的 HTTP API。设备长连接协议使用 WebSocket，另见项目协议文档。
+  version: 0.1.0
+  contact:
+    name: R2RPC Contributors
+    url: https://github.com/rezoch340/R2RPC
+    email: ''
+  license:
+    name: UNLICENSED
+    url: https://github.com/rezoch340/R2RPC/blob/main/LICENSE
+tags:
+  - name: auth
+    description: 后台账号登录和当前身份
+  - name: users
+    description: 后台账号管理
+  - name: rbac
+    description: 权限组、权限和用户授权
+  - name: projects
+    description: 功能组管理与运行统计
+  - name: device-token
+    description: 设备上线凭证
+  - name: access-token
+    description: RPC 调用方凭证
+  - name: devices
+    description: 设备持久态
+  - name: rpc
+    description: 公开 RPC 调用和后台手动调试
+  - name: monitor
+    description: 请求日志与 AppAudit 详情
+  - name: metrics
+    description: 请求和设备聚合指标
+  - name: system-logs
+    description: 后台系统操作审计
+servers:
+  - url: /
+    description: 当前部署
 components:
   securitySchemes:
-    bearer:
+    adminJwt:
       scheme: bearer
       bearerFormat: JWT
       type: http
+      description: 后台登录接口签发的管理员 JWT。
+    accessToken:
+      scheme: bearer
+      bearerFormat: R2RPC Access Token
+      type: http
+      description: 访问令牌管理页面生成的 rk_ 前缀 Access Token。
   schemas:
     CreateDeviceTokenDto:
       type: object
@@ -1246,3 +2048,1100 @@ components:
           description: 调用负载(扁平对象)
       required:
         - payload
+    ErrorResponse:
+      type: object
+      required:
+        - statusCode
+        - message
+        - timestamp
+      properties:
+        statusCode:
+          type: integer
+          example: 400
+        message:
+          oneOf:
+            - type: string
+              example: 请求参数非法
+            - type: array
+              items:
+                type: string
+              example:
+                - name must be a string
+            - type: object
+              additionalProperties: true
+              description: Nest HttpException 的结构化响应，例如 statusCode/message/error。
+        timestamp:
+          type: string
+          format: date-time
+    DeletedResult:
+      type: object
+      required:
+        - deleted
+      properties:
+        deleted:
+          type: boolean
+          enum:
+            - true
+    AttachedResult:
+      type: object
+      required:
+        - attached
+      properties:
+        attached:
+          type: boolean
+          enum:
+            - true
+    DetachedResult:
+      type: object
+      required:
+        - detached
+      properties:
+        detached:
+          type: boolean
+          enum:
+            - true
+    AssignedResult:
+      type: object
+      required:
+        - assigned
+      properties:
+        assigned:
+          type: boolean
+          enum:
+            - true
+    UnassignedResult:
+      type: object
+      required:
+        - unassigned
+      properties:
+        unassigned:
+          type: boolean
+          enum:
+            - true
+    Permission:
+      type: object
+      required:
+        - id
+        - action
+        - subject
+      properties:
+        id:
+          type: integer
+          example: 1
+        action:
+          type: string
+          example: read
+        subject:
+          type: string
+          example: monitor
+        description:
+          type: string
+          nullable: true
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    PermissionTuple:
+      type: object
+      required:
+        - action
+        - subject
+      properties:
+        action:
+          type: string
+          example: read
+        subject:
+          type: string
+          example: monitor
+    PermissionGroup:
+      type: object
+      required:
+        - id
+        - name
+        - createdAt
+        - permissions
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: operator
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+    User:
+      type: object
+      required:
+        - id
+        - username
+        - role
+        - isRoot
+        - enabled
+        - createdAt
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: admin
+        role:
+          type: string
+          enum:
+            - admin
+            - operator
+        isRoot:
+          type: boolean
+        enabled:
+          type: boolean
+        description:
+          type: string
+          nullable: true
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    UserEnabledResult:
+      type: object
+      required:
+        - id
+        - username
+        - enabled
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        enabled:
+          type: boolean
+    AuthenticatedUser:
+      type: object
+      required:
+        - id
+        - sub
+        - username
+        - permissions
+        - isRoot
+      properties:
+        id:
+          type: integer
+          example: 1
+        sub:
+          oneOf:
+            - type: integer
+            - type: string
+          description: JWT subject
+        username:
+          type: string
+          example: admin
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PermissionTuple'
+        isRoot:
+          type: boolean
+    LoginResponse:
+      type: object
+      required:
+        - token
+        - user
+      properties:
+        token:
+          type: string
+          description: 后台管理员 JWT
+        user:
+          type: object
+          required:
+            - id
+            - username
+            - role
+          properties:
+            id:
+              type: integer
+            username:
+              type: string
+            role:
+              type: string
+              enum:
+                - admin
+                - operator
+    AccessTokenRecord:
+      type: object
+      required:
+        - id
+        - name
+        - token
+        - status
+        - createdAt
+        - projects
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: production-caller
+        token:
+          type: string
+          description: 明文令牌；Access Token 使用 rk_，Device Token 使用 dk_。
+        status:
+          type: string
+          enum:
+            - active
+            - revoked
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        createdBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        projects:
+          type: array
+          items:
+            type: string
+    DeviceTokenRecord:
+      type: object
+      required:
+        - id
+        - name
+        - token
+        - status
+        - createdAt
+        - projects
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: production-caller
+        token:
+          type: string
+          description: 明文令牌；Access Token 使用 rk_，Device Token 使用 dk_。
+        status:
+          type: string
+          enum:
+            - active
+            - revoked
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        createdBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        projects:
+          type: array
+          items:
+            type: string
+        onlineDeviceCount:
+          type: integer
+          minimum: 0
+          description: 列表接口返回的当前在线设备数
+    Project:
+      type: object
+      required:
+        - id
+        - name
+        - enabled
+        - createdAt
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: cn-nodes
+        description:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    ProjectEnabledResult:
+      type: object
+      required:
+        - id
+        - name
+        - enabled
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        enabled:
+          type: boolean
+    ProjectInfo:
+      type: object
+      required:
+        - id
+        - name
+        - enabled
+        - totalDevices
+        - onlineDevices
+        - requests7d
+        - success7d
+        - successRate
+        - status
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+        totalDevices:
+          type: integer
+          minimum: 0
+        onlineDevices:
+          type: integer
+          minimum: 0
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        requests7d:
+          type: integer
+          minimum: 0
+        success7d:
+          type: integer
+          minimum: 0
+        successRate:
+          type: number
+          minimum: 0
+          maximum: 100
+        status:
+          type: string
+          enum:
+            - online
+            - offline
+            - stale
+            - disabled
+            - no_device
+    Device:
+      type: object
+      required:
+        - id
+        - clientId
+        - online
+        - status
+      properties:
+        id:
+          type: integer
+        clientId:
+          type: string
+        deviceTokenId:
+          type: integer
+          nullable: true
+        online:
+          type: boolean
+        status:
+          type: string
+          enum:
+            - online
+            - offline
+            - stale
+        platform:
+          type: string
+          nullable: true
+        lastIp:
+          type: string
+          nullable: true
+        extra:
+          type: string
+          nullable: true
+        maxInFlight:
+          type: integer
+          nullable: true
+          minimum: 1
+        description:
+          type: string
+          nullable: true
+        lastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    MetricsOverview:
+      type: object
+      required:
+        - totals
+        - byStatus
+        - byProject
+      properties:
+        totals:
+          type: object
+          required:
+            - total
+            - ok
+            - failed
+            - avgLatencyMs
+          properties:
+            total:
+              type: integer
+              minimum: 0
+            ok:
+              type: integer
+              minimum: 0
+            failed:
+              type: integer
+              minimum: 0
+            avgLatencyMs:
+              type: integer
+              minimum: 0
+        byStatus:
+          type: array
+          items:
+            type: object
+            required:
+              - status
+              - count
+            properties:
+              status:
+                type: string
+              count:
+                type: integer
+                minimum: 0
+        byProject:
+          type: array
+          items:
+            type: object
+            required:
+              - project
+              - count
+            properties:
+              project:
+                type: string
+              count:
+                type: integer
+                minimum: 0
+    WeeklyDeviceMetrics:
+      type: object
+      required:
+        - clientId
+        - project
+        - totalRequests
+        - successRequests
+        - failedRequests
+        - timeoutRequests
+        - avgLatencyMs
+        - maxLatencyMs
+      properties:
+        clientId:
+          type: string
+        project:
+          type: string
+        totalRequests:
+          type: integer
+          minimum: 0
+        successRequests:
+          type: integer
+          minimum: 0
+        failedRequests:
+          type: integer
+          minimum: 0
+        timeoutRequests:
+          type: integer
+          minimum: 0
+        avgLatencyMs:
+          type: integer
+          minimum: 0
+        maxLatencyMs:
+          type: integer
+          minimum: 0
+    DailyTrendPoint:
+      type: object
+      required:
+        - statDate
+        - totalRequests
+        - successRequests
+        - failedRequests
+        - timeoutRequests
+        - avgLatencyMs
+        - maxLatencyMs
+        - successRate
+      properties:
+        statDate:
+          type: string
+          format: date
+        totalRequests:
+          type: integer
+          minimum: 0
+        successRequests:
+          type: integer
+          minimum: 0
+        failedRequests:
+          type: integer
+          minimum: 0
+        timeoutRequests:
+          type: integer
+          minimum: 0
+        avgLatencyMs:
+          type: integer
+          minimum: 0
+        maxLatencyMs:
+          type: integer
+          minimum: 0
+        successRate:
+          type: number
+          minimum: 0
+          maximum: 100
+    RpcDebugOptions:
+      type: object
+      required:
+        - projects
+        - actions
+        - clientIds
+      properties:
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+        actions:
+          type: array
+          items:
+            type: string
+        clientIds:
+          type: array
+          items:
+            type: string
+    InvokeResponse:
+      type: object
+      required:
+        - requestId
+        - clientId
+        - is_ok
+        - status
+        - httpCode
+        - latencyMs
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        clientId:
+          type: string
+          nullable: true
+        is_ok:
+          type: boolean
+        status:
+          type: string
+        httpCode:
+          type: integer
+          description: 设备业务结果码；不等同于本次 HTTP 传输状态码。
+        latencyMs:
+          type: integer
+          minimum: 0
+        payload:
+          description: 任意可 JSON 序列化的值
+          nullable: true
+        error:
+          type: string
+          nullable: true
+    ClientQueueResponse:
+      oneOf:
+        - type: object
+          required:
+            - clientId
+            - online
+          properties:
+            clientId:
+              type: string
+            online:
+              type: boolean
+        - type: object
+          required:
+            - project
+            - online
+          properties:
+            project:
+              type: string
+            online:
+              type: array
+              items:
+                type: string
+    RequestLog:
+      type: object
+      required:
+        - id
+        - requestId
+        - projectName
+        - actionName
+        - status
+        - payloadState
+        - createdAt
+      properties:
+        id:
+          type: integer
+          example: 1
+        requestId:
+          type: string
+          format: uuid
+        projectName:
+          type: string
+          example: cn-nodes
+        actionName:
+          type: string
+          example: ping
+        clientId:
+          type: string
+          nullable: true
+        requesterUserId:
+          type: integer
+          nullable: true
+        accessTokenId:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          example: ok
+          description: 业务状态，例如 ok、timeout、error、no_project、no_device、offline、disabled、rejected
+        httpCode:
+          type: integer
+          nullable: true
+          example: 200
+        latencyMs:
+          type: integer
+          nullable: true
+          minimum: 0
+        errorMessage:
+          type: string
+          nullable: true
+        payloadState:
+          type: string
+          enum:
+            - pending
+            - indexed
+            - failed
+            - unavailable
+        createdAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+    RequestLogPage:
+      type: object
+      required:
+        - rows
+        - page
+        - pageSize
+        - total
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequestLog'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    RequestOptions:
+      type: object
+      required:
+        - projects
+        - actions
+        - clientIds
+      properties:
+        projects:
+          type: array
+          items:
+            type: string
+          maxItems: 200
+        actions:
+          type: array
+          items:
+            type: string
+          maxItems: 200
+        clientIds:
+          type: array
+          items:
+            type: string
+          maxItems: 200
+    AppAuditMetadata:
+      type: object
+      additionalProperties: false
+      required:
+        - key
+        - value
+      properties:
+        key:
+          type: string
+          minLength: 1
+          maxLength: 100
+        value:
+          description: 任意可 JSON 序列化的值
+          nullable: true
+    AppAuditRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        method:
+          type: string
+          minLength: 1
+          maxLength: 32
+        url:
+          type: string
+          maxLength: 4096
+        headers:
+          description: 任意可 JSON 序列化的值
+          nullable: true
+        body:
+          description: 任意可 JSON 序列化的值
+          nullable: true
+    AppAuditResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        statusCode:
+          type: integer
+          minimum: 0
+          maximum: 999
+        headers:
+          description: 任意可 JSON 序列化的值
+          nullable: true
+        bodyFormat:
+          type: string
+          enum:
+            - json
+            - text
+            - empty
+        body:
+          description: 任意可 JSON 序列化的值
+          nullable: true
+    AppAuditError:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          maxLength: 100
+        code:
+          type: string
+          maxLength: 100
+        message:
+          type: string
+          maxLength: 4096
+    AppAuditStep:
+      type: object
+      additionalProperties: false
+      required:
+        - sequence
+        - name
+        - startedAt
+        - durationMs
+      properties:
+        sequence:
+          type: integer
+          minimum: 1
+          maximum: 128
+        code:
+          type: string
+          maxLength: 100
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        startedAt:
+          type: string
+          format: date-time
+        durationMs:
+          type: number
+          minimum: 0
+        status:
+          oneOf:
+            - type: number
+            - type: string
+              maxLength: 100
+        request:
+          $ref: '#/components/schemas/AppAuditRequest'
+        response:
+          $ref: '#/components/schemas/AppAuditResponse'
+        error:
+          $ref: '#/components/schemas/AppAuditError'
+    AppAudit:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - title
+        - metadata
+        - steps
+      properties:
+        schemaVersion:
+          type: integer
+          enum:
+            - 1
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        metadata:
+          type: array
+          maxItems: 64
+          items:
+            $ref: '#/components/schemas/AppAuditMetadata'
+        steps:
+          type: array
+          maxItems: 128
+          items:
+            $ref: '#/components/schemas/AppAuditStep'
+    RequestDetail:
+      type: object
+      required:
+        - id
+        - requestId
+        - projectName
+        - actionName
+        - clientId
+        - requesterUserId
+        - accessTokenId
+        - status
+        - httpCode
+        - latencyMs
+        - errorMessage
+        - payloadState
+        - createdAt
+        - finishedAt
+        - payloadUnavailable
+        - requestPayload
+        - responsePayload
+        - appAudit
+      properties:
+        id:
+          type: integer
+          example: 1
+        requestId:
+          type: string
+          format: uuid
+        projectName:
+          type: string
+          example: cn-nodes
+        actionName:
+          type: string
+          example: ping
+        clientId:
+          type: string
+          nullable: true
+        requesterUserId:
+          type: integer
+          nullable: true
+        accessTokenId:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          example: ok
+          description: 业务状态，例如 ok、timeout、error、no_project、no_device、offline、disabled、rejected
+        httpCode:
+          type: integer
+          nullable: true
+          example: 200
+        latencyMs:
+          type: integer
+          nullable: true
+          minimum: 0
+        errorMessage:
+          type: string
+          nullable: true
+        payloadState:
+          type: string
+          enum:
+            - pending
+            - indexed
+            - failed
+            - unavailable
+        createdAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        payloadUnavailable:
+          type: boolean
+        requestPayload:
+          description: 任意可 JSON 序列化的值
+          nullable: true
+        responsePayload:
+          description: 任意可 JSON 序列化的值
+          nullable: true
+        appAudit:
+          allOf:
+            - $ref: '#/components/schemas/AppAudit'
+          nullable: true
+    SystemLog:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - actorUserId
+        - actorUsername
+        - action
+        - subject
+        - targetType
+        - metadata
+        - method
+        - route
+        - status
+        - statusCode
+        - createdAt
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        actorUserId:
+          type: integer
+        actorUsername:
+          type: string
+        action:
+          type: string
+        subject:
+          type: string
+        targetType:
+          type: string
+        targetId:
+          type: string
+          nullable: true
+        targetName:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        method:
+          type: string
+        route:
+          type: string
+        status:
+          type: string
+          enum:
+            - succeeded
+            - failed
+        statusCode:
+          type: integer
+        errorMessage:
+          type: string
+          nullable: true
+        ipAddress:
+          type: string
+          nullable: true
+        userAgent:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    SystemLogPage:
+      type: object
+      required:
+        - rows
+        - page
+        - pageSize
+        - total
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/SystemLog'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+  responses:
+    BadRequest:
+      description: 请求参数、路径参数或查询参数不符合契约。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: 凭证缺失、无效、过期、撤销或对应账号已不存在。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: 凭证有效，但账号、功能组或 RBAC 权限不允许本次操作。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: 目标资源不存在或已被软删除。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: 资源名称或关联关系与现有数据冲突。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: 服务端发生未预期错误。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

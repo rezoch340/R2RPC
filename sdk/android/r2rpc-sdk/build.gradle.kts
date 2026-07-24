@@ -61,6 +61,32 @@ publishing {
                 description.set(
                     "R2RPC Android/Kotlin device and caller SDK",
                 )
+                url.set("https://github.com/rezoch340/R2RPC")
+                licenses {
+                    license {
+                        name.set("All Rights Reserved")
+                        url.set(
+                            "https://github.com/rezoch340/R2RPC/blob/main/LICENSE",
+                        )
+                        distribution.set("repo")
+                    }
+                }
+                developers {
+                    developer {
+                        id.set("r2rpc-contributors")
+                        name.set("R2RPC Contributors")
+                        url.set("https://github.com/rezoch340/R2RPC")
+                    }
+                }
+                scm {
+                    connection.set(
+                        "scm:git:https://github.com/rezoch340/R2RPC.git",
+                    )
+                    developerConnection.set(
+                        "scm:git:ssh://git@github.com/rezoch340/R2RPC.git",
+                    )
+                    url.set("https://github.com/rezoch340/R2RPC")
+                }
             }
         }
     }

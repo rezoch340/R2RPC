@@ -10,7 +10,7 @@ import { RequirePermission } from '../../common/decorators/require-permission.de
 import { DevicesService } from './devices.service';
 
 @ApiTags('devices')
-@ApiBearerAuth()
+@ApiBearerAuth('adminJwt')
 @Controller('devices')
 export class DevicesController {
   constructor(private readonly devices: DevicesService) {}

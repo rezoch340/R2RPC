@@ -20,6 +20,10 @@ pnpm add /path/to/R2RPC/sdk/javascript
 pnpm add @r2rpc/javascript-sdk
 ```
 
+当前 `0.1.0` 制品尚未发布到公共 npm Registry；请先使用仓库路径或私有 Registry。公开发布
+必须遵循[`../../docs/releasing.md`](../../docs/releasing.md)和仓库
+[`../../LICENSE`](../../LICENSE)。
+
 ## 设备上线
 
 `clientId` 应由宿主应用首次安装时生成并持久化，后续启动复用同一个值。

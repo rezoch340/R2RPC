@@ -18,7 +18,7 @@ import { CreateDeviceTokenDto } from './dto/create-device-token.dto';
 import { UpdateDeviceTokenProjectsDto } from './dto/update-device-token-projects.dto';
 
 @ApiTags('device-token')
-@ApiBearerAuth()
+@ApiBearerAuth('adminJwt')
 @Controller('device-tokens')
 export class DeviceTokenController {
   constructor(private readonly tokens: DeviceTokenService) {}

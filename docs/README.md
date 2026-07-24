@@ -1,7 +1,8 @@
 # R2RPC 文档索引
 
-> 更新日期：2026-07-24。当前验证基线为后端 HTTP/WebSocket 黑盒 **172 passed**、
-> Jest **10 suites / 35 tests**、前端 Playwright **12 passed**、OpenAPI **39 个路径模板**；
+> 更新日期：2026-07-25。当前验证基线为后端 HTTP/WebSocket 黑盒 **172 passed**、
+> Jest **10 suites / 35 tests**、前端 Playwright **12 passed**、OpenAPI
+> **39 个路径模板 / 51 个操作 / 53 个 schema**；
 > JavaScript SDK **10 tests**、Android SDK **8 tests**；
 > 受限 Compose 性能基线为 **4 devices / 1600 requests / 0 failures / 80.03 req/s /
 > P95 7.50 ms**。
@@ -16,6 +17,11 @@
 - `../sdk/android/README.md`：Android SDK 安装、设备与调用方示例
 - `../sdk/javascript/README.md`：JavaScript SDK 安装、设备与调用方示例
 - `../CHANGELOG.md`：按交付阶段记录的变更历史
+- `../CONTRIBUTING.md`：贡献流程、质量门禁和 Pull Request 要求
+- `../SECURITY.md`：安全报告渠道和生产安全基线
+- `../CODE_OF_CONDUCT.md`：社区行为准则
+- `../LICENSE` / `../NOTICE`：当前许可状态和上游归属
+- `releasing.md`：版本、制品、发布和回滚流程
 - `项目总览-中文.md`：当前架构与范围
 - `R2RPC-核心功能统计.md`：当前能力矩阵
 - `后端进度.md`：唯一进度真源
@@ -31,7 +37,7 @@
 - `superpowers/specs/2026-07-24-container-performance-suite-design.md`：容器性能测试与 4 核 4 GiB 预算
 - `superpowers/specs/2026-07-24-device-sdks-design.md`：Android 与 JavaScript SDK 设计
 - `R2RPC-新版开工提示词.md`：新任务交接提示
-- `openapi.yaml`：HTTP OpenAPI
+- `openapi.yaml`：HTTP OpenAPI；区分后台 JWT 与 `rk_` Access Token，并包含成功/错误响应契约
 
 当前实现以运行代码、`openapi.yaml`、上述 README 和 `后端进度.md` 为准。发生 API、配置、
 验证基线或用户可见行为变化时，必须在同一变更中同步这些文档。

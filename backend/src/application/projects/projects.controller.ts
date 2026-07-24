@@ -15,7 +15,7 @@ import { SetEnabledDto } from './dto/set-enabled.dto';
 import { ProjectsService } from './projects.service';
 
 @ApiTags('projects')
-@ApiBearerAuth()
+@ApiBearerAuth('adminJwt')
 @Controller('projects')
 export class ProjectsController {
   constructor(private readonly projects: ProjectsService) {}

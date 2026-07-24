@@ -1,0 +1,62 @@
+name: Bug 报告
+description: 报告可重复的功能、协议或界面缺陷
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: 安全漏洞和真实凭证不要写入公开 Issue，请改用 SECURITY.md 的私密渠道。
+  - type: input
+    id: commit
+    attributes:
+      label: 版本或提交
+      description: Git 标签、提交 SHA、镜像摘要或 SDK 版本。
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: 组件
+      options:
+        - Backend API / Worker
+        - Management Frontend
+        - JavaScript SDK
+        - Android SDK
+        - Docker Compose / Configuration
+        - Documentation / OpenAPI
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 最小复现步骤
+      description: 只使用脱敏的开发环境数据；不要粘贴 Token、密码或生产日志。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: 已尝试的验证
+      description: 包含公开 HTTP/WS 请求、浏览器步骤或测试命令；不要直连数据库伪装成 E2E。
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: 信息检查
+      options:
+        - label: 我已移除凭证、密码、生产数据和个人信息。
+          required: true
+        - label: 这不是需要私密报告的安全漏洞。
+          required: true

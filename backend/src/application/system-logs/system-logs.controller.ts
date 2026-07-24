@@ -5,7 +5,7 @@ import { QuerySystemLogsDto } from './dto/query-system-logs.dto';
 import { SystemLogsService } from './system-logs.service';
 
 @ApiTags('system-logs')
-@ApiBearerAuth()
+@ApiBearerAuth('adminJwt')
 @Controller('system-logs')
 export class SystemLogsController {
   constructor(private readonly systemLogsService: SystemLogsService) {}

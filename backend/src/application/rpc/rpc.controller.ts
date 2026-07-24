@@ -9,7 +9,12 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { SystemAudit } from '../../common/decorators/system-audit.decorator';
@@ -23,7 +28,6 @@ import { QueryRpcDebugOptionsDto } from './dto/query-rpc-debug-options.dto';
 import { RpcService } from './rpc.service';
 
 @ApiTags('rpc')
-@ApiBearerAuth()
 @Controller()
 export class RpcController {
   constructor(
@@ -34,6 +38,7 @@ export class RpcController {
   ) {}
 
   @Get('rpc/debug/options')
+  @ApiBearerAuth('adminJwt')
   @RequirePermission('invoke', 'manual-rpc')
   @SystemAudit({
     name: '读取手动 RPC 调试上下文',
@@ -70,6 +75,13 @@ export class RpcController {
 
   @Post('rpc/debug/invoke/:project/:action')
   @HttpCode(200)
+  @ApiBearerAuth('adminJwt')
+  @ApiQuery({
+    name: 'clientId',
+    required: false,
+    type: String,
+    description: '可选目标设备 ID；省略时在功能组在线设备中轮询。',
+  })
   @RequirePermission('invoke', 'manual-rpc')
   @SystemAudit({
     name: '手动发起 RPC 调试调用',
@@ -104,6 +116,13 @@ export class RpcController {
   @Post('rpc/invoke/:project/:action')
   @Public()
   @UseGuards(AccessTokenGuard)
+  @ApiBearerAuth('accessToken')
+  @ApiQuery({
+    name: 'clientId',
+    required: false,
+    type: String,
+    description: '可选目标设备 ID；省略时在功能组在线设备中轮询。',
+  })
   @ApiOperation({
     summary: '调用 project 内在线设备执行 action(可选 ?clientId 指定设备)',
   })
@@ -127,6 +146,13 @@ export class RpcController {
   @Get('rpc/clientQueue')
   @Public()
   @UseGuards(AccessTokenGuard)
+  @ApiBearerAuth('accessToken')
+  @ApiQuery({
+    name: 'clientId',
+    required: false,
+    type: String,
+    description: '可选设备 ID；提供时只查询该设备在线状态。',
+  })
   @ApiOperation({ summary: 'project 内在线设备(或指定 clientId 的在线状态)' })
   async clientQueue(
     @Query('project') project: string,
