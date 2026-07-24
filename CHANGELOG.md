@@ -4,9 +4,18 @@
 
 ## [Unreleased]
 
-### FlowCore 风格管理前端
+### 全列表筛选、分页与日志详情
+- 功能组、设备、Device Token、Access Token、后台账号、权限组和权限目录补齐字段筛选与分页；请求日志、系统日志保留服务端分页并扩展可筛选字段。
+- 全部列表默认每页 10 条、最大 100 条；分页器显示当前记录区间、数字页码、首尾省略号、每页条数和指定页跳转，并作为表格页脚连成一体。
+- 表格统一改用正文无衬线字体、克制的表头字重、舒展行距、隔行底色和轻量悬停反馈；技术编号才保留等宽字体。
+- 令牌明文、说明、payload 和设备扩展信息等长字段不进入筛选条件；令牌表增加固定列宽、截断和横向滚动，避免描述、令牌与功能组互相覆盖。
+- 请求日志详情改为固定宽度右侧抽屉；全部 AppAudit Step 默认折叠，按需展开请求、响应和错误数据。
+- 系统日志新增事件、目标类型和目标名称筛选；请求日志新增载荷索引和耗时范围筛选。
+
+### 管理前端
 - 新建 `frontend/`：Next.js 16、React 19、Tailwind CSS 4、shadcn 和 TanStack Query，默认端口 3001。
 - 覆盖运行概览、功能组、设备、Access Token、Device Token、请求日志/AppAudit、后台账号、权限组和系统日志全部管理公开面。
+- 运行概览的近 7 天请求量使用带节点、悬停数值和面积渐变的折线趋势图展示。
 - 账号菜单支持本人改密；root 目标写入口和 RBAC 写入口按后端隔离规则显隐，后端 Guard 继续作为最终授权边界。
 - 请求日志与系统日志使用服务端筛选分页，请求 payload 和设备 AppAudit Step 按 requestId 懒加载。
 - 新增前端完整变量名门禁、ESLint、Next.js 生产构建和 Playwright 浏览器冒烟；边界守卫禁止 E2E 导入后端或直连 PG/Redis/Manticore。
@@ -15,7 +24,7 @@
 - 修复通过局域网 IP 打开开发前端时 HMR WebSocket 被 Next.js 来源检查拒绝的问题；自动加入本机 IPv4 地址，并支持 `NEXT_ALLOWED_DEV_ORIGINS` 补充自定义开发域名。
 - 修复请求日志与系统日志翻页时短暂清空表格造成的闪屏；新页请求期间保留上一页数据，响应完成后原位替换。侧栏切换全部管理页面时先按权限预取公开接口，再提交路由切换，避免首次进入页面闪加载骨架。
 - 系统日志扩展为完整控制面访问审计：记录登录成功/失败、全部 JWT 读取和 Guard/路由阶段拒绝；RPC/WS 数据面继续使用独立日志链路。
-- 最终验证：前端 Playwright **5 passed**，前端 lint 与生产构建通过；后端 Jest **8 suites / 24 tests**、完整 HTTP/WebSocket 黑盒 **143 passed、0 failed**。
+- 最终验证：前端 Playwright **8 passed**，前端 lint 与生产构建通过；后端 Jest **8 suites / 24 tests**、完整 HTTP/WebSocket 黑盒 **145 passed、0 failed**。
 
 ### 系统操作审计日志
 - 盘点全部 14 张旧表：业务实体均具有语义名称与 `description`；关系表名称由复合外键表达，请求日志/聚合表按日志规则豁免，不机械增加无意义的 `name`。
@@ -24,9 +33,9 @@
 - metadata 只采集安全 path/body/query 字段，不复制完整 body；密码和 token 明文不会写入系统日志，RPC/WS 数据面不重复写入。
 - 新增 `GET /system-logs`，使用 `read/system-log`，支持操作者、action、subject、状态、时间和分页筛选；系统日志无修改/删除 API。
 - project 创建接口补齐已有 `description` 列的输入能力和数据库长度校验。
-- 种子权限现为 18 条，operator 的 `read/*` 权限为 8 条；当前验证为 Jest **8 suites / 24 tests**、OpenAPI **35 个路径模板**、完整黑盒 **143 passed、0 failed**。
+- 种子权限现为 18 条，operator 的 `read/*` 权限为 8 条；当前验证为 Jest **8 suites / 24 tests**、OpenAPI **35 个路径模板**、完整黑盒 **145 passed、0 failed**。
 
-### FlowCore 风格权限组
+### 权限组管理
 - 复用现有 `roles`、`permissions`、`role_permissions`、`user_roles`，明确 Role 即权限组；用户可分配多个权限组，授权继续取所有有效组权限的并集，无数据库迁移。
 - `GET /rbac/roles` 现返回嵌套权限；新增 `PATCH /rbac/roles/:id` 和 `GET /rbac/users/:userId/roles`。
 - 新增请求体形式的权限挂载与用户分组接口，同时保留原 URL 形式 POST 兼容入口。
@@ -36,7 +45,7 @@
 - 该阶段验证为 Jest **6 suites / 14 tests**、OpenAPI **34 个路径模板**、完整黑盒 **136 passed、0 failed**，E2E 仍只访问 HTTP/WebSocket。
 
 ### 管理员账号隔离与改密
-- 参考 FlowCore 增加 `PATCH /users/:id` 资料修改和 `PATCH /users/:id/password` 改密接口；创建、列表、详情和写响应统一显式选择安全用户字段，不返回 `passwordHash`。
+- 新增 `PATCH /users/:id` 资料修改和 `PATCH /users/:id/password` 改密接口；创建、列表、详情和写响应统一显式选择安全用户字段，不返回 `passwordHash`。
 - 新增共享 `AdministratorAccountPolicyService`：目标为 `isRoot` 管理员且请求者不是本人时返回 403；请求者编号只从 JWT 鉴权上下文读取。
 - 统一保护资料、密码、enabled、软删除以及 RBAC 用户角色绑定/解绑，避免通过其他写入口绕过管理员隔离；`users.role` 继续只作遗留展示，不参与授权或保护。
 - 密码、用户名和 description 输入补齐数据库对应的长度上限；密码修改后旧密码登录返回 401，新密码可登录。
@@ -50,7 +59,7 @@
 - 新增 `pnpm lint:check`；`pnpm lint` 先执行命名门禁再自动修复 ESLint 问题。
 
 ### 设备上报 AppAudit 日志 Step
-- 复用 FlowCore 的 AppAudit V1 数据模型，WS `result` 新增可选 `appAudit`；设备一次性上报 metadata 和成功/失败 Step。
+- 采用 AppAudit V1 结构化数据模型，WS `result` 新增可选 `appAudit`；设备一次性上报 metadata 和成功/失败 Step。
 - 服务端使用 zod 校验 schemaVersion、ISO 时间、连续 sequence、字段长度、最多 64 metadata/128 Step 和 512 KiB 体积；非法审计整体丢弃但不影响 RPC 业务结果。
 - `RequestLogJob`、Manticore `app_audit_json` 和 Monitor 详情完成冷路径；PostgreSQL 脊柱与日志列表不存/不返审计。已有 Manticore 表启动时自动补列。
 - 黑盒新增真实 HTTP invoke → WS result+AppAudit → Worker → Monitor API 验证和非法审计隔离，该阶段基线为 121 passed、0 failed，仍不直连持久层。

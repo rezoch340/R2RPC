@@ -328,7 +328,7 @@ export const userRoles = pgTable('user_roles', {
 
 - [ ] **Step 1:** `pnpm add @casl/ability`
 - [ ] **Step 2: entity/model.ts** 定义 PermissionTuple、AuthenticatedUser。
-- [ ] **Step 3: rbac.service.ts**(Drizzle 版,参考 FlowCore 的同名 service,查询用 drizzle join):
+- [ ] **Step 3: rbac.service.ts**(Drizzle 版，查询使用 drizzle join):
 ```ts
 // getUserPermissions:user_roles → role_permissions → permissions 去重
 async getUserPermissions(userId: number): Promise<PermissionTuple[]> {
@@ -511,7 +511,7 @@ export const accessTokenGroups = pgTable('access_token_groups', {
 
 **Interfaces produced:** `AccessTokenGuard`;`req.accessToken = { id, name, groupIds }`。
 
-- [ ] **Step 1: access-token.guard.ts**(参考 FlowCore access-token.guard,简化为组作用域):
+- [ ] **Step 1: access-token.guard.ts**(按功能组作用域实现):
 ```ts
 @Injectable()
 export class AccessTokenGuard implements CanActivate {

@@ -14,6 +14,11 @@ export class QuerySystemLogsDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   actorUsername?: string;
 
   @ApiPropertyOptional()
@@ -25,6 +30,16 @@ export class QuerySystemLogsDto {
   @IsOptional()
   @IsString()
   subject?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  targetType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  targetName?: string;
 
   @ApiPropertyOptional({ enum: ['succeeded', 'failed'] })
   @IsOptional()
@@ -48,11 +63,11 @@ export class QuerySystemLogsDto {
   @Min(1)
   page?: number;
 
-  @ApiPropertyOptional({ default: 20, maximum: 200 })
+  @ApiPropertyOptional({ default: 10, maximum: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(200)
+  @Max(100)
   pageSize?: number;
 }

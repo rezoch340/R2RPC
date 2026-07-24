@@ -13,16 +13,18 @@ import {
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
+import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
 import { PageHeader } from '@/components/page-header';
+import { Pagination } from '@/components/pagination';
 import { PermissionBoundary } from '@/components/permission-boundary';
 import { QueryErrorState } from '@/components/query-state';
 import { RowActions } from '@/components/row-actions';
-import { SearchInput } from '@/components/search-input';
 import { Badge } from '@/components/ui/badge';
 import { getRequestErrorMessage, requestApi } from '@/lib/api-client';
 import { useAuthentication } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
 import type { PermissionGroup, UserRecord } from '@/lib/models';
+import { useClientPagination } from '@/lib/use-client-pagination';
 import {
   UserCreateDialog,
   UserDescriptionDialog,
@@ -35,15 +37,45 @@ interface UserConfirmation {
   user: UserRecord;
 }
 
+interface UserFilters {
+  username: string;
+  role: string;
+  enabled: string;
+}
+
+const EMPTY_FILTERS: UserFilters = {
+  username: '',
+  role: '',
+  enabled: '',
+};
+
+const FILTER_FIELDS: Array<FilterFieldDefinition<keyof UserFilters>> = [
+  { key: 'username', label: '账号', placeholder: '用户名' },
+  { key: 'role', label: '展示角色', placeholder: '角色名称' },
+  {
+    key: 'enabled',
+    label: '状态',
+    type: 'select',
+    placeholder: '全部状态',
+    options: [
+      { value: 'enabled', label: '启用' },
+      { value: 'disabled', label: '停用' },
+    ],
+  },
+];
+
 export default function UsersPage() {
-  const [searchText, setSearchText] = useState('');
+  const [draftFilters, setDraftFilters] = useState<UserFilters>(EMPTY_FILTERS);
+  const [appliedFilters, setAppliedFilters] =
+    useState<UserFilters>(EMPTY_FILTERS);
   const [descriptionUser, setDescriptionUser] = useState<UserRecord | null>(
     null,
   );
   const [passwordUser, setPasswordUser] = useState<UserRecord | null>(null);
   const [roleUser, setRoleUser] = useState<UserRecord | null>(null);
-  const [confirmation, setConfirmation] =
-    useState<UserConfirmation | null>(null);
+  const [confirmation, setConfirmation] = useState<UserConfirmation | null>(
+    null,
+  );
   const queryClient = useQueryClient();
   const { user: authenticatedUser, can, isRoot } = useAuthentication();
 
@@ -142,23 +174,29 @@ export default function UsersPage() {
   });
 
   const filteredUsers = useMemo(() => {
-    const normalizedSearch = searchText.trim().toLowerCase();
-    if (!normalizedSearch) {
-      return usersQuery.data ?? [];
-    }
-    return (usersQuery.data ?? []).filter((userRecord) =>
-      [
-        userRecord.username,
-        userRecord.role,
-        userRecord.description,
-        userRecord.enabled ? 'enabled' : 'disabled',
-      ]
-        .filter(Boolean)
-        .some((value) =>
-          String(value).toLowerCase().includes(normalizedSearch),
-        ),
-    );
-  }, [searchText, usersQuery.data]);
+    const normalizedUsername = appliedFilters.username.trim().toLowerCase();
+    const normalizedRole = appliedFilters.role.trim().toLowerCase();
+    return (usersQuery.data ?? []).filter((userRecord) => {
+      const matchesUsername =
+        !normalizedUsername ||
+        userRecord.username.toLowerCase().includes(normalizedUsername);
+      const matchesRole =
+        !normalizedRole ||
+        userRecord.role.toLowerCase().includes(normalizedRole);
+      const enabledStatus = userRecord.enabled ? 'enabled' : 'disabled';
+      const matchesEnabled =
+        !appliedFilters.enabled || enabledStatus === appliedFilters.enabled;
+      return matchesUsername && matchesRole && matchesEnabled;
+    });
+  }, [appliedFilters, usersQuery.data]);
+  const pagination = useClientPagination(filteredUsers);
+
+  function updateDraftFilter(key: keyof UserFilters, value: string) {
+    setDraftFilters((currentFilters) => ({
+      ...currentFilters,
+      [key]: value,
+    }));
+  }
 
   function canMutateUser(userRecord: UserRecord): boolean {
     return (
@@ -288,17 +326,36 @@ export default function UsersPage() {
         }
       />
       {usersQuery.isError ? <QueryErrorState /> : null}
-      <SearchInput
-        value={searchText}
-        onChange={setSearchText}
-        placeholder="搜索用户名、角色、说明或状态"
+      <FilterBar
+        fields={FILTER_FIELDS}
+        values={draftFilters}
+        onChange={updateDraftFilter}
+        onSubmit={() => {
+          setAppliedFilters(draftFilters);
+          pagination.resetPage();
+        }}
+        onReset={() => {
+          setDraftFilters(EMPTY_FILTERS);
+          setAppliedFilters(EMPTY_FILTERS);
+          pagination.resetPage();
+        }}
       />
       <DataTable
         columns={columns}
-        rows={filteredUsers}
+        rows={pagination.pageRows}
         isLoading={usersQuery.isLoading}
         emptyMessage="暂无后台账号"
         rowKey={(userRecord) => userRecord.id}
+        footer={
+          <Pagination
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            isFetching={usersQuery.isFetching}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+          />
+        }
       />
 
       <UserDescriptionDialog

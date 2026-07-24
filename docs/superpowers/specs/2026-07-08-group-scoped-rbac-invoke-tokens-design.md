@@ -4,7 +4,7 @@
 
 - 日期:2026-07-08
 - 状态:已确认(待用户复审 spec)
-- 关联:`docs/RER0RPC-新版开工提示词.md`、`docs/design-conventions.md`;参考实现 `/Users/lpitiless/Documents/FlowCore`
+- 关联:`docs/RER0RPC-新版开工提示词.md`、`docs/design-conventions.md`
 
 ## 1. 背景与目标
 
@@ -92,7 +92,7 @@ access_token_groups  token_id FK→access_tokens, group_id FK→groups, PK(token
 - **WS 网关**:连上后按设备的**每个 group_id** 登记 presence(`group:clients:{groupId}` + `presence:{clientId}`),心跳刷新,断线从所有组清理。
 - **invoke**:`:group` 名字 → group_id;鉴权走 AccessTokenGuard;调度按 group_id 选在线设备(现有轮询逻辑不变,只是 key 换成 group_id)。`request_logs` 记 access_token_id。
 - **access token 管理**(后台,`@RequirePermission`):`POST /access-tokens`(勾选设备组 + 过期时间,返回明文)、`GET /access-tokens`(列表带明文)、`POST /access-tokens/:id/revoke`。
-- **RBAC 管理**(后台):角色/权限 CRUD、给用户分配角色、给角色挂权限(端口 FlowCore `RbacService`)。
+- **RBAC 管理**(后台):角色/权限 CRUD、给用户分配角色、给角色挂权限(由 `RbacService` 实现)。
 - **auth**:`GET /auth/me` 返回 `{ id, username, isRoot, permissions }`。
 
 ## 7. 种子
@@ -103,11 +103,11 @@ access_token_groups  token_id FK→access_tokens, group_id FK→groups, PK(token
 
 ## 8. 安全说明(已接受的权衡)
 
-`access_tokens.token` **明文存库**:库泄露即全部 invoke token 暴露。FlowCore 存 `sha256(token)` 正为规避此。用户已明确选择明文可回看,记录在案。
+`access_tokens.token` **明文存库**:库泄露即全部 invoke token 暴露。使用令牌哈希存储通常用于规避此风险。用户已明确选择明文可回看,记录在案。
 
 ## 9. 测试
 
-- 后台:`@RequirePermission` fail-closed、isRoot 绕过、无权 403(端口 FlowCore rbac / root-guard e2e)。
+- 后台:`@RequirePermission` fail-closed、isRoot 绕过、无权 403(覆盖 RBAC 与 root guard E2E)。
 - 设备组:设备多组登录、WS 在多组 presence、invoke 命中任一组。
 - access token:过期→401、撤销→403、组不匹配→403、命中→通;明文可回看。
 - 更新 `pnpm smoke`:invoke 改用 access token 调。
@@ -124,5 +124,5 @@ access_token_groups  token_id FK→access_tokens, group_id FK→groups, PK(token
 
 - invoke 调用者是外部系统(持 access token),非后台用户、非设备。
 - monitor 列表/详情**不**按组过滤(后台不分组)。
-- access token 只按设备组作用域,不做 FlowCore 那种 method/path apiRules。
+- access token 只按设备组作用域,不做 method/path apiRules。
 - `role` varchar 字段停用但暂不删,避免牵动现有种子;后续可清理。

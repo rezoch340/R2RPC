@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Eye, RotateCcw, Search } from 'lucide-react';
+import { Eye } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
+import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
 import { JsonBlock } from '@/components/json-block';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
@@ -18,36 +19,54 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { buildQueryString, requestApi } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import type { PaginatedResponse, SystemLogRecord } from '@/lib/models';
 
 interface SystemLogFilters {
+  name: string;
   actorUsername: string;
   action: string;
   subject: string;
+  targetType: string;
+  targetName: string;
   status: string;
   from: string;
   to: string;
 }
 
 const EMPTY_FILTERS: SystemLogFilters = {
+  name: '',
   actorUsername: '',
   action: '',
   subject: '',
+  targetType: '',
+  targetName: '',
   status: '',
   from: '',
   to: '',
 };
+
+const FILTER_FIELDS: Array<FilterFieldDefinition<keyof SystemLogFilters>> = [
+  { key: 'name', label: '事件', placeholder: '事件名称' },
+  { key: 'actorUsername', label: '操作者', placeholder: '用户名' },
+  { key: 'action', label: '动作', placeholder: 'read、create…' },
+  { key: 'subject', label: '资源', placeholder: 'user、device…' },
+  { key: 'targetType', label: '目标类型', placeholder: '目标类型' },
+  { key: 'targetName', label: '目标名称', placeholder: '目标名称' },
+  {
+    key: 'status',
+    label: '结果',
+    type: 'select',
+    placeholder: '全部结果',
+    options: [
+      { value: 'succeeded', label: '成功' },
+      { value: 'failed', label: '失败' },
+    ],
+  },
+  { key: 'from', label: '起始时间', type: 'datetime-local' },
+  { key: 'to', label: '结束时间', type: 'datetime-local' },
+];
 
 export default function SystemLogsPage() {
   const [draftFilters, setDraftFilters] =
@@ -55,7 +74,7 @@ export default function SystemLogsPage() {
   const [appliedFilters, setAppliedFilters] =
     useState<SystemLogFilters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(10);
   const [selectedLog, setSelectedLog] = useState<SystemLogRecord | null>(null);
 
   const queryString = buildQueryString({
@@ -162,81 +181,20 @@ export default function SystemLogsPage() {
         title="系统日志"
         description="不可变记录登录、控制面读取、拒绝访问和业务写入，回答谁在什么时候访问或修改了什么。"
       />
-      <form
-        className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-2 xl:grid-cols-6"
-        onSubmit={(formEvent) => {
-          formEvent.preventDefault();
+      <FilterBar
+        fields={FILTER_FIELDS}
+        values={draftFilters}
+        onChange={updateFilter}
+        onSubmit={() => {
           setAppliedFilters(draftFilters);
           setPage(1);
         }}
-      >
-        <FilterInput
-          label="操作者"
-          value={draftFilters.actorUsername}
-          onChange={(value) => updateFilter('actorUsername', value)}
-        />
-        <FilterInput
-          label="动作"
-          value={draftFilters.action}
-          onChange={(value) => updateFilter('action', value)}
-        />
-        <FilterInput
-          label="资源"
-          value={draftFilters.subject}
-          onChange={(value) => updateFilter('subject', value)}
-        />
-        <div className="space-y-2">
-          <Label>结果</Label>
-          <Select
-            value={draftFilters.status || null}
-            onValueChange={(value) =>
-              updateFilter(
-                'status',
-                typeof value === 'string' ? value : '',
-              )
-            }
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="全部结果" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={null}>全部结果</SelectItem>
-              <SelectItem value="succeeded">成功</SelectItem>
-              <SelectItem value="failed">失败</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <FilterInput
-          label="起始时间"
-          type="datetime-local"
-          value={draftFilters.from}
-          onChange={(value) => updateFilter('from', value)}
-        />
-        <FilterInput
-          label="结束时间"
-          type="datetime-local"
-          value={draftFilters.to}
-          onChange={(value) => updateFilter('to', value)}
-        />
-        <div className="col-span-full flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setDraftFilters(EMPTY_FILTERS);
-              setAppliedFilters(EMPTY_FILTERS);
-              setPage(1);
-            }}
-          >
-            <RotateCcw />
-            重置
-          </Button>
-          <Button type="submit">
-            <Search />
-            查询
-          </Button>
-        </div>
-      </form>
+        onReset={() => {
+          setDraftFilters(EMPTY_FILTERS);
+          setAppliedFilters(EMPTY_FILTERS);
+          setPage(1);
+        }}
+      />
       {systemLogsQuery.isError ? <QueryErrorState /> : null}
       <DataTable
         columns={columns}
@@ -244,17 +202,19 @@ export default function SystemLogsPage() {
         isLoading={systemLogsQuery.isLoading}
         emptyMessage="暂无系统访问日志"
         rowKey={(systemLog) => systemLog.id}
-      />
-      <Pagination
-        page={systemLogsQuery.data?.page ?? page}
-        pageSize={systemLogsQuery.data?.pageSize ?? pageSize}
-        total={systemLogsQuery.data?.total ?? 0}
-        isFetching={systemLogsQuery.isFetching}
-        onPageChange={setPage}
-        onPageSizeChange={(newPageSize) => {
-          setPageSize(newPageSize);
-          setPage(1);
-        }}
+        footer={
+          <Pagination
+            page={systemLogsQuery.data?.page ?? page}
+            pageSize={systemLogsQuery.data?.pageSize ?? pageSize}
+            total={systemLogsQuery.data?.total ?? 0}
+            isFetching={systemLogsQuery.isFetching}
+            onPageChange={setPage}
+            onPageSizeChange={(newPageSize) => {
+              setPageSize(newPageSize);
+              setPage(1);
+            }}
+          />
+        }
       />
 
       <Dialog
@@ -298,10 +258,7 @@ export default function SystemLogsPage() {
                   value={formatDateTime(selectedLog.createdAt)}
                 />
                 <Detail label="IP" value={selectedLog.ipAddress || '—'} />
-                <Detail
-                  label="错误"
-                  value={selectedLog.errorMessage || '—'}
-                />
+                <Detail label="错误" value={selectedLog.errorMessage || '—'} />
               </div>
               <JsonBlock title="安全元数据" value={selectedLog.metadata} />
             </div>
@@ -309,29 +266,6 @@ export default function SystemLogsPage() {
         </DialogContent>
       </Dialog>
     </PermissionBoundary>
-  );
-}
-
-function FilterInput({
-  label,
-  value,
-  type = 'text',
-  onChange,
-}: {
-  label: string;
-  value: string;
-  type?: 'text' | 'datetime-local';
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <Input
-        type={type}
-        value={value}
-        onChange={(changeEvent) => onChange(changeEvent.target.value)}
-      />
-    </div>
   );
 }
 

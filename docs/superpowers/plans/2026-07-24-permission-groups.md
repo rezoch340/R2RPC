@@ -5,7 +5,7 @@
 
 ## Goal
 
-将 RER0RPC 已有 Role/RBAC 提升为 FlowCore 风格的权限组管理契约，并用种子管理员身份隔离全部
+将 RER0RPC 已有 Role/RBAC 提升为 权限组管理契约，并用种子管理员身份隔离全部
 RBAC 写操作。
 
 ## 约束

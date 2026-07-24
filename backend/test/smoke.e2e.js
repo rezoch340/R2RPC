@@ -575,7 +575,7 @@ async function main() {
     section('系统操作审计日志');
     const administratorUserLogs = await httpRequest(
       'GET',
-      '/system-logs?actorUsername=admin&subject=user&pageSize=200',
+      '/system-logs?actorUsername=admin&subject=user&pageSize=100',
       undefined,
       administratorAccessToken,
     );
@@ -604,9 +604,28 @@ async function main() {
       !JSON.stringify(administratorUserLogs.json).includes(changedPassword),
       '系统操作审计不记录密码',
     );
+    const targetedUserLogs = await httpRequest(
+      'GET',
+      `/system-logs?name=${encodeURIComponent('创建用户')}&targetType=user&targetName=${encodeURIComponent(username)}&pageSize=100`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      targetedUserLogs.status === 200 &&
+        targetedUserLogs.json.rows.some(
+          (systemLog) => systemLog.targetId === String(userId),
+        ) &&
+        targetedUserLogs.json.rows.every(
+          (systemLog) =>
+            systemLog.name === '创建用户' &&
+            systemLog.targetType === 'user' &&
+            systemLog.targetName === username,
+        ),
+      '系统日志支持事件与目标联合筛选',
+    );
     const administratorAuthenticationLogs = await httpRequest(
       'GET',
-      '/system-logs?actorUsername=admin&action=login&subject=auth&pageSize=200',
+      '/system-logs?actorUsername=admin&action=login&subject=auth&pageSize=100',
       undefined,
       administratorAccessToken,
     );
@@ -622,7 +641,7 @@ async function main() {
     );
     const failedAuthenticationLogs = await httpRequest(
       'GET',
-      `/system-logs?actorUsername=${encodeURIComponent(username)}&action=login&subject=auth&status=failed&pageSize=200`,
+      `/system-logs?actorUsername=${encodeURIComponent(username)}&action=login&subject=auth&status=failed&pageSize=100`,
       undefined,
       administratorAccessToken,
     );
@@ -641,7 +660,7 @@ async function main() {
     );
     const administratorReadLogs = await httpRequest(
       'GET',
-      '/system-logs?actorUsername=admin&action=read&subject=user&pageSize=200',
+      '/system-logs?actorUsername=admin&action=read&subject=user&pageSize=100',
       undefined,
       administratorAccessToken,
     );
@@ -832,7 +851,7 @@ async function main() {
     );
     const deniedAccessLogs = await httpRequest(
       'GET',
-      `/system-logs?actorUsername=${encodeURIComponent(username)}&action=execute&subject=user&status=failed&pageSize=200`,
+      `/system-logs?actorUsername=${encodeURIComponent(username)}&action=execute&subject=user&status=failed&pageSize=100`,
       undefined,
       userAuthenticationToken,
     );
@@ -908,7 +927,7 @@ async function main() {
     );
     const readableSystemLogs = await httpRequest(
       'GET',
-      `/system-logs?actorUsername=admin&action=create&subject=user&pageSize=200`,
+      `/system-logs?actorUsername=admin&action=create&subject=user&pageSize=100`,
       undefined,
       userAuthenticationToken,
     );
@@ -2172,7 +2191,7 @@ async function main() {
       async () => {
         const response = await httpRequest(
           'GET',
-          `/monitor/requests?project=${encodeURIComponent(projectNames.main)}&pageSize=200`,
+          `/monitor/requests?project=${encodeURIComponent(projectNames.main)}&pageSize=100`,
           undefined,
           administratorAccessToken,
         );
@@ -2188,7 +2207,7 @@ async function main() {
     );
     assert(
       requestList.json.page === 1 &&
-        requestList.json.pageSize === 200 &&
+        requestList.json.pageSize === 100 &&
         requestList.json.total >= 8,
       'monitor 请求列表支持 project 过滤与分页',
     );
@@ -2204,7 +2223,7 @@ async function main() {
 
     const statusFiltered = await httpRequest(
       'GET',
-      `/monitor/requests?project=${encodeURIComponent(projectNames.main)}&status=ok&pageSize=200`,
+      `/monitor/requests?project=${encodeURIComponent(projectNames.main)}&status=ok&pageSize=100`,
       undefined,
       administratorAccessToken,
     );
@@ -2213,6 +2232,23 @@ async function main() {
         statusFiltered.json.rows.length > 0 &&
         statusFiltered.json.rows.every((row) => row.status === 'ok'),
       'monitor 支持 status 过滤',
+    );
+    const payloadAndLatencyFiltered = await httpRequest(
+      'GET',
+      `/monitor/requests?project=${encodeURIComponent(projectNames.main)}&payloadState=indexed&minimumLatencyMs=0&maximumLatencyMs=60000&pageSize=100`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      payloadAndLatencyFiltered.status === 200 &&
+        payloadAndLatencyFiltered.json.rows.length > 0 &&
+        payloadAndLatencyFiltered.json.rows.every(
+          (row) =>
+            row.payloadState === 'indexed' &&
+            row.latencyMs >= 0 &&
+            row.latencyMs <= 60000,
+        ),
+      'monitor 支持载荷索引状态与耗时范围过滤',
     );
     const actionFiltered = await httpRequest(
       'GET',

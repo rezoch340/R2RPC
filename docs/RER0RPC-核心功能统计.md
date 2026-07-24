@@ -264,7 +264,7 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 `pnpm smoke` 与 `pnpm test:e2e` 执行同一套完整性测试：
 
-- 143 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
+- 145 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
 - 覆盖全部 HTTP controller 方法。
 - 覆盖系统操作日志、筛选、普通用户权限委派和密码不泄露。
 - 覆盖权限组编辑、嵌套权限、用户已分配组、新旧关联入口和 root-only 写隔离。

@@ -10,10 +10,11 @@
 - PostgreSQL + Redis/BullMQ + Manticore
 - 设备可随 WS `result` 上报 AppAudit V1 结构化日志 Step
 - 后台账号支持资料修改与改密；`isRoot` 管理员账号只能由本人修改
-- Role 已升级为 FlowCore 风格权限组；RBAC 写操作仅种子管理员可执行
+- Role 已升级为权限组管理模型；RBAC 写操作仅种子管理员可执行
 - 系统操作审计覆盖登录成功/失败、控制面读取、Guard 拒绝和业务写操作，且不记录密码/token 明文
 - Next.js 16 + shadcn 管理前端覆盖全部后台管理能力
-- 143 项纯 HTTP/WS 黑盒冒烟
+- 全部实体表支持字段筛选与分页，默认 10 条/页、最大 100 条/页
+- 145 项纯 HTTP/WS 黑盒冒烟
 - 前端浏览器 E2E 只通过 UI 与公开 HTTP API，不直连持久层
 - 设备 SDK：不在本仓库范围
 

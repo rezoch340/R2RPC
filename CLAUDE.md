@@ -27,7 +27,7 @@ pnpm start:worker          # Worker 进程(独立!--entryFile worker)
 pnpm db:generate           # drizzle-kit 从 src/**/*.schema.ts 生成迁移(见坑)
 pnpm db:migrate            # 应用迁移(独立步骤,绝不在 app 启动时跑)
 pnpm seed:admin            # 种子 admin + demo projects + RBAC 权限(幂等,可重跑)
-pnpm smoke                 # 143 项纯 HTTP/WS 黑盒完整性冒烟，需 API+Worker 在跑
+pnpm smoke                 # 145 项纯 HTTP/WS 黑盒完整性冒烟，需 API+Worker 在跑
 pnpm test:e2e              # 与 smoke 相同；先执行黑盒边界守卫
 pnpm test:integration:retention | test:integration:device-stale
 pnpm test:integration:metrics | test:integration:max-inflight # 内部直连检查，明确不是 E2E
@@ -43,7 +43,7 @@ pnpm build                 # 生产构建
 pnpm test:e2e              # 浏览器黑盒,只访问 UI 与公开 HTTP API
 ```
 
-前端参考 FlowCore 的 Next.js + shadcn 组织方式，但页面与类型按 RER0RPC OpenAPI 实现。
+前端使用 Next.js + shadcn，并严格按 RER0RPC OpenAPI 实现页面与类型。
 管理页不得导入后端内部模块或直连数据库/Redis/Manticore；RBAC 前端显隐不是安全边界，最终授权
 仍由后端 Guard 决定。API 默认允许 CORS，生产用 `CORS_ORIGIN` 限定控制台来源。
 

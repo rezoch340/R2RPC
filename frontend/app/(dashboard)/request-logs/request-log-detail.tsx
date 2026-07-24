@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Clock3, ListChecks } from 'lucide-react';
+import { ChevronRight, Clock3, ListChecks } from 'lucide-react';
 import { JsonBlock } from '@/components/json-block';
 import { QueryErrorState } from '@/components/query-state';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -9,11 +9,7 @@ import { requestApi } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import type { RequestLogDetail } from '@/lib/models';
 
-export function RequestLogDetailContent({
-  requestId,
-}: {
-  requestId: string;
-}) {
+export function RequestLogDetailContent({ requestId }: { requestId: string }) {
   const detailQuery = useQuery({
     queryKey: ['request-log', requestId],
     queryFn: () =>
@@ -42,10 +38,7 @@ export function RequestLogDetailContent({
           label="耗时"
           value={`${requestDetail.latencyMs ?? 0} ms`}
         />
-        <SummaryItem
-          label="设备"
-          value={requestDetail.clientId ?? '未分配'}
-        />
+        <SummaryItem label="设备" value={requestDetail.clientId ?? '未分配'} />
         <SummaryItem label="状态" value={requestDetail.status} />
         <SummaryItem
           label="完成时间"
@@ -68,33 +61,38 @@ export function RequestLogDetailContent({
           <h3 className="font-heading font-semibold">设备 AppAudit Step</h3>
         </div>
         {requestDetail.appAudit?.steps.map((auditStep) => (
-          <article
+          <details
             key={`${auditStep.sequence}-${auditStep.name}`}
-            className="rounded-xl border bg-card p-4"
+            className="group overflow-hidden rounded-xl border bg-card"
           >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="font-medium">
-                  {auditStep.sequence}. {auditStep.name}
-                </p>
-                <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+            <summary className="flex cursor-pointer list-none items-center gap-3 p-4 [&::-webkit-details-marker]:hidden">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-xs font-medium text-primary">
+                {auditStep.sequence}
+              </span>
+              <span className="min-w-0 flex-1">
+                <p className="font-medium">{auditStep.name}</p>
+                <span className="mt-1 block truncate font-mono text-[11px] text-muted-foreground">
                   {auditStep.code || '无步骤代码'}
-                </p>
-              </div>
+                </span>
+              </span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 font-mono text-xs">
                 <Clock3 className="size-3" />
                 {auditStep.durationMs} ms
               </span>
-            </div>
-            <div className="mt-4 grid gap-3 lg:grid-cols-3">
-              <JsonBlock title="Step Request" value={auditStep.request ?? null} />
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
+            </summary>
+            <div className="grid gap-3 border-t p-4 xl:grid-cols-3">
+              <JsonBlock
+                title="Step Request"
+                value={auditStep.request ?? null}
+              />
               <JsonBlock
                 title="Step Response"
                 value={auditStep.response ?? null}
               />
               <JsonBlock title="Step Error" value={auditStep.error ?? null} />
             </div>
-          </article>
+          </details>
         ))}
         {!requestDetail.appAudit ? (
           <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">

@@ -9,12 +9,14 @@ test.beforeEach(async ({ page }) => {
   await page.getByLabel('密码').fill(password);
   await page.getByRole('button', { name: '登录', exact: true }).click();
   await expect(page).toHaveURL('/');
-  await expect(
-    page.getByRole('heading', { name: '运行概览' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: '运行概览' })).toBeVisible();
 });
 
 test('登录和全部管理页面通过公开接口加载', async ({ page }) => {
+  await expect(
+    page.getByRole('img', { name: '近 7 天请求趋势折线图' }),
+  ).toBeVisible();
+
   const routes = [
     ['/projects', '功能组'],
     ['/devices', '设备'],
@@ -34,6 +36,100 @@ test('登录和全部管理页面通过公开接口加载', async ({ page }) => 
     await expect(page.getByText('当前账号没有查看此页面的权限。')).toHaveCount(
       0,
     );
+  }
+});
+
+test('全部数据列表提供字段筛选和分页', async ({ page }) => {
+  const listPages = [
+    { route: '/projects', filters: ['名称', '运行态', '启用状态'], pagers: 1 },
+    {
+      route: '/devices',
+      filters: ['设备编号', '平台', '最后 IP', '状态'],
+      pagers: 1,
+    },
+    {
+      route: '/device-tokens',
+      filters: ['名称', '功能组', '状态'],
+      pagers: 1,
+    },
+    {
+      route: '/access-tokens',
+      filters: ['名称', '功能组', '状态'],
+      pagers: 1,
+    },
+    {
+      route: '/users',
+      filters: ['账号', '展示角色', '状态'],
+      pagers: 1,
+    },
+    {
+      route: '/permission-groups',
+      filters: ['权限组', '所含权限', '动作', '资源'],
+      pagers: 2,
+    },
+    {
+      route: '/request-logs',
+      filters: ['功能组', '动作', '设备编号', '载荷索引'],
+      pagers: 1,
+    },
+    {
+      route: '/system-logs',
+      filters: ['事件', '操作者', '动作', '资源', '目标类型', '目标名称'],
+      pagers: 1,
+    },
+  ] as const;
+
+  for (const listPage of listPages) {
+    await page.goto(listPage.route);
+    for (const filterLabel of listPage.filters) {
+      await expect(
+        page.getByLabel(filterLabel, { exact: true }).first(),
+      ).toBeVisible();
+    }
+    const pageSizeSelectors = page.getByLabel('每页条数');
+    await expect(pageSizeSelectors).toHaveCount(listPage.pagers);
+    for (
+      let selectorIndex = 0;
+      selectorIndex < listPage.pagers;
+      selectorIndex += 1
+    ) {
+      await expect(pageSizeSelectors.nth(selectorIndex)).toContainText(
+        '10 条/页',
+      );
+    }
+  }
+});
+
+test('分页器支持页码、每页上限和跳页', async ({ page }) => {
+  await page.goto('/system-logs');
+  await expect(page.getByText(/第 1-10 条 \/ 共 \d+ 条/)).toBeVisible();
+  await expect(page.getByRole('button', { name: '第 2 页' })).toBeVisible();
+  await expect(page.getByLabel('跳转页码')).toBeVisible();
+
+  await page.getByLabel('每页条数').click();
+  await expect(page.getByRole('option', { name: '100 条/页' })).toBeVisible();
+  await expect(page.getByRole('option', { name: '200 条/页' })).toHaveCount(0);
+});
+
+test('请求日志详情从右侧打开且 AppAudit Step 默认收起', async ({ page }) => {
+  await page.goto('/request-logs');
+  const detailButtons = page.getByRole('button', { name: '查看请求详情' });
+  await expect(detailButtons.first()).toBeVisible();
+  await detailButtons.first().click();
+  const detailSheet = page.locator(
+    '[data-slot="sheet-content"][data-side="right"]',
+  );
+  await expect(detailSheet).toBeVisible();
+  await expect(
+    detailSheet.getByRole('heading', { name: '请求详情' }),
+  ).toBeVisible();
+  await expect(detailSheet.getByText('设备 AppAudit Step')).toBeVisible();
+
+  const auditSteps = detailSheet.locator('details');
+  if ((await auditSteps.count()) > 0) {
+    await expect(auditSteps.first()).not.toHaveAttribute('open', '');
+    await auditSteps.first().locator('summary').click();
+    await expect(auditSteps.first()).toHaveAttribute('open', '');
   }
 });
 
@@ -78,9 +174,7 @@ test('页面切换等待接口预取完成且不闪加载骨架', async ({ page 
 
   await page.getByRole('link', { name: '后台账号' }).click();
   await usersRequestStarted;
-  await expect(
-    page.getByRole('heading', { name: '运行概览' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: '运行概览' })).toBeVisible();
   await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0);
 
   releaseUsersRequest?.();

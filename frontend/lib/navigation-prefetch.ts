@@ -110,7 +110,7 @@ const navigationPrefetchTasks: Record<string, NavigationPrefetchTask[]> = {
           `/monitor/requests${buildQueryString({
             ...EMPTY_REQUEST_LOG_FILTERS,
             page: 1,
-            pageSize: 20,
+            pageSize: 10,
           })}`,
         ),
       permission: { action: "read", subject: "monitor" },
@@ -172,7 +172,7 @@ const navigationPrefetchTasks: Record<string, NavigationPrefetchTask[]> = {
           `/system-logs${buildQueryString({
             ...EMPTY_SYSTEM_LOG_FILTERS,
             page: 1,
-            pageSize: 20,
+            pageSize: 10,
           })}`,
         ),
       permission: { action: "read", subject: "system-log" },
