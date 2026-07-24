@@ -49,22 +49,158 @@ RER0RPC 解决“服务端需要调用位于 NAT、移动网络或客户现场�
 | 管理控制台 | Next.js + shadcn 响应式后台，全部实体表支持筛选与分页 |
 | 部署运维 | 统一 YAML、独立迁移/种子、健康检查、非 root 应用容器、持久化卷 |
 
+## 管理面板样例
+
+### 运行概览
+
+![RER0RPC 管理控制台运行概览](docs/assets/management-console-overview.jpg)
+
+> 运行概览集中展示累计请求、在线设备、功能组、平均延迟、近 7 天请求趋势和状态分布；
+> 指标来自真实后端接口，不使用前端静态演示数据。
+
+### 功能与设备
+
+<table>
+  <tr>
+    <th width="50%">功能组</th>
+    <th width="50%">设备</th>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/management-console-projects.jpg" alt="功能组管理页面"></td>
+    <td><img src="docs/assets/management-console-devices.jpg" alt="设备管理页面"></td>
+  </tr>
+</table>
+
+### 请求观测与手动调试
+
+<table>
+  <tr>
+    <th width="50%">请求日志</th>
+    <th width="50%">请求详情抽屉</th>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/management-console-request-logs.jpg" alt="请求日志页面"></td>
+    <td><img src="docs/assets/management-console-request-detail.jpg" alt="请求详情抽屉"></td>
+  </tr>
+  <tr>
+    <th colspan="2">手动 RPC 调试</th>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/assets/management-console-rpc-debugger.jpg" alt="手动 RPC 调试页面"></td>
+  </tr>
+</table>
+
+### 登录与访问控制
+
+![管理控制台登录页面](docs/assets/management-console-login.jpg)
+
+<table>
+  <tr>
+    <th width="50%">Device Token</th>
+    <th width="50%">Access Token</th>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/management-console-device-tokens.jpg" alt="设备令牌页面"></td>
+    <td><img src="docs/assets/management-console-access-tokens.jpg" alt="访问令牌页面"></td>
+  </tr>
+  <tr>
+    <th>后台账号</th>
+    <th>权限组与权限目录</th>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/management-console-users.jpg" alt="后台账号页面"></td>
+    <td><img src="docs/assets/management-console-permission-groups.jpg" alt="权限组页面"></td>
+  </tr>
+</table>
+
+### 系统操作审计
+
+![系统操作审计页面](docs/assets/management-console-system-logs.jpg)
+
 ## 系统架构
 
+RER0RPC 将实时 RPC 热路径、异步日志冷路径和管理控制面分离。Redis 保存跨实例协调状态，
+PostgreSQL 保存权威业务数据，Manticore 专门承载大载荷和设备执行 Step。
+
 ```mermaid
-flowchart LR
-  Caller["调用方"] -->|"Access Token / HTTP"| API["NestJS API"]
-  Console["管理控制台"] -->|"JWT / HTTP"| API
-  API <-->|"Device Token / WebSocket"| Device["在线设备"]
+flowchart TB
+  subgraph AccessLayer["访问层"]
+    Caller["调用方服务"]
+    Administrator["后台管理员"]
+    Device["在线设备"]
+  end
 
-  API --> PostgreSQL[("PostgreSQL")]
-  API <--> Redis[("Redis / BullMQ")]
-  API --> Manticore[("Manticore")]
+  subgraph ControlPlane["管理控制面"]
+    Frontend["Next.js 管理控制台"]
+  end
 
-  Redis <--> Worker["NestJS Worker"]
-  Worker --> PostgreSQL
-  Worker --> Manticore
+  subgraph RealtimePlane["NestJS API 实例：实时 RPC 热路径"]
+    API["HTTP / 管理 API"]
+    Router["RPC 路由与结果 Waiter"]
+    Gateway["WebSocket Gateway"]
+    CrossInstance["跨实例派发"]
+  end
+
+  subgraph AsyncPlane["异步日志冷路径"]
+    Queue["BullMQ 请求日志队列"]
+    Worker["NestJS Worker<br/>索引 · 聚合 · 保留策略"]
+  end
+
+  subgraph DataPlane["数据与协调层"]
+    PostgreSQL[("PostgreSQL<br/>权威业务数据")]
+    Redis[("Redis<br/>在线态 · Session · 缓存 · 去重")]
+    Manticore[("Manticore<br/>Payload · AppAudit Step")]
+  end
+
+  subgraph Bootstrap["部署初始化"]
+    Migration["Drizzle Migration"]
+    Seed["权限与管理员 Seed"]
+    Configuration["config.yaml<br/>统一配置"]
+  end
+
+  Caller -->|"rk_ Access Token / HTTP"| API
+  Administrator --> Frontend
+  Frontend -->|"JWT / 管理 API"| API
+  Device <-->|"dk_ Device Token / WebSocket"| Gateway
+
+  API --> Router
+  Router -->|"设备连接在当前实例"| Gateway
+  Router -->|"设备连接在其他实例"| CrossInstance
+  CrossInstance <--> Redis
+  Redis -->|"目标实例频道"| Gateway
+
+  API -->|"业务读写与请求脊柱"| PostgreSQL
+  API <-->|"授权缓存"| Redis
+  Router <-->|"在线态、轮询、Session、去重"| Redis
+  Gateway <-->|"Presence 与集群事件"| Redis
+  API -->|"载荷查询"| Manticore
+  API --> Queue
+  Queue <--> Redis
+  Redis --> Worker
+  Worker -->|"日志脊柱与日指标"| PostgreSQL
+  Worker -->|"请求、响应与设备 Step"| Manticore
+
+  Migration --> PostgreSQL
+  Seed --> PostgreSQL
+  Configuration -.-> API
+  Configuration -.-> Worker
+  Configuration -.-> Frontend
+  Configuration -.-> Migration
+  Configuration -.-> Seed
+
+  classDef access fill:#e6f7ff,stroke:#0891b2,color:#0f172a;
+  classDef service fill:#ecfeff,stroke:#0e7490,color:#0f172a;
+  classDef data fill:#f8fafc,stroke:#475569,color:#0f172a;
+  classDef bootstrap fill:#fefce8,stroke:#ca8a04,color:#0f172a;
+  class Caller,Administrator,Device access;
+  class Frontend,API,Router,Gateway,CrossInstance,Queue,Worker service;
+  class PostgreSQL,Redis,Manticore data;
+  class Migration,Seed,Configuration bootstrap;
 ```
+
+> API 实例通过 Redis session、waiter、Pub/Sub、结果去重和轮询游标协同；请求命中其他实例
+> 上的设备连接时，由 Redis Pub/Sub 完成跨实例派发。前端始终只调用公开 HTTP API，不直连
+> PostgreSQL、Redis 或 Manticore。
 
 ### RPC 主链路
 
