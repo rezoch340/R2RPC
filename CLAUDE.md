@@ -45,12 +45,16 @@ pnpm test:e2e              # 12 项浏览器黑盒,只访问 UI 与公开 HTTP A
 
 前端使用 Next.js + shadcn，并严格按 RER0RPC OpenAPI 实现页面与类型。
 管理页不得导入后端内部模块或直连数据库/Redis/Manticore；RBAC 前端显隐不是安全边界，最终授权
-仍由后端 Guard 决定。API 默认允许 CORS，生产用 `CORS_ORIGIN` 限定控制台来源。
+仍由后端 Guard 决定。API、Worker、迁移、种子和前端共用根目录 `config.yaml`；CORS 使用
+`app.corsOrigins`，浏览器连接使用 `frontend.apiUrl/apiPort`，不得恢复分散 `.env`。
 令牌和 JSON 复制统一使用 `CopyButton`/`lib/clipboard.ts`，禁止页面直接调用
 `navigator.clipboard.writeText`；公共实现会在非安全上下文自动回退。全部列表默认 10
 条/页、最大 100 条/页。
 
-- **前置基础设施**:PostgreSQL / Redis / Manticore 按 `config.yaml`(默认 `localhost:5432/6379/9308`)须已在跑；仓库提供 `deploy/docker-compose.yml` 与 `deploy/dev-up.sh`。配置走 `CONFIG_FILE`(默认 `./config.yaml`,`config.example.yaml` 是模板),zod 校验失败即启动失败。
+- **前置基础设施**:PostgreSQL / Redis / Manticore 按根目录 `config.yaml`(默认
+  `localhost:5432/6379/9308`)须已在跑；仓库提供根目录 `compose.yaml` 与
+  `deploy/dev-up.sh`。前后端默认读取同一 schema，`CONFIG_FILE` 只用于选择文件，
+  zod 校验失败即启动失败。
 - **drizzle 迁移坑**:`db:generate` 在**同一次同时 drop 旧表 + 建新表**时,会交互式问"rename vs create"——非交互环境会卡住,须明确回答(拆表/新表通常选 **create**)。纯 ADD COLUMN / 只新增表不问。改破坏式迁移前确认 `docs/后端进度.md` 里该阶段允许破坏。
 
 ## 双进程架构(关键)

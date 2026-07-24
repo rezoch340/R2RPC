@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+### 前后端统一配置与完整 Docker Compose
+- 新增根级统一 `config.yaml` 契约，API、Worker、Drizzle、迁移、种子和前端共同读取；
+  `CONFIG_FILE` 只保留为文件位置选择器。
+- CORS、浏览器 API 地址/端口、开发 Origin 和种子管理员迁入
+  `app/frontend/bootstrap`；删除 `CORS_ORIGIN`、`ADMIN_*`、`NEXT_PUBLIC_*`、
+  `NEXT_ALLOWED_DEV_ORIGINS`、`FRONTEND_CONFIG_FILE`、独立 `frontend.yaml` 和前端 env 模板。
+- 新增根目录宿主机模板与 Compose 模板；前端只向浏览器注入
+  `frontend.apiUrl/apiPort`，不泄露数据库、Redis、JWT 或管理员配置。
+- 新增后端多阶段非 root 生产镜像；根目录 `compose.yaml` 完整编排 PostgreSQL、Redis、
+  Manticore、migration、seed、API、Worker 和 frontend，并以健康检查/一次性任务完成状态
+  控制启动顺序。
+- 新增 4 项统一配置 loader 单元测试；当前 Jest **10 suites / 35 tests**、完整黑盒
+  **172 passed**、前端 Playwright **12 passed**。前后端 lint/build、Compose config、
+  两个应用镜像、容器内配置加载、迁移和种子均验证通过。
+
 ### 手动 RPC 操作按钮稳定性
 - 手动 RPC 发起调用期间保留“发起调用”文案与按钮尺寸，只在原图标位置展示旋转进度；删除
   `animate-pulse` 闪烁。
@@ -49,7 +64,7 @@
   **11 passed**，Jest **8 suites / 24 tests**、前后端 lint 与生产构建通过。
 
 ### 文档收口
-- 同步根目录、后端、前端、部署、项目总览、能力矩阵、进度、待办、工程规范、交接提示与设计索引，统一当前 39 个 OpenAPI 路径、172 项后端黑盒、9 suites / 31 tests Jest 和 12 项前端 Playwright 基线。
+- 同步根目录、后端、前端、部署、项目总览、能力矩阵、进度、待办、工程规范、交接提示与设计索引，统一当前 39 个 OpenAPI 路径、172 项后端黑盒、10 suites / 35 tests Jest 和 12 项前端 Playwright 基线。
 - 补齐两类令牌作用域编辑、Device Token close 4002、复制回退、列表分页筛选、折线趋势图和宽版日志抽屉的行为说明。
 - 明确历史计划、规格和归档只用于追溯；历史阶段数字和实施步骤不作为当前进度。
 

@@ -1,7 +1,7 @@
 # RER0RPC 文档索引
 
 > 更新日期：2026-07-24。当前验证基线为后端 HTTP/WebSocket 黑盒 **172 passed**、
-> Jest **9 suites / 31 tests**、前端 Playwright **12 passed**、OpenAPI **39 个路径模板**。
+> Jest **10 suites / 35 tests**、前端 Playwright **12 passed**、OpenAPI **39 个路径模板**。
 
 ## 当前有效文档
 
@@ -21,6 +21,7 @@
 - `superpowers/specs/2026-07-24-system-audit-logs-design.md`：系统操作审计与表字段盘点
 - `superpowers/specs/2026-07-24-management-frontend-design.md`：管理前端设计
 - `superpowers/specs/2026-07-24-manual-rpc-debugger-design.md`：手动 RPC 调试与独立权限设计
+- `superpowers/specs/2026-07-24-unified-configuration-compose-design.md`：统一配置与完整 Compose 设计
 - `RER0RPC-新版开工提示词.md`：新任务交接提示
 - `openapi.yaml`：HTTP OpenAPI
 

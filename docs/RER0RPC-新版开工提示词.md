@@ -22,10 +22,13 @@
 - 19 条内置权限均有完整说明；后台手动 RPC 调试使用独立 `invoke/manual-rpc`，公开
   `/rpc/invoke/*` 继续使用 Access Token。
 - 后台账号支持资料修改和改密；`isRoot` 管理员资料、密码、启停、删除和 RBAC 关系只能由本人修改。
-- 后端 backlog #1–#15、管理前端 #16、手动 RPC #17 和后台授权缓存 #18 已全部完成。
+- 后端 backlog #1–#15、管理前端 #16、手动 RPC #17、后台授权缓存 #18 和统一配置/Compose
+  #19 已全部完成。
 - 管理前端 #16 已完成，覆盖全部后台管理公开面；默认端口 3001。
 - 当前基线：OpenAPI 39 个路径模板、后端 HTTP/WebSocket 黑盒 172 passed、前端 Playwright
-  11 passed、Jest 9 suites / 31 tests。
+  12 passed、Jest 10 suites / 35 tests。
+- API、Worker、迁移、种子和前端共用根目录 `config.yaml` schema；根目录 `compose.yaml`
+  提供 PostgreSQL、Redis、Manticore 和全部应用服务编排。
 - 全部列表默认 10 条/页、最大 100 条/页；运行概览使用折线趋势图，请求详情使用宽版右侧
   抽屉，AppAudit Step 默认收起。
 - 两类令牌均支持二次编辑 project；Access Token 更新立即失效鉴权缓存，Device Token 更新
@@ -47,7 +50,8 @@
 9. 涉及后台写操作时读 `docs/superpowers/specs/2026-07-24-system-audit-logs-design.md`
 10. 涉及前端架构时读 `docs/superpowers/specs/2026-07-24-management-frontend-design.md`
 11. 涉及手动 RPC 时读 `docs/superpowers/specs/2026-07-24-manual-rpc-debugger-design.md`
-12. 与任务最接近的 source、test、schema 和历史 plan
+12. 涉及配置或容器时读 `docs/superpowers/specs/2026-07-24-unified-configuration-compose-design.md`
+13. 与任务最接近的 source、test、schema 和历史 plan
 
 ## 修改规则
 
@@ -94,7 +98,7 @@ pnpm smoke
 ```bash
 pnpm lint
 pnpm build
-E2E_API_URL=http://127.0.0.1:3000 pnpm test:e2e
+pnpm test:e2e
 ```
 
 前端 Playwright 也只能通过浏览器与公开 HTTP API 验证，边界由
@@ -106,7 +110,7 @@ E2E_API_URL=http://127.0.0.1:3000 pnpm test:e2e
 
 1. 建 CI：build、lint、format、unit、黑盒 E2E。
 2. 增加 `/health` 与 `/ready`。
-3. 增加 API/Worker 生产 Dockerfile 和部署编排。
+3. 从现有 Compose 契约派生 Kubernetes 示例和生产 secret 注入。
 4. 为 WS 内部 `receiver.getInfo` 兼容性补充升级回归。
 
 ## 文档

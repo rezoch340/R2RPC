@@ -1,0 +1,143 @@
+x-backend-image: &backend-image
+  build:
+    context: ./backend
+  image: rer0rpc-backend:local
+
+x-application-config: &application-config
+  volumes:
+    - ./deploy/config.yaml:/app/config.yaml:ro
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rer0rpc
+      POSTGRES_PASSWORD: rer0rpc
+      POSTGRES_DB: rer0rpc
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rer0rpc -d rer0rpc"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  manticore:
+    image: manticoresearch/manticore:latest
+    restart: unless-stopped
+    ports:
+      - "9308:9308"
+      - "9306:9306"
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    volumes:
+      - manticore-data:/var/lib/manticore
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9308/ >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migration:
+    <<: [*backend-image, *application-config]
+    command: ["node", "dist/scripts/migrate.js"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  seed:
+    <<: [*backend-image, *application-config]
+    command: ["node", "dist/scripts/seed-admin.js"]
+    restart: "no"
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+
+  api:
+    <<: [*backend-image, *application-config]
+    command: ["node", "dist/main.js"]
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      manticore:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/docs').then(response=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  worker:
+    <<: [*backend-image, *application-config]
+    command: ["node", "dist/worker.js"]
+    restart: unless-stopped
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      manticore:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    image: rer0rpc-frontend:local
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./deploy/config.yaml:/app/config.yaml:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/login').then(response=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  postgres-data:
+  redis-data:
+  manticore-data:

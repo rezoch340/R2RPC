@@ -24,14 +24,10 @@ async function bootstrap() {
   application.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true }),
   );
-  const configuredCorsOrigins = process.env.CORS_ORIGIN;
+  const configuredCorsOrigins = configuration.app.corsOrigins;
   application.enableCors({
     credentials: false,
-    origin: configuredCorsOrigins
-      ? configuredCorsOrigins
-          .split(',')
-          .map((configuredOrigin) => configuredOrigin.trim())
-      : true,
+    origin: configuredCorsOrigins.includes('*') ? true : configuredCorsOrigins,
   });
   application.enableShutdownHooks();
 

@@ -1,0 +1,44 @@
+# Docker Compose 配置：复制为 deploy/config.yaml 后修改秘密。
+app:
+  port: 3000
+  globalPrefix: ''
+  publicWsUrl: ws://127.0.0.1:3000/api/client/ws
+  corsOrigins:
+    - http://127.0.0.1:3001
+    - http://localhost:3001
+
+frontend:
+  apiUrl: null
+  apiPort: 3000
+  allowedDevOrigins: []
+
+db:
+  host: postgres
+  port: 5432
+  user: rer0rpc
+  password: rer0rpc
+  database: rer0rpc
+
+redis:
+  host: redis
+  port: 6379
+  password: null
+  db: 0
+
+jwt:
+  secret: change-me-before-production
+  expiresIn: 7d
+  authorizationCacheTtlSeconds: 60
+
+manticore:
+  url: http://manticore:9308
+
+bootstrap:
+  admin:
+    username: admin
+    password: admin123456
+
+retention:
+  rawRetentionDays: 3
+  keepLatestPerScope: 100
+  aggregateRetentionDays: 30
