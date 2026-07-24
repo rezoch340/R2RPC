@@ -154,6 +154,23 @@ test('分页器支持页码、每页上限和跳页', async ({ page }) => {
   await expect(page.getByRole('option', { name: '200 条/页' })).toHaveCount(0);
 });
 
+test('系统日志长事件描述不会覆盖其他列', async ({ page }) => {
+  await page.goto('/system-logs');
+  const firstSystemLogRow = page
+    .locator('[data-slot="table-body"] [data-slot="table-row"]')
+    .first();
+  await expect(firstSystemLogRow).toBeVisible();
+
+  const eventDescription = firstSystemLogRow
+    .locator('[data-slot="table-cell"]')
+    .first()
+    .locator('p')
+    .nth(1);
+  await expect(eventDescription).toHaveCSS('overflow-x', 'hidden');
+  await expect(eventDescription).toHaveCSS('text-overflow', 'ellipsis');
+  await expect(eventDescription).toHaveCSS('white-space', 'nowrap');
+});
+
 test('访问令牌和设备令牌均可二次编辑功能组', async ({ page }) => {
   for (const route of ['/access-tokens', '/device-tokens']) {
     await page.goto(route);

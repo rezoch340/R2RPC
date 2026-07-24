@@ -19,5 +19,5 @@
 - 当前工程规则：`../design-conventions.md`
 - 当前 HTTP 契约：`../openapi.yaml`
 
-当前基线为 OpenAPI 39 个路径模板、后端 HTTP/WebSocket 黑盒 162 passed、前端
-Playwright 11 passed。
+当前基线为 OpenAPI 39 个路径模板、后端 HTTP/WebSocket 黑盒 172 passed、前端
+Playwright 12 passed。

@@ -108,10 +108,16 @@ export default function SystemLogsPage() {
     {
       key: 'event',
       header: '事件',
+      className: 'w-[34%] min-w-0',
       render: (systemLog) => (
-        <div>
-          <p className="font-medium">{systemLog.name}</p>
-          <p className="mt-0.5 max-w-80 text-xs text-muted-foreground">
+        <div className="min-w-0">
+          <p className="truncate font-medium" title={systemLog.name}>
+            {systemLog.name}
+          </p>
+          <p
+            className="mt-0.5 truncate text-xs text-muted-foreground"
+            title={systemLog.description}
+          >
             {systemLog.description}
           </p>
         </div>
@@ -120,38 +126,62 @@ export default function SystemLogsPage() {
     {
       key: 'actor',
       header: '操作者',
+      className: 'w-24',
       render: (systemLog) => (
-        <span className="font-mono text-xs">{systemLog.actorUsername}</span>
+        <span
+          className="block truncate font-mono text-xs"
+          title={systemLog.actorUsername}
+        >
+          {systemLog.actorUsername}
+        </span>
       ),
     },
     {
       key: 'action',
       header: '动作 / 资源',
+      className: 'w-28',
       render: (systemLog) => (
-        <div className="font-mono text-xs">
-          <p>{systemLog.action}</p>
-          <p className="text-muted-foreground">{systemLog.subject}</p>
+        <div className="min-w-0 font-mono text-xs">
+          <p className="truncate" title={systemLog.action}>
+            {systemLog.action}
+          </p>
+          <p className="truncate text-muted-foreground" title={systemLog.subject}>
+            {systemLog.subject}
+          </p>
         </div>
       ),
     },
     {
       key: 'target',
       header: '目标',
+      className: 'w-56',
       render: (systemLog) => (
-        <div className="max-w-52 text-xs">
-          <p>{systemLog.targetName || systemLog.targetId || '—'}</p>
-          <p className="text-muted-foreground">{systemLog.targetType}</p>
+        <div className="min-w-0 text-xs">
+          <p
+            className="truncate"
+            title={systemLog.targetName || systemLog.targetId || '—'}
+          >
+            {systemLog.targetName || systemLog.targetId || '—'}
+          </p>
+          <p
+            className="truncate text-muted-foreground"
+            title={systemLog.targetType}
+          >
+            {systemLog.targetType}
+          </p>
         </div>
       ),
     },
     {
       key: 'status',
       header: '结果',
+      className: 'w-20',
       render: (systemLog) => <StatusBadge status={systemLog.status} />,
     },
     {
       key: 'time',
       header: '时间',
+      className: 'w-40',
       render: (systemLog) => (
         <span className="whitespace-nowrap text-xs text-muted-foreground">
           {formatDateTime(systemLog.createdAt)}
@@ -161,6 +191,7 @@ export default function SystemLogsPage() {
     {
       key: 'actions',
       header: '详情',
+      className: 'w-16 text-center',
       render: (systemLog) => (
         <Button
           variant="ghost"
@@ -215,6 +246,7 @@ export default function SystemLogsPage() {
             }}
           />
         }
+        tableClassName="min-w-[1120px] table-fixed"
       />
 
       <Dialog

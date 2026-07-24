@@ -98,7 +98,7 @@ E2E_API_URL=http://127.0.0.1:3000 pnpm test:e2e
 ```
 
 前端 Playwright 也只能通过浏览器与公开 HTTP API 验证，边界由
-`test/assert-blackbox-e2e.cjs` 强制；当前基线为 11 passed。
+`test/assert-blackbox-e2e.cjs` 强制；当前基线为 12 passed。
 
 底层 retention/stale/metrics/maxInFlight 算法的直连检查属于 `pnpm test:integration:*`，不得称为 E2E。
 

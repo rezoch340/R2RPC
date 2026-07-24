@@ -40,7 +40,7 @@ pnpm test                  # Jest 单测(*.spec.ts)
 pnpm dev                   # Next.js 开发服务器,端口 3001
 pnpm lint                  # 命名门禁 + ESLint
 pnpm build                 # 生产构建
-pnpm test:e2e              # 11 项浏览器黑盒,只访问 UI 与公开 HTTP API
+pnpm test:e2e              # 12 项浏览器黑盒,只访问 UI 与公开 HTTP API
 ```
 
 前端使用 Next.js + shadcn，并严格按 RER0RPC OpenAPI 实现页面与类型。
