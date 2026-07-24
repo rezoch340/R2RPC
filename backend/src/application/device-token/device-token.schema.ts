@@ -27,10 +27,10 @@ export const deviceTokens = pgTable(
       .defaultNow(),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
-  (t) => [
+  (table) => [
     uniqueIndex('device_tokens_token_uq')
-      .on(t.token)
-      .where(sql`${t.deletedAt} IS NULL`),
+      .on(table.token)
+      .where(sql`${table.deletedAt} IS NULL`),
   ],
 );
 
@@ -46,5 +46,5 @@ export const deviceTokenProjects = pgTable(
       .references(() => projects.id, { onDelete: 'cascade' }),
     description: varchar('description', { length: 255 }),
   },
-  (t) => [primaryKey({ columns: [t.tokenId, t.projectId] })],
+  (table) => [primaryKey({ columns: [table.tokenId, table.projectId] })],
 );

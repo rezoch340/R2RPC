@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { RedisService } from '../redis/redis.service';
 
 // 在线镜像 TTL(秒);手机端心跳刷新
-const PRESENCE_TTL = 30;
+const PRESENCE_TIME_TO_LIVE_SECONDS = 30;
 const MAX_IN_FLIGHT_DEFAULT = 512;
 const MAX_IN_FLIGHT_MIN = 256;
 const MAX_IN_FLIGHT_MAX = 1024;
@@ -13,85 +13,109 @@ const ACQUIRE_SLOT_LUA = `local n = redis.call('incr', KEYS[1]); if n > tonumber
 // 注意:presence 是软镜像,不做锁;哪个实例持有该 socket 由 ConnectionRegistry 管(client:session),这里不重复维护。
 @Injectable()
 export class PresenceService {
-  constructor(private readonly redis: RedisService) {}
-  private get r() {
-    return this.redis.client;
+  constructor(private readonly redisService: RedisService) {}
+  private get redisClient() {
+    return this.redisService.client;
   }
 
   // 上线:登记到所属每个 project 的在线集合 + 写 presence 快照(JSON projectIds)
   async online(clientId: string, projectIds: number[]) {
-    await this.r.set(
+    await this.redisClient.set(
       `presence:${clientId}`,
       JSON.stringify(projectIds),
       'EX',
-      PRESENCE_TTL,
+      PRESENCE_TIME_TO_LIVE_SECONDS,
     );
-    for (const gid of projectIds) {
-      await this.r.sadd(`project:clients:${gid}`, clientId);
+    for (const projectId of projectIds) {
+      await this.redisClient.sadd(`project:clients:${projectId}`, clientId);
     }
   }
 
   // 心跳刷新在线 TTL
   async refresh(clientId: string) {
-    await this.r.expire(`presence:${clientId}`, PRESENCE_TTL);
+    await this.redisClient.expire(
+      `presence:${clientId}`,
+      PRESENCE_TIME_TO_LIVE_SECONDS,
+    );
   }
 
   async offline(clientId: string, projectIds: number[]) {
-    await this.r.del(`presence:${clientId}`);
-    await this.r.del(`device:maxinflight:${clientId}`);
-    await this.r.del(`device:inflight:${clientId}`);
-    for (const gid of projectIds) {
-      await this.r.srem(`project:clients:${gid}`, clientId);
+    await this.redisClient.del(`presence:${clientId}`);
+    await this.redisClient.del(`device:maxinflight:${clientId}`);
+    await this.redisClient.del(`device:inflight:${clientId}`);
+    for (const projectId of projectIds) {
+      await this.redisClient.srem(`project:clients:${projectId}`, clientId);
     }
   }
 
   // 夹取自报值到 [256,1024];缺省(?maxInFlight 缺失 → null/''）或非数 → 512
-  clampMaxInFlight(raw: unknown): number {
-    if (raw === null || raw === undefined || raw === '') {
+  clampMaxInFlight(reportedMaximum: unknown): number {
+    if (
+      reportedMaximum === null ||
+      reportedMaximum === undefined ||
+      reportedMaximum === ''
+    ) {
       return MAX_IN_FLIGHT_DEFAULT;
     }
-    const n = Math.floor(Number(raw));
-    if (!Number.isFinite(n)) return MAX_IN_FLIGHT_DEFAULT;
-    return Math.min(MAX_IN_FLIGHT_MAX, Math.max(MAX_IN_FLIGHT_MIN, n));
+    const normalizedMaximum = Math.floor(Number(reportedMaximum));
+    if (!Number.isFinite(normalizedMaximum)) {
+      return MAX_IN_FLIGHT_DEFAULT;
+    }
+    return Math.min(
+      MAX_IN_FLIGHT_MAX,
+      Math.max(MAX_IN_FLIGHT_MIN, normalizedMaximum),
+    );
   }
 
   // 写/刷设备 maxInFlight(TTL 随 presence)
-  async setMaxInFlight(clientId: string, max: number) {
-    await this.r.set(
+  async setMaxInFlight(clientId: string, maximumInFlight: number) {
+    await this.redisClient.set(
       `device:maxinflight:${clientId}`,
-      String(max),
+      String(maximumInFlight),
       'EX',
-      PRESENCE_TTL,
+      PRESENCE_TIME_TO_LIVE_SECONDS,
     );
   }
   async getMaxInFlight(clientId: string): Promise<number> {
-    const v = await this.r.get(`device:maxinflight:${clientId}`);
-    const n = Number(v);
-    return Number.isFinite(n) && n > 0 ? n : MAX_IN_FLIGHT_DEFAULT;
+    const storedMaximum = await this.redisClient.get(
+      `device:maxinflight:${clientId}`,
+    );
+    const maximumInFlight = Number(storedMaximum);
+    if (!Number.isFinite(maximumInFlight) || maximumInFlight <= 0) {
+      return MAX_IN_FLIGHT_DEFAULT;
+    }
+    return maximumInFlight;
   }
 
   // 连接时清在途计数(限泄漏在一次 session 内)
   async resetInFlight(clientId: string) {
-    await this.r.del(`device:inflight:${clientId}`);
+    await this.redisClient.del(`device:inflight:${clientId}`);
   }
   // 占一个在途槽(原子 Lua:INCR + 超限同脚本 DECR 回退,不会半失败泄漏)。满则返 false
-  async tryAcquireSlot(clientId: string, max: number): Promise<boolean> {
-    const r = (await this.r.eval(
+  async tryAcquireSlot(
+    clientId: string,
+    maximumInFlight: number,
+  ): Promise<boolean> {
+    const acquireResult = (await this.redisClient.eval(
       ACQUIRE_SLOT_LUA,
       1,
       `device:inflight:${clientId}`,
-      String(max),
+      String(maximumInFlight),
     )) as number;
-    return r === 1;
+    return acquireResult === 1;
   }
   // 释放一个在途槽(兜底不为负)
   async releaseSlot(clientId: string) {
-    const n = await this.r.decr(`device:inflight:${clientId}`);
-    if (n < 0) await this.r.set(`device:inflight:${clientId}`, '0');
+    const remainingInFlight = await this.redisClient.decr(
+      `device:inflight:${clientId}`,
+    );
+    if (remainingInFlight < 0) {
+      await this.redisClient.set(`device:inflight:${clientId}`, '0');
+    }
   }
 
   async isOnline(clientId: string) {
-    return (await this.r.exists(`presence:${clientId}`)) === 1;
+    return (await this.redisClient.exists(`presence:${clientId}`)) === 1;
   }
 
   // project 内轮询,占第一个未满设备的在途槽(边挑边占):从 RR 游标起轮一圈,
@@ -100,14 +124,19 @@ export class PresenceService {
   async pickOnlineAcquire(
     projectId: number,
   ): Promise<{ clientId: string } | 'no_device' | 'saturated'> {
-    const online = await this.listOnline(projectId);
-    if (!online.length) return 'no_device';
-    online.sort();
-    const start = (await this.r.incr(`rpc:rr:${projectId}`)) % online.length;
-    for (let i = 0; i < online.length; i++) {
-      const clientId = online[(start + i) % online.length];
-      const max = await this.getMaxInFlight(clientId);
-      if (await this.tryAcquireSlot(clientId, max)) {
+    const onlineClientIds = await this.listOnline(projectId);
+    if (!onlineClientIds.length) {
+      return 'no_device';
+    }
+    onlineClientIds.sort();
+    const startingIndex =
+      (await this.redisClient.incr(`rpc:rr:${projectId}`)) %
+      onlineClientIds.length;
+    for (let offset = 0; offset < onlineClientIds.length; offset += 1) {
+      const clientId =
+        onlineClientIds[(startingIndex + offset) % onlineClientIds.length];
+      const maximumInFlight = await this.getMaxInFlight(clientId);
+      if (await this.tryAcquireSlot(clientId, maximumInFlight)) {
         return { clientId };
       }
     }
@@ -115,12 +144,17 @@ export class PresenceService {
   }
 
   async listOnline(projectId: number): Promise<string[]> {
-    const members = await this.r.smembers(`project:clients:${projectId}`);
-    const online: string[] = [];
-    for (const c of members) {
-      if (await this.isOnline(c)) online.push(c);
-      else await this.r.srem(`project:clients:${projectId}`, c);
+    const candidateClientIds = await this.redisClient.smembers(
+      `project:clients:${projectId}`,
+    );
+    const onlineClientIds: string[] = [];
+    for (const clientId of candidateClientIds) {
+      if (await this.isOnline(clientId)) {
+        onlineClientIds.push(clientId);
+        continue;
+      }
+      await this.redisClient.srem(`project:clients:${projectId}`, clientId);
     }
-    return online;
+    return onlineClientIds;
   }
 }

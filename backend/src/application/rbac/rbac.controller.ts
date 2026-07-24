@@ -24,8 +24,8 @@ export class RbacController {
   @Post('roles')
   @RequirePermission('manage', 'rbac')
   @ApiOperation({ summary: '创建角色' })
-  createRole(@Body() dto: CreateRoleDto) {
-    return this.rbac.createRole(dto.name, dto.description);
+  createRole(@Body() input: CreateRoleDto) {
+    return this.rbac.createRole(input.name, input.description);
   }
 
   @Get('roles')
@@ -38,8 +38,8 @@ export class RbacController {
   @Delete('roles/:id')
   @RequirePermission('manage', 'rbac')
   @ApiOperation({ summary: '删除角色' })
-  deleteRole(@Param('id', ParseIntPipe) id: number) {
-    return this.rbac.deleteRole(id);
+  deleteRole(@Param('id', ParseIntPipe) roleId: number) {
+    return this.rbac.deleteRole(roleId);
   }
 
   // ---------- 权限管理 ----------
@@ -47,8 +47,12 @@ export class RbacController {
   @Post('permissions')
   @RequirePermission('manage', 'rbac')
   @ApiOperation({ summary: '创建权限' })
-  createPermission(@Body() dto: CreatePermissionDto) {
-    return this.rbac.createPermission(dto.action, dto.subject, dto.description);
+  createPermission(@Body() input: CreatePermissionDto) {
+    return this.rbac.createPermission(
+      input.action,
+      input.subject,
+      input.description,
+    );
   }
 
   @Get('permissions')
@@ -61,8 +65,8 @@ export class RbacController {
   @Delete('permissions/:id')
   @RequirePermission('manage', 'rbac')
   @ApiOperation({ summary: '删除权限' })
-  deletePermission(@Param('id', ParseIntPipe) id: number) {
-    return this.rbac.deletePermission(id);
+  deletePermission(@Param('id', ParseIntPipe) permissionId: number) {
+    return this.rbac.deletePermission(permissionId);
   }
 
   // ---------- 角色 <-> 权限 ----------

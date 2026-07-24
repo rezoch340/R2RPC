@@ -36,24 +36,24 @@ export class ProjectsController {
   @Post()
   @RequirePermission('create', 'project')
   @ApiOperation({ summary: '创建功能组' })
-  create(@Body() dto: CreateProjectDto) {
-    return this.projects.create(dto.name);
+  create(@Body() input: CreateProjectDto) {
+    return this.projects.create(input.name);
   }
 
   @Delete(':id')
   @RequirePermission('delete', 'project')
   @ApiOperation({ summary: '删除功能组' })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.projects.remove(id);
+  remove(@Param('id', ParseIntPipe) projectId: number) {
+    return this.projects.remove(projectId);
   }
 
   @Post(':id/enabled')
   @RequirePermission('update', 'project')
   @ApiOperation({ summary: '启用/停用功能组(停用后 invoke 拒派)' })
   setEnabled(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: SetEnabledDto,
+    @Param('id', ParseIntPipe) projectId: number,
+    @Body() input: SetEnabledDto,
   ) {
-    return this.projects.setEnabled(id, dto.enabled);
+    return this.projects.setEnabled(projectId, input.enabled);
   }
 }

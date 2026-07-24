@@ -1,633 +1,2055 @@
-// 端到端冒烟:登录 -> 建组/设备 -> 手机端登录 -> WS 上线 -> heartbeat -> invoke 闭环 -> 超时/无设备。
-// 前置:基础设施 + 迁移 + 种子已就绪,且 API 进程在跑(pnpm dev:api)。用法: pnpm smoke
+// RER0RPC 黑盒完整性冒烟:
+// - 测试进程只使用 HTTP(fetch) 与 WebSocket(ws) 公共接口。
+// - 禁止导入应用内部模块或直连 PG/Redis/Manticore。
+// - 前置:基础设施、迁移、种子、API 与 Worker 均已启动。
 const WebSocket = require('ws');
-const B = process.env.BASE_URL || 'http://127.0.0.1:3000';
 
-async function http(method, path, body, token) {
-  const r = await fetch(B + path, {
-    method,
-    headers: {
-      'content-type': 'application/json',
-      ...(token ? { authorization: 'Bearer ' + token } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await r.text();
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    json = text;
+const BASE_HTTP_URL = process.env.BASE_URL || 'http://127.0.0.1:3000';
+const BASE_WEBSOCKET_URL = BASE_HTTP_URL.replace(/^http/, 'ws');
+const TEST_RUN_IDENTIFIER =
+  process.env.SMOKE_RUN_ID ||
+  `${Date.now().toString(36)}-${process.pid.toString(36)}`;
+const TEST_RESOURCE_PREFIX = `e2e-${TEST_RUN_IDENTIFIER}`;
+
+let passed = 0;
+let failed = 0;
+const cleanup = {
+  sockets: new Set(),
+  accessTokenIds: [],
+  deviceTokenIds: [],
+  userIds: [],
+  roleIds: [],
+  permissionIds: [],
+  projectIds: [],
+};
+
+function section(name) {
+  console.log(`\n--- ${name} ---`);
+}
+
+function assert(condition, message) {
+  if (condition) {
+    passed += 1;
+    console.log(`PASS: ${message}`);
+    return true;
   }
-  return { status: r.status, json };
+  failed += 1;
+  console.error(`FAIL: ${message}`);
+  return false;
 }
 
-let failed = false;
-function assert(cond, msg) {
-  console.log((cond ? 'PASS' : 'FAIL') + ': ' + msg);
-  if (!cond) failed = true;
+function requireValue(condition, message, value) {
+  if (!assert(condition, message)) {
+    throw new Error(`前置断言失败: ${message}`);
+  }
+  return value;
 }
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const sleep = (milliseconds) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+async function httpRequest(method, requestPath, body, token) {
+  const headers = {};
+  if (body !== undefined) headers['content-type'] = 'application/json';
+  if (token) headers.authorization = `Bearer ${token}`;
+  const response = await fetch(`${BASE_HTTP_URL}${requestPath}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await response.text();
+  let responseBody;
+  try {
+    responseBody = JSON.parse(text);
+  } catch {
+    responseBody = text;
+  }
+  return {
+    status: response.status,
+    headers: response.headers,
+    json: responseBody,
+    text,
+  };
+}
+
+async function waitFor(
+  description,
+  probe,
+  timeoutMilliseconds = 10000,
+  intervalMilliseconds = 100,
+) {
+  const deadline = Date.now() + timeoutMilliseconds;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      const value = await probe();
+      if (value) {
+        return value;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(intervalMilliseconds);
+  }
+  throw new Error(
+    `等待超时: ${description}${lastError ? ` (${lastError.message})` : ''}`,
+  );
+}
 
 async function waitReady() {
-  for (let i = 0; i < 40; i++) {
-    try {
-      const r = await http('POST', '/auth/login', {
+  return waitFor(
+    'API 与管理员种子就绪',
+    async () => {
+      const response = await httpRequest('POST', '/auth/login', {
         username: 'admin',
         password: 'admin123456',
       });
-      if (r.status < 300 && r.json.token) return r.json.token;
-    } catch {}
-    await sleep(500);
-  }
-  throw new Error('server not ready');
+      return response.status < 300 && response.json.token
+        ? response.json.token
+        : null;
+    },
+    20000,
+    250,
+  );
 }
 
-(async () => {
-  const admin = await waitReady();
-  assert(!!admin, 'admin login');
+function deviceWebSocketUrl({ token, clientId, platform, extra, maxInFlight }) {
+  const query = new URLSearchParams();
+  if (token !== undefined) query.set('token', token);
+  if (clientId !== undefined) query.set('clientId', clientId);
+  if (platform !== undefined) query.set('platform', platform);
+  if (extra !== undefined) query.set('extra', extra);
+  if (maxInFlight !== undefined) query.set('maxInFlight', String(maxInFlight));
+  return `${BASE_WEBSOCKET_URL}/api/client/ws?${query.toString()}`;
+}
 
-  // ---------- 设备自注册:admin 建 device token(cn-nodes)-> 设备用它 + 自生成 clientId 连 WS ----------
-  const CLIENT_ID = 'smoke-dev-001';
-  const regTok = await http(
-    'POST',
-    '/device-tokens',
-    { name: 'reg-token', projects: ['cn-nodes'] },
-    admin,
-  );
-  assert(
-    regTok.status < 300 &&
-      typeof regTok.json.token === 'string' &&
-      regTok.json.token.startsWith('dk_'),
-    'admin 建注册用 device token(dk_)',
-  );
-
-  const PLATFORM = 'smoke-android';
-  const wsUrl = `${B.replace(/^http/, 'ws')}/api/client/ws?token=${encodeURIComponent(regTok.json.token)}&clientId=${CLIENT_ID}&platform=${PLATFORM}&maxInFlight=600`;
-  const ws = new WebSocket(wsUrl);
-  const got = { welcome: false, heartbeatAck: false };
-
-  const welcomeMsg = await new Promise((resolve, reject) => {
-    const to = setTimeout(() => reject(new Error('welcome timeout')), 5000);
-    ws.on('error', reject);
-    ws.on('message', (d) => {
-      const m = JSON.parse(d.toString());
-      if (m.type === 'welcome') {
-        got.welcome = true;
-        clearTimeout(to);
-        resolve(m);
-      }
-    });
+function connectDevice(connectionParameters, options = {}) {
+  const webSocket = new WebSocket(deviceWebSocketUrl(connectionParameters), {
+    autoPong: options.autoPong !== false,
   });
-  assert(got.welcome, 'received welcome');
-  assert(
-    Array.isArray(welcomeMsg.projects) && welcomeMsg.projects.length >= 1,
-    'welcome 带继承自 device token 的 projects',
-  );
-  assert(
-    typeof welcomeMsg.maxInFlight === 'number' &&
-      welcomeMsg.maxInFlight >= 256 &&
-      welcomeMsg.maxInFlight <= 1024,
-    'welcome 回带 maxInFlight(夹 [256,1024])',
-  );
+  cleanup.sockets.add(webSocket);
 
-  ws.on('message', (d) => {
-    const m = JSON.parse(d.toString());
-    if (m.type === 'heartbeatAck') got.heartbeatAck = true;
-    if (m.type === 'job' && m.action === 'echo') {
-      ws.send(
-        JSON.stringify({
-          type: 'result',
-          requestId: m.requestId,
-          clientId: CLIENT_ID,
-          status: 'ok',
-          is_ok: true,
-          payload: { echo: m.payload },
-        }),
-      );
+  const messages = [];
+  const waiters = [];
+  let pingCount = 0;
+  let closeResult;
+  let resolveClose;
+  const closed = new Promise((resolve) => {
+    resolveClose = resolve;
+  });
+
+  const settleWaiters = (message) => {
+    for (
+      let waiterIndex = waiters.length - 1;
+      waiterIndex >= 0;
+      waiterIndex--
+    ) {
+      const waiter = waiters[waiterIndex];
+      if (!waiter.predicate(message)) {
+        continue;
+      }
+      waiters.splice(waiterIndex, 1);
+      clearTimeout(waiter.timer);
+      waiter.resolve(message);
+    }
+  };
+
+  webSocket.on('ping', () => {
+    pingCount += 1;
+  });
+  webSocket.on('message', (messageData) => {
+    let message;
+    try {
+      message = JSON.parse(messageData.toString());
+    } catch {
+      message = messageData.toString();
+    }
+    messages.push(message);
+    settleWaiters(message);
+    if (message?.type === 'job' && client.onJob) {
+      void Promise.resolve(client.onJob(message)).catch((error) => {
+        console.error(`设备 job handler 失败: ${error.message}`);
+      });
     }
   });
-
-  ws.send(JSON.stringify({ type: 'heartbeat' }));
-  await sleep(300);
-  assert(got.heartbeatAck, 'received heartbeatAck');
-
-  // #5:服务端应在 ping 间隔内主动 ping 设备(ws 客户端自动回 pong)
-  let gotServerPing = false;
-  ws.on('ping', () => {
-    gotServerPing = true;
+  webSocket.on('close', (code, reason) => {
+    closeResult = { code, reason: reason.toString() };
+    cleanup.sockets.delete(webSocket);
+    resolveClose(closeResult);
   });
-  await sleep(6000); // > PING_INTERVAL(5s),至少收到一次
-  assert(gotServerPing, '收到服务端主动 ping(#5)');
+  webSocket.on('error', () => {
+    // 鉴权拒绝、1009 或 terminate 后可能伴随 error，close code 才是断言对象。
+  });
 
-  // ---------- 阶段3:invoke 改走独立 access token(与用户 JWT/RBAC 完全分离)----------
+  const client = {
+    webSocket,
+    messages,
+    onJob: null,
+    get pingCount() {
+      return pingCount;
+    },
+    get closeResult() {
+      return closeResult;
+    },
+    closed,
+    send(message) {
+      webSocket.send(JSON.stringify(message));
+    },
+    sendRaw(serializedMessage, sendOptions) {
+      webSocket.send(serializedMessage, sendOptions);
+    },
+    waitMessage(predicate, timeoutMilliseconds = 5000) {
+      const existing = messages.find(predicate);
+      if (existing) {
+        return Promise.resolve(existing);
+      }
+      return new Promise((resolve, reject) => {
+        const waiter = {
+          predicate,
+          resolve,
+          timer: setTimeout(() => {
+            const index = waiters.indexOf(waiter);
+            if (index >= 0) {
+              waiters.splice(index, 1);
+            }
+            reject(new Error('等待 WebSocket 消息超时'));
+          }, timeoutMilliseconds),
+        };
+        waiters.push(waiter);
+      });
+    },
+  };
+  return client;
+}
 
-  // admin 生成一枚只授权 cn-nodes 组的 access token(明文只在创建时回一次)
-  const tokenResp = await http(
-    'POST',
-    '/access-tokens',
-    { name: 'smoke-token', projects: ['cn-nodes'] },
-    admin,
-  );
-  assert(
-    tokenResp.status < 300 && !!tokenResp.json.token,
-    'admin create access token (cn-nodes scoped)',
-  );
-  const accessToken = tokenResp.json.token;
-
-  // 命中:token 作用域内的组 -> invoke 成功(设备 dev-001 在 cn-nodes)
-  const inv = await http(
-    'POST',
-    '/rpc/invoke/cn-nodes/echo',
-    { timeoutSeconds: 10, payload: { encode_str: 'hello' } },
-    accessToken,
-  );
-  assert(
-    inv.json.is_ok === true,
-    'invoke cn-nodes/echo (作用域内 token) -> is_ok true',
-  );
-  assert(
-    JSON.stringify(inv.json.payload) ===
-      JSON.stringify({ echo: { encode_str: 'hello' } }),
-    'invoke payload echoed',
-  );
-
-  // 越组:设备本身也在 us-nodes,但 token 只开了 cn-nodes -> 403(校验的是 token 的作用域,不是设备的组)
-  const inv2 = await http(
-    'POST',
-    '/rpc/invoke/us-nodes/echo',
-    { timeoutSeconds: 10, payload: { encode_str: 'world' } },
-    accessToken,
-  );
-  assert(
-    inv2.status === 403,
-    'invoke us-nodes/echo with cn-nodes-scoped token -> 403(设备在组,token 不在)',
-  );
-
-  // 无效 token(伪造)-> 401
-  const invBadToken = await http(
-    'POST',
-    '/rpc/invoke/cn-nodes/echo',
-    { payload: {} },
-    'rk_garbage',
-  );
-  assert(invBadToken.status === 401, 'invoke with invalid token -> 401');
-
-  // 无 Authorization 头 -> 401
-  const invNoAuth = await http(
-    'POST',
-    '/rpc/invoke/cn-nodes/echo',
-    { payload: {} },
-    null,
-  );
-  assert(
-    invNoAuth.status === 401,
-    'invoke without Authorization header -> 401',
-  );
-
-  // 撤销:token 撤销后 status != active,再拿它调用 -> 403
-  // 先用一次 invoke 预热 guard 的 redis 正缓存(60s TTL),再撤销,证明撤销会同步删缓存,
-  // 而不是仅仅数据库层面变了状态(此前 revoke 未清缓存,已用过的 token 撤销后仍可再用满 60s)
-  const revokeResp = await http(
-    'POST',
-    '/access-tokens',
-    { name: 'revoke-me', projects: ['cn-nodes'] },
-    admin,
-  );
-  assert(
-    revokeResp.status < 300 && !!revokeResp.json.token,
-    'admin create revoke-me token',
-  );
-  const warmInv = await http(
-    'POST',
-    '/rpc/invoke/cn-nodes/echo',
-    { payload: {} },
-    revokeResp.json.token,
-  );
-  assert(
-    warmInv.json.is_ok === true,
-    'invoke with revoke-me token before revoke -> is_ok true (warms positive cache)',
-  );
-  const revokeAction = await http(
-    'POST',
-    `/access-tokens/${revokeResp.json.id}/revoke`,
-    null,
-    admin,
-  );
-  assert(revokeAction.status < 300, 'admin revoke revoke-me token');
-  const invRevoked = await http(
-    'POST',
-    '/rpc/invoke/cn-nodes/echo',
-    { payload: {} },
-    revokeResp.json.token,
-  );
-  assert(
-    invRevoked.status === 403,
-    'invoke with revoked token (cache warmed) -> 403 (proves cache invalidated, not just DB)',
-  );
-
-  // 超时:有效 cn-nodes token 调一个没人应答的 action
-  const t0 = Date.now();
-  const inv3 = await http(
-    'POST',
-    '/rpc/invoke/cn-nodes/sleep',
-    { timeoutSeconds: 2, payload: {} },
-    accessToken,
-  );
-  assert(
-    inv3.json.is_ok === false && inv3.json.status === 'timeout',
-    'invoke unanswered -> timeout',
-  );
-  console.log('  timeout took ms: ' + (Date.now() - t0));
-
-  const list = await http('GET', '/monitor/requests?pageSize=3', null, admin);
-  assert(
-    Array.isArray(list.json.rows) &&
-      !('requestPayload' in (list.json.rows[0] || {})),
-    'monitor list has no payload',
-  );
-
-  // #9 请求筛选下拉选项:去重 project/action/client(联动 + 实体仍存在)。
-  // 日志走冷路径(worker 异步写),先轮询等 cn-nodes/echo 落库再断言,避免 flaky。
-  let opts = { projects: [], actions: [], clientIds: [] };
-  for (let i = 0; i < 20; i++) {
-    const r = await http('GET', '/monitor/request-options', null, admin);
-    opts = r.json || {};
-    if (
-      Array.isArray(opts.projects) &&
-      opts.projects.includes('cn-nodes') &&
-      Array.isArray(opts.actions) &&
-      opts.actions.includes('echo')
-    )
-      break;
-    await sleep(300);
+async function closeDevice(client, timeoutMilliseconds = 3000) {
+  if (!client || client.closeResult) {
+    return client?.closeResult;
   }
-  assert(
-    Array.isArray(opts.projects) && opts.projects.includes('cn-nodes'),
-    '#9 request-options: projects 含 cn-nodes(实体存在)',
-  );
-  assert(
-    Array.isArray(opts.actions) && opts.actions.includes('echo'),
-    '#9 request-options: actions 含 echo',
-  );
-  assert(
-    Array.isArray(opts.clientIds) && opts.clientIds.includes('smoke-dev-001'),
-    '#9 request-options: clientIds 含在线设备 smoke-dev-001(devices alive)',
-  );
-  // 联动:按不存在的 action 过滤 -> projects 应为空(该 action 无日志)
-  const optsFiltered = await http(
-    'GET',
-    '/monitor/request-options?action=__no_such_action__',
-    null,
-    admin,
-  );
-  assert(
-    Array.isArray(optsFiltered.json.projects) &&
-      optsFiltered.json.projects.length === 0,
-    '#9 request-options: 联动过滤(action 无日志 -> projects 空)',
-  );
+  if (
+    client.webSocket.readyState === WebSocket.OPEN ||
+    client.webSocket.readyState === WebSocket.CONNECTING
+  ) {
+    client.webSocket.close();
+  }
+  return Promise.race([
+    client.closed,
+    sleep(timeoutMilliseconds).then(() => {
+      client.webSocket.terminate();
+      return { code: null, reason: 'terminate after cleanup timeout' };
+    }),
+  ]);
+}
 
-  const m = await http('GET', '/metrics/overview', null, admin);
-  assert(
-    m.json.totals && typeof m.json.totals.total === 'number',
-    'metrics overview',
-  );
+async function expectWebSocketClose(
+  connectionParameters,
+  expectedCode,
+  message,
+  options,
+) {
+  const client = connectDevice(connectionParameters, options);
+  const result = await Promise.race([
+    client.closed,
+    sleep(7000).then(() => ({ code: null, reason: 'timeout' })),
+  ]);
+  assert(result.code === expectedCode, `${message} (close=${result.code})`);
+  if (!client.closeResult) {
+    client.webSocket.terminate();
+  }
+  return result;
+}
 
-  const wk = await http('GET', '/metrics/weekly', null, admin);
-  assert(
-    wk.status === 200 && Array.isArray(wk.json),
-    '/metrics/weekly -> 200 数组',
+async function waitRequestIndexed(administratorAccessToken, requestId) {
+  return waitFor(
+    `请求日志 ${requestId} 写入并索引`,
+    async () => {
+      const response = await httpRequest(
+        'GET',
+        `/monitor/requests/${encodeURIComponent(requestId)}`,
+        undefined,
+        administratorAccessToken,
+      );
+      return response.status === 200 && response.json.payloadState === 'indexed'
+        ? response.json
+        : null;
+    },
+    15000,
+    150,
   );
-  const tr = await http('GET', '/metrics/trend?days=7', null, admin);
-  assert(
-    tr.status === 200 && Array.isArray(tr.json) && tr.json.length === 7,
-    '/metrics/trend?days=7 -> 7 个按天点(补零)',
-  );
-  assert(
-    tr.json.every(
-      (p) =>
-        typeof p.statDate === 'string' &&
-        typeof p.totalRequests === 'number' &&
-        typeof p.successRate === 'number',
-    ),
-    'trend 每点含 statDate/totalRequests/successRate',
-  );
+}
 
-  // ---------- RBAC:operator 角色只读,越权 403,未登录 401 ----------
+async function bestEffortCleanup(administratorAccessToken) {
+  for (const webSocket of [...cleanup.sockets]) {
+    try {
+      webSocket.terminate();
+    } catch {}
+  }
+  if (!administratorAccessToken) {
+    return;
+  }
 
-  // 无 token 访问受保护接口 -> 401
-  const noAuth = await http('GET', '/users', null, null);
-  assert(noAuth.status === 401, 'unauthenticated GET /users -> 401');
+  for (const accessTokenId of cleanup.accessTokenIds.reverse()) {
+    await httpRequest(
+      'DELETE',
+      `/access-tokens/${accessTokenId}`,
+      undefined,
+      administratorAccessToken,
+    ).catch(() => undefined);
+  }
+  for (const deviceTokenId of cleanup.deviceTokenIds.reverse()) {
+    await httpRequest(
+      'DELETE',
+      `/device-tokens/${deviceTokenId}`,
+      undefined,
+      administratorAccessToken,
+    ).catch(() => undefined);
+  }
+  for (const userId of cleanup.userIds.reverse()) {
+    await httpRequest(
+      'DELETE',
+      `/users/${userId}`,
+      undefined,
+      administratorAccessToken,
+    ).catch(() => undefined);
+  }
+  for (const roleId of cleanup.roleIds.reverse()) {
+    await httpRequest(
+      'DELETE',
+      `/rbac/roles/${roleId}`,
+      undefined,
+      administratorAccessToken,
+    ).catch(() => undefined);
+  }
+  for (const permissionId of cleanup.permissionIds.reverse()) {
+    await httpRequest(
+      'DELETE',
+      `/rbac/permissions/${permissionId}`,
+      undefined,
+      administratorAccessToken,
+    ).catch(() => undefined);
+  }
+  for (const projectId of cleanup.projectIds.reverse()) {
+    await httpRequest(
+      'DELETE',
+      `/projects/${projectId}`,
+      undefined,
+      administratorAccessToken,
+    ).catch(() => undefined);
+  }
+}
 
-  // 建 op1 用户(409 说明已建过,忽略),挂 operator 角色
-  const opCreate = await http(
-    'POST',
-    '/users',
-    { username: 'op1', password: 'oppass123' },
-    admin,
-  );
-  assert(
-    opCreate.status < 300 || opCreate.status === 409,
-    'create op1 user (or already exists)',
-  );
+async function main() {
+  let administratorAccessToken;
+  let mainDevice;
+  let attackerDevice;
+  let silentDevice;
 
-  const rolesList = await http('GET', '/rbac/roles', null, admin);
-  const operatorRole = (rolesList.json || []).find(
-    (r) => r.name === 'operator',
-  );
-  assert(!!operatorRole, 'operator role exists (seeded)');
-
-  const usersList = await http('GET', '/users', null, admin);
-  const op1 = (usersList.json || []).find((u) => u.username === 'op1');
-  assert(!!op1, 'op1 user exists');
-
-  const assignRes = await http(
-    'POST',
-    `/rbac/users/${op1.id}/roles/${operatorRole.id}`,
-    null,
-    admin,
-  );
-  assert(
-    assignRes.status < 300 || assignRes.status === 409,
-    'assign operator role to op1 (or already assigned)',
-  );
-
-  const opLogin = await http('POST', '/auth/login', {
-    username: 'op1',
-    password: 'oppass123',
-  });
-  assert(opLogin.status < 300 && !!opLogin.json.token, 'op1 login');
-  const opToken = opLogin.json.token;
-
-  const opList = await http('GET', '/users', null, opToken);
-  assert(
-    opList.status === 200,
-    'op1 GET /users -> 200 (operator has read/user)',
-  );
-
-  const opCreateDenied = await http(
-    'POST',
-    '/users',
-    { username: 'x2', password: 'xxxxxx' },
-    opToken,
-  );
-  assert(
-    opCreateDenied.status === 403,
-    'op1 POST /users -> 403 (operator lacks create/user)',
-  );
-
-  const opMe = await http('GET', '/auth/me', null, opToken);
-  assert(
-    opMe.status === 200 && Array.isArray(opMe.json.permissions),
-    'op1 GET /auth/me -> 200 with permissions array (operator has read/me)',
-  );
-
-  // ---------- #7:用户 enabled 启停 + last_login ----------
-  const usersList2 = await http('GET', '/users', null, admin);
-  const op1row = (usersList2.json || []).find((u) => u.username === 'op1');
-  assert(!!op1row && op1row.enabled === true, 'op1 默认 enabled=true');
-  // 停用 op1 -> 其现有 token 立即失效(每请求拦)+ 新登录被拒
-  const disableU = await http(
-    'POST',
-    `/users/${op1row.id}/enabled`,
-    { enabled: false },
-    admin,
-  );
-  assert(disableU.status < 300 && disableU.json.enabled === false, '停用 op1');
-  const opReq = await http('GET', '/auth/me', null, opToken); // opToken 是 op1 之前登录拿的
-  assert(opReq.status === 403, '停用后 op1 现有 token 访问 -> 403(每请求吊销)');
-  const opLogin2 = await http('POST', '/auth/login', {
-    username: 'op1',
-    password: 'oppass123',
-  });
-  assert(opLogin2.status === 403, '停用后 op1 重新登录 -> 403');
-  // 复原
-  await http('POST', `/users/${op1row.id}/enabled`, { enabled: true }, admin);
-  const opLogin3 = await http('POST', '/auth/login', {
-    username: 'op1',
-    password: 'oppass123',
-  });
-  assert(opLogin3.status < 300 && !!opLogin3.json.token, '启用后 op1 可再登录');
-  const adminRow = (usersList2.json || []).find((u) => u.username === 'admin');
-  assert(
-    adminRow &&
-      (adminRow.lastLoginAt === null ||
-        typeof adminRow.lastLoginAt === 'string'),
-    'users 列表含 lastLoginAt 字段',
-  );
-
-  // ---------- Phase 4:软删除 ----------
-  // (a) access token 软删(DELETE)与 revoke 正交:删后立即失效,返 401(revoke 是 403)
-  const delTok = await http(
-    'POST',
-    '/access-tokens',
-    { name: 'probe-del', projects: ['cn-nodes'] },
-    admin,
-  );
-  assert(delTok.status < 300 && !!delTok.json.token, 'create probe-del token');
-  const preDel = await http(
-    'POST',
-    '/rpc/invoke/cn-nodes/echo',
-    { payload: {} },
-    delTok.json.token,
-  );
-  assert(
-    preDel.json.is_ok === true,
-    'probe-del token works before delete (warms positive cache)',
-  );
-  const delAction = await http(
-    'DELETE',
-    `/access-tokens/${delTok.json.id}`,
-    null,
-    admin,
-  );
-  assert(delAction.status < 300, 'admin DELETE probe-del token (soft-delete)');
-  const postDel = await http(
-    'POST',
-    '/rpc/invoke/cn-nodes/echo',
-    { payload: {} },
-    delTok.json.token,
-  );
-  assert(
-    postDel.status === 401,
-    'invoke with soft-deleted token -> 401 (distinct from revoke 403; proves alive() filter + cache del)',
-  );
-
-  // (b) partial unique:软删后同名可重建(否则旧删除行占用 name -> 409)
-  const rn = 'probe-sd-role-' + Date.now();
-  const r1 = await http('POST', '/rbac/roles', { name: rn }, admin);
-  assert(r1.status < 300 && !!r1.json.id, 'create ' + rn);
-  const rDel = await http('DELETE', `/rbac/roles/${r1.json.id}`, null, admin);
-  assert(rDel.status < 300, 'soft-delete role');
-  const r2 = await http('POST', '/rbac/roles', { name: rn }, admin);
-  assert(
-    r2.status < 300 && !!r2.json.id && r2.json.id !== r1.json.id,
-    'recreate same-name role -> new id (partial unique lets soft-deleted name be reused)',
-  );
-  await http('DELETE', `/rbac/roles/${r2.json.id}`, null, admin); // 清理:软删掉重建的,免累积
-
-  // ---------- 2b:device token CRUD(admin isRoot 直通 manage/device-token)----------
-  const dtCreate = await http(
-    'POST',
-    '/device-tokens',
-    { name: 'dt-smoke', projects: ['cn-nodes'] },
-    admin,
-  );
-  assert(
-    dtCreate.status < 300 &&
-      typeof dtCreate.json.token === 'string' &&
-      dtCreate.json.token.startsWith('dk_'),
-    'create device token -> 明文 dk_ token',
-  );
-  assert(
-    Array.isArray(dtCreate.json.projects) &&
-      dtCreate.json.projects.includes('cn-nodes'),
-    'device token 回显 project cn-nodes',
-  );
-  const dtList = await http('GET', '/device-tokens', null, admin);
-  const dtRow = (dtList.json || []).find((x) => x.id === dtCreate.json.id);
-  assert(
-    !!dtRow && dtRow.onlineDeviceCount === 0,
-    'device token 列表含它且 onlineDeviceCount=0(2c 前无设备继承)',
-  );
-  const dtRevoke = await http(
-    'POST',
-    `/device-tokens/${dtCreate.json.id}/revoke`,
-    null,
-    admin,
-  );
-  assert(
-    dtRevoke.status < 300 && dtRevoke.json.status === 'revoked',
-    'revoke device token -> status revoked',
-  );
-  const dtDel = await http(
-    'DELETE',
-    `/device-tokens/${dtCreate.json.id}`,
-    null,
-    admin,
-  );
-  assert(dtDel.status < 300, 'soft-delete device token');
-  const dtList2 = await http('GET', '/device-tokens', null, admin);
-  assert(
-    !(dtList2.json || []).some((x) => x.id === dtCreate.json.id),
-    '软删后 device token 不再出现在列表(alive 过滤)',
-  );
-
-  // 设备已在线,注册用 token 的在线设备数应为 1
-  const regList = await http('GET', '/device-tokens', null, admin);
-  const regRow = (regList.json || []).find((x) => x.id === regTok.json.id);
-  assert(
-    !!regRow && regRow.onlineDeviceCount === 1,
-    '注册 token onlineDeviceCount=1(设备已自注册在线)',
-  );
-
-  // 2d:设备持久态(设备已在线,应能在 /devices 查到 online + platform)
-  const devList = await http('GET', '/devices', null, admin);
-  const devRow = (devList.json || []).find((x) => x.clientId === CLIENT_ID);
-  assert(!!devRow, '/devices 列表含自注册设备');
-  assert(
-    devRow.online === true && devRow.status === 'online',
-    '设备 online=true status=online',
-  );
-  assert(devRow.platform === PLATFORM, '设备 platform 落库(来自 ?platform)');
-  assert(
-    typeof devRow.lastIp === 'string' && devRow.lastIp.length > 0,
-    '设备 last_ip 落库(来自 socket)',
-  );
-  assert(
-    devRow.maxInFlight === 600,
-    '设备 maxInFlight 落库(自报 600 在区间内)',
-  );
-  const devDetail = await http('GET', `/devices/${devRow.id}`, null, admin);
-  assert(
-    devDetail.status < 300 && devDetail.json.id === devRow.id,
-    '/devices/:id 详情',
-  );
-
-  // ---------- #8:GroupInfo + 分组启停 ----------
-  const gi = await http('GET', '/projects/info', null, admin);
-  assert(
-    gi.status === 200 && Array.isArray(gi.json),
-    '/projects/info -> 200 数组',
-  );
-  const cn = (gi.json || []).find((x) => x.name === 'cn-nodes');
-  assert(
-    !!cn &&
-      typeof cn.totalDevices === 'number' &&
-      typeof cn.onlineDevices === 'number' &&
-      typeof cn.status === 'string',
-    'GroupInfo cn-nodes 含 totalDevices/onlineDevices/status',
-  );
-  assert(
-    cn.onlineDevices >= 1 && cn.status === 'online',
-    'cn-nodes 有在线设备 -> status online',
-  );
-
-  // 停用 cn-nodes -> invoke 该组应被拒(disabled),GroupInfo status=disabled
-  const projList = await http('GET', '/projects', null, admin);
-  const cnProj = (projList.json || []).find((x) => x.name === 'cn-nodes');
-  const disable = await http(
-    'POST',
-    `/projects/${cnProj.id}/enabled`,
-    { enabled: false },
-    admin,
-  );
-  assert(
-    disable.status < 300 && disable.json.enabled === false,
-    '停用 cn-nodes',
-  );
-  const invDisabled = await http(
-    'POST',
-    '/rpc/invoke/cn-nodes/echo',
-    { payload: {} },
-    accessToken,
-  );
-  assert(
-    invDisabled.json.status === 'disabled',
-    '停用后 invoke cn-nodes -> disabled 拒派',
-  );
-  const gi2 = await http('GET', '/projects/info', null, admin);
-  const cn2 = (gi2.json || []).find((x) => x.name === 'cn-nodes');
-  assert(cn2.status === 'disabled', 'GroupInfo cn-nodes status=disabled');
-  // 复原,免影响后续/重跑
-  await http(
-    'POST',
-    `/projects/${cnProj.id}/enabled`,
-    { enabled: true },
-    admin,
-  );
-
-  // #6b 拒分片:发一个 FIN=0 的分片数据帧,服务端应立即以 1009 关闭整条连接。
-  // 用独立 clientId,不顶掉主设备 session;放在所有断言之后,探针短命不影响前面统计。
-  const fragUrl = `${B.replace(/^http/, 'ws')}/api/client/ws?token=${encodeURIComponent(regTok.json.token)}&clientId=smoke-frag-probe&maxInFlight=300`;
-  const fragWs = new WebSocket(fragUrl);
-  const fragClose = await new Promise((resolve) => {
-    const to = setTimeout(() => resolve({ code: null }), 5000);
-    fragWs.on('open', () =>
-      fragWs.send('{"type":"heartbeat"}', { fin: false }),
-    );
-    fragWs.on('close', (code) => {
-      clearTimeout(to);
-      resolve({ code });
-    });
-    // 关闭伴随的 error 忽略(1009 后会触发)
-    fragWs.on('error', () => {});
-  });
-  assert(
-    fragClose.code === 1009,
-    '分片帧(FIN=0)被服务端以 1009 关闭(#6b 拒分片)',
-  );
   try {
-    fragWs.terminate();
-  } catch {
-    /* 已关 */
-  }
+    section('服务就绪 / Swagger / 登录鉴权');
+    administratorAccessToken = await waitReady();
+    assert(!!administratorAccessToken, '管理员可通过 HTTP 登录');
 
-  ws.close();
-  await sleep(200);
-  console.log(failed ? '\n=== SMOKE FAILED ===' : '\n=== SMOKE PASSED ===');
-  process.exit(failed ? 1 : 0);
-})().catch((e) => {
-  console.error('ERROR', e);
-  process.exit(1);
-});
+    const swagger = await httpRequest('GET', '/docs');
+    assert(
+      swagger.status === 200 && swagger.text.includes('Swagger UI'),
+      'Swagger UI 可通过 HTTP 访问',
+    );
+
+    const invalidLoginInputResponse = await httpRequest('POST', '/auth/login', {
+      username: 'admin',
+      password: '123',
+    });
+    assert(invalidLoginInputResponse.status === 400, '登录 DTO 校验拒绝短密码');
+
+    const wrongLogin = await httpRequest('POST', '/auth/login', {
+      username: 'admin',
+      password: 'wrong-password',
+    });
+    assert(wrongLogin.status === 401, '错误密码返回 401');
+
+    const unauthenticatedProfileResponse = await httpRequest('GET', '/auth/me');
+    assert(
+      unauthenticatedProfileResponse.status === 401,
+      '/auth/me 无 JWT 返回 401',
+    );
+
+    const administratorProfile = await httpRequest(
+      'GET',
+      '/auth/me',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      administratorProfile.status === 200 &&
+        administratorProfile.json.username === 'admin' &&
+        administratorProfile.json.isRoot === true,
+      '/auth/me 返回 root 管理员身份',
+    );
+
+    section('Project CRUD / 启停 / 软删除');
+    const projectNames = {
+      main: `${TEST_RESOURCE_PREFIX}-main`,
+      empty: `${TEST_RESOURCE_PREFIX}-empty`,
+      other: `${TEST_RESOURCE_PREFIX}-other`,
+      saturation: `${TEST_RESOURCE_PREFIX}-saturation`,
+      disposable: `${TEST_RESOURCE_PREFIX}-disposable`,
+    };
+    const projects = {};
+    for (const [key, name] of Object.entries(projectNames)) {
+      const response = await httpRequest(
+        'POST',
+        '/projects',
+        { name },
+        administratorAccessToken,
+      );
+      requireValue(
+        response.status < 300 && Number.isInteger(response.json.id),
+        `创建 project: ${name}`,
+        response,
+      );
+      projects[key] = response.json;
+      cleanup.projectIds.push(response.json.id);
+    }
+
+    const duplicateProject = await httpRequest(
+      'POST',
+      '/projects',
+      { name: projectNames.main },
+      administratorAccessToken,
+    );
+    assert(duplicateProject.status === 409, '重复 project 返回 409');
+
+    const projectList = await httpRequest(
+      'GET',
+      '/projects',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      projectList.status === 200 &&
+        Object.values(projectNames).every((name) =>
+          projectList.json.some((row) => row.name === name),
+        ),
+      'GET /projects 返回本轮创建的全部 project',
+    );
+
+    const emptyInfo = await httpRequest(
+      'GET',
+      '/projects/info',
+      undefined,
+      administratorAccessToken,
+    );
+    const emptyInfoRow = emptyInfo.json.find(
+      (row) => row.name === projectNames.empty,
+    );
+    assert(
+      emptyInfo.status === 200 && emptyInfoRow?.status === 'no_device',
+      '无设备 project 的 GroupInfo 状态为 no_device',
+    );
+
+    const disableOther = await httpRequest(
+      'POST',
+      `/projects/${projects.other.id}/enabled`,
+      { enabled: false },
+      administratorAccessToken,
+    );
+    assert(
+      disableOther.status < 300 && disableOther.json.enabled === false,
+      'project 可停用',
+    );
+    const enableOther = await httpRequest(
+      'POST',
+      `/projects/${projects.other.id}/enabled`,
+      { enabled: true },
+      administratorAccessToken,
+    );
+    assert(
+      enableOther.status < 300 && enableOther.json.enabled === true,
+      'project 可重新启用',
+    );
+
+    const deleteDisposable = await httpRequest(
+      'DELETE',
+      `/projects/${projects.disposable.id}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      deleteDisposable.status === 200 && deleteDisposable.json.deleted === true,
+      'DELETE /projects/:id 执行软删除',
+    );
+    cleanup.projectIds = cleanup.projectIds.filter(
+      (projectId) => projectId !== projects.disposable.id,
+    );
+    const recreateDisposable = await httpRequest(
+      'POST',
+      '/projects',
+      { name: projectNames.disposable },
+      administratorAccessToken,
+    );
+    assert(
+      recreateDisposable.status < 300 &&
+        recreateDisposable.json.id !== projects.disposable.id,
+      'project 软删后可同名重建且获得新 id',
+    );
+    cleanup.projectIds.push(recreateDisposable.json.id);
+
+    section('User / RBAC 全接口与实时吊销');
+    const username = `${TEST_RESOURCE_PREFIX}-user`;
+    const password = 'e2e-pass-123';
+    const createUser = await httpRequest(
+      'POST',
+      '/users',
+      { username, password, role: 'operator' },
+      administratorAccessToken,
+    );
+    requireValue(
+      createUser.status < 300 && Number.isInteger(createUser.json.id),
+      'POST /users 创建测试用户',
+      createUser,
+    );
+    const userId = createUser.json.id;
+    cleanup.userIds.push(userId);
+
+    const userDetail = await httpRequest(
+      'GET',
+      `/users/${userId}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      userDetail.status === 200 && userDetail.json.username === username,
+      'GET /users/:id 返回用户详情且不暴露密码散列',
+    );
+    assert(!('passwordHash' in userDetail.json), '用户详情不包含 passwordHash');
+
+    const roleName = `${TEST_RESOURCE_PREFIX}-role`;
+    const createRole = await httpRequest(
+      'POST',
+      '/rbac/roles',
+      { name: roleName, description: 'black-box e2e role' },
+      administratorAccessToken,
+    );
+    requireValue(
+      createRole.status < 300 && Number.isInteger(createRole.json.id),
+      'POST /rbac/roles 创建角色',
+      createRole,
+    );
+    const roleId = createRole.json.id;
+    cleanup.roleIds.push(roleId);
+
+    const customPermission = await httpRequest(
+      'POST',
+      '/rbac/permissions',
+      {
+        action: `probe-${TEST_RUN_IDENTIFIER}`,
+        subject: `subject-${TEST_RUN_IDENTIFIER}`,
+        description: 'black-box e2e permission',
+      },
+      administratorAccessToken,
+    );
+    requireValue(
+      customPermission.status < 300 &&
+        Number.isInteger(customPermission.json.id),
+      'POST /rbac/permissions 创建自由权限',
+      customPermission,
+    );
+    const customPermissionId = customPermission.json.id;
+    cleanup.permissionIds.push(customPermissionId);
+
+    const permissionsList = await httpRequest(
+      'GET',
+      '/rbac/permissions',
+      undefined,
+      administratorAccessToken,
+    );
+    const readUserPermission = permissionsList.json.find(
+      (permission) =>
+        permission.action === 'read' && permission.subject === 'user',
+    );
+    requireValue(
+      permissionsList.status === 200 && !!readUserPermission,
+      'GET /rbac/permissions 含种子 read/user',
+      readUserPermission,
+    );
+
+    const attachCustom = await httpRequest(
+      'POST',
+      `/rbac/roles/${roleId}/permissions/${customPermissionId}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      attachCustom.status < 300 && attachCustom.json.attached === true,
+      '角色可绑定自定义权限',
+    );
+    const detachCustom = await httpRequest(
+      'DELETE',
+      `/rbac/roles/${roleId}/permissions/${customPermissionId}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      detachCustom.status === 200 && detachCustom.json.detached === true,
+      '角色可移除自定义权限',
+    );
+
+    const attachReadUser = await httpRequest(
+      'POST',
+      `/rbac/roles/${roleId}/permissions/${readUserPermission.id}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(attachReadUser.status < 300, '角色绑定 read/user 权限');
+
+    const assignRole = await httpRequest(
+      'POST',
+      `/rbac/users/${userId}/roles/${roleId}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      assignRole.status < 300 && assignRole.json.assigned === true,
+      '用户可分配角色',
+    );
+
+    const userLogin = await httpRequest('POST', '/auth/login', {
+      username,
+      password,
+    });
+    requireValue(
+      userLogin.status < 300 && !!userLogin.json.token,
+      '新用户可登录',
+      userLogin,
+    );
+    let userAuthenticationToken = userLogin.json.token;
+
+    const permittedRead = await httpRequest(
+      'GET',
+      '/users',
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(permittedRead.status === 200, '具有 read/user 的用户可 GET /users');
+    const deniedWrite = await httpRequest(
+      'POST',
+      '/users',
+      { username: `${TEST_RESOURCE_PREFIX}-forbidden`, password },
+      userAuthenticationToken,
+    );
+    assert(
+      deniedWrite.status === 403,
+      '缺少 create/user 的用户不能 POST /users',
+    );
+
+    const userMe = await httpRequest(
+      'GET',
+      '/auth/me',
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      userMe.status === 200 &&
+        userMe.json.permissions.some(
+          (permission) =>
+            permission.action === 'read' && permission.subject === 'user',
+        ),
+      '用户 /auth/me 返回实时 RBAC 权限',
+    );
+
+    const unassignRole = await httpRequest(
+      'DELETE',
+      `/rbac/users/${userId}/roles/${roleId}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      unassignRole.status === 200 && unassignRole.json.unassigned === true,
+      '用户可移除角色',
+    );
+    const revokedPermission = await httpRequest(
+      'GET',
+      '/users',
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      revokedPermission.status === 403,
+      '移除角色后现有 JWT 立即失去接口权限',
+    );
+    await httpRequest(
+      'POST',
+      `/rbac/users/${userId}/roles/${roleId}`,
+      undefined,
+      administratorAccessToken,
+    );
+
+    const disableUser = await httpRequest(
+      'POST',
+      `/users/${userId}/enabled`,
+      { enabled: false },
+      administratorAccessToken,
+    );
+    assert(
+      disableUser.status < 300 && disableUser.json.enabled === false,
+      '用户可停用',
+    );
+    const disabledUserAuthenticationToken = await httpRequest(
+      'GET',
+      '/auth/me',
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      disabledUserAuthenticationToken.status === 403,
+      '停用用户的现有 JWT 立即失效',
+    );
+    const disabledLogin = await httpRequest('POST', '/auth/login', {
+      username,
+      password,
+    });
+    assert(disabledLogin.status === 403, '停用用户不能重新登录');
+
+    await httpRequest(
+      'POST',
+      `/users/${userId}/enabled`,
+      { enabled: true },
+      administratorAccessToken,
+    );
+    const reenabledLogin = await httpRequest('POST', '/auth/login', {
+      username,
+      password,
+    });
+    requireValue(
+      reenabledLogin.status < 300 && !!reenabledLogin.json.token,
+      '重新启用后用户可登录',
+      reenabledLogin,
+    );
+    userAuthenticationToken = reenabledLogin.json.token;
+
+    const userList = await httpRequest(
+      'GET',
+      '/users',
+      undefined,
+      administratorAccessToken,
+    );
+    const userListRow = userList.json.find((row) => row.id === userId);
+    assert(
+      !!userListRow && typeof userListRow.lastLoginAt === 'string',
+      'GET /users 暴露已更新的 lastLoginAt',
+    );
+
+    const deleteUser = await httpRequest(
+      'DELETE',
+      `/users/${userId}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      deleteUser.status === 200 && deleteUser.json.deleted === true,
+      'DELETE /users/:id 执行软删除',
+    );
+    cleanup.userIds = cleanup.userIds.filter(
+      (cleanupUserId) => cleanupUserId !== userId,
+    );
+    const deletedUserAuthenticationToken = await httpRequest(
+      'GET',
+      '/auth/me',
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      deletedUserAuthenticationToken.status === 401,
+      '软删除用户的现有 JWT 立即失效',
+    );
+
+    const detachReadUser = await httpRequest(
+      'DELETE',
+      `/rbac/roles/${roleId}/permissions/${readUserPermission.id}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(detachReadUser.status === 200, '角色移除 read/user 权限');
+
+    const deleteCustomPermission = await httpRequest(
+      'DELETE',
+      `/rbac/permissions/${customPermissionId}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      deleteCustomPermission.status === 200 &&
+        deleteCustomPermission.json.deleted === true,
+      'DELETE /rbac/permissions/:id 执行软删除',
+    );
+    cleanup.permissionIds = cleanup.permissionIds.filter(
+      (permissionId) => permissionId !== customPermissionId,
+    );
+
+    const deleteRole = await httpRequest(
+      'DELETE',
+      `/rbac/roles/${roleId}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      deleteRole.status === 200 && deleteRole.json.deleted === true,
+      'DELETE /rbac/roles/:id 执行软删除',
+    );
+    cleanup.roleIds = cleanup.roleIds.filter(
+      (cleanupRoleId) => cleanupRoleId !== roleId,
+    );
+    const rolesList = await httpRequest(
+      'GET',
+      '/rbac/roles',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      rolesList.status === 200 &&
+        !rolesList.json.some((role) => role.id === roleId),
+      '软删除角色不再出现在角色列表',
+    );
+
+    section('Access token 全生命周期 / 作用域 / 缓存失效');
+    const invalidAccessProject = await httpRequest(
+      'POST',
+      '/access-tokens',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-invalid-access`,
+        projects: [`${TEST_RESOURCE_PREFIX}-missing`],
+      },
+      administratorAccessToken,
+    );
+    assert(
+      invalidAccessProject.status === 400,
+      'access token 拒绝不存在的 project',
+    );
+
+    const createMainAccess = await httpRequest(
+      'POST',
+      '/access-tokens',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-access`,
+        projects: [
+          projectNames.main,
+          projectNames.empty,
+          projectNames.saturation,
+          projectNames.main,
+        ],
+        description: 'black-box e2e access token',
+      },
+      administratorAccessToken,
+    );
+    requireValue(
+      createMainAccess.status < 300 &&
+        createMainAccess.json.token?.startsWith('rk_'),
+      '创建 rk_ access token',
+      createMainAccess,
+    );
+    const accessToken = createMainAccess.json.token;
+    cleanup.accessTokenIds.push(createMainAccess.json.id);
+    assert(
+      createMainAccess.json.projects.length === 3,
+      'access token project 作用域自动去重',
+    );
+
+    const accessList = await httpRequest(
+      'GET',
+      '/access-tokens',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      accessList.status === 200 &&
+        accessList.json.some(
+          (token) =>
+            token.id === createMainAccess.json.id &&
+            token.projects.includes(projectNames.main),
+        ),
+      'GET /access-tokens 返回 token 与 project 作用域',
+    );
+
+    const noInvokeToken = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.main}/echo`,
+      { payload: {} },
+    );
+    assert(noInvokeToken.status === 401, 'invoke 缺 access token 返回 401');
+    const invalidInvokeToken = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.main}/echo`,
+      { payload: {} },
+      'rk_invalid',
+    );
+    assert(invalidInvokeToken.status === 401, '伪造 access token 返回 401');
+    const jwtCannotInvoke = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.main}/echo`,
+      { payload: {} },
+      administratorAccessToken,
+    );
+    assert(jwtCannotInvoke.status === 401, '后台 JWT 不能替代 access token');
+    const outOfScope = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.other}/echo`,
+      { payload: {} },
+      accessToken,
+    );
+    assert(outOfScope.status === 403, 'access token 越 project 作用域返回 403');
+
+    const expiredAccess = await httpRequest(
+      'POST',
+      '/access-tokens',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-expired-access`,
+        projects: [projectNames.main],
+        expiresAt: '2000-01-01T00:00:00.000Z',
+      },
+      administratorAccessToken,
+    );
+    cleanup.accessTokenIds.push(expiredAccess.json.id);
+    const expiredInvoke = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.main}/echo`,
+      { payload: {} },
+      expiredAccess.json.token,
+    );
+    assert(expiredInvoke.status === 401, '过期 access token 返回 401');
+
+    const revokeAccess = await httpRequest(
+      'POST',
+      '/access-tokens',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-revoke-access`,
+        projects: [projectNames.empty],
+      },
+      administratorAccessToken,
+    );
+    cleanup.accessTokenIds.push(revokeAccess.json.id);
+    const warmAccess = await httpRequest(
+      'GET',
+      `/rpc/clientQueue?project=${encodeURIComponent(projectNames.empty)}`,
+      undefined,
+      revokeAccess.json.token,
+    );
+    assert(warmAccess.status === 200, 'access token 正缓存可预热');
+    const revokeAccessAction = await httpRequest(
+      'POST',
+      `/access-tokens/${revokeAccess.json.id}/revoke`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      revokeAccessAction.status < 300 &&
+        revokeAccessAction.json.status === 'revoked',
+      'access token 可撤销',
+    );
+    const revokedAccessUse = await httpRequest(
+      'GET',
+      `/rpc/clientQueue?project=${encodeURIComponent(projectNames.empty)}`,
+      undefined,
+      revokeAccess.json.token,
+    );
+    assert(
+      revokedAccessUse.status === 403,
+      '撤销 access token 后正缓存立即失效',
+    );
+
+    const deleteAccess = await httpRequest(
+      'POST',
+      '/access-tokens',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-delete-access`,
+        projects: [projectNames.empty],
+      },
+      administratorAccessToken,
+    );
+    cleanup.accessTokenIds.push(deleteAccess.json.id);
+    await httpRequest(
+      'GET',
+      `/rpc/clientQueue?project=${encodeURIComponent(projectNames.empty)}`,
+      undefined,
+      deleteAccess.json.token,
+    );
+    const deleteAccessAction = await httpRequest(
+      'DELETE',
+      `/access-tokens/${deleteAccess.json.id}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      deleteAccessAction.status === 200 &&
+        deleteAccessAction.json.deleted === true,
+      'access token 可软删除',
+    );
+    cleanup.accessTokenIds = cleanup.accessTokenIds.filter(
+      (accessTokenId) => accessTokenId !== deleteAccess.json.id,
+    );
+    const deletedAccessUse = await httpRequest(
+      'GET',
+      `/rpc/clientQueue?project=${encodeURIComponent(projectNames.empty)}`,
+      undefined,
+      deleteAccess.json.token,
+    );
+    assert(
+      deletedAccessUse.status === 401,
+      '软删除 access token 后正缓存立即失效',
+    );
+
+    section('Device token 全生命周期 / WS 鉴权');
+    const invalidDeviceProject = await httpRequest(
+      'POST',
+      '/device-tokens',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-invalid-device`,
+        projects: [`${TEST_RESOURCE_PREFIX}-missing`],
+      },
+      administratorAccessToken,
+    );
+    assert(
+      invalidDeviceProject.status === 400,
+      'device token 拒绝不存在的 project',
+    );
+
+    const createMainDeviceToken = await httpRequest(
+      'POST',
+      '/device-tokens',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-device`,
+        projects: [projectNames.main],
+        description: 'black-box e2e device token',
+      },
+      administratorAccessToken,
+    );
+    requireValue(
+      createMainDeviceToken.status < 300 &&
+        createMainDeviceToken.json.token?.startsWith('dk_'),
+      '创建 dk_ device token',
+      createMainDeviceToken,
+    );
+    const deviceToken = createMainDeviceToken.json.token;
+    cleanup.deviceTokenIds.push(createMainDeviceToken.json.id);
+
+    const deviceTokenList = await httpRequest(
+      'GET',
+      '/device-tokens',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      deviceTokenList.status === 200 &&
+        deviceTokenList.json.some(
+          (token) =>
+            token.id === createMainDeviceToken.json.id &&
+            token.projects.includes(projectNames.main) &&
+            token.onlineDeviceCount === 0,
+        ),
+      'GET /device-tokens 返回作用域和在线设备数',
+    );
+
+    await expectWebSocketClose(
+      { clientId: `${TEST_RESOURCE_PREFIX}-missing-token` },
+      4001,
+      'WS 缺 token 被鉴权拒绝',
+    );
+    await expectWebSocketClose(
+      {
+        token: 'dk_invalid',
+        clientId: `${TEST_RESOURCE_PREFIX}-invalid-token`,
+      },
+      4001,
+      'WS 伪造 token 被鉴权拒绝',
+    );
+
+    const expiredDeviceToken = await httpRequest(
+      'POST',
+      '/device-tokens',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-expired-device`,
+        projects: [projectNames.main],
+        expiresAt: '2000-01-01T00:00:00.000Z',
+      },
+      administratorAccessToken,
+    );
+    cleanup.deviceTokenIds.push(expiredDeviceToken.json.id);
+    await expectWebSocketClose(
+      {
+        token: expiredDeviceToken.json.token,
+        clientId: `${TEST_RESOURCE_PREFIX}-expired-device`,
+      },
+      4001,
+      '过期 device token 被 WS 鉴权拒绝',
+    );
+
+    const revokeDeviceToken = await httpRequest(
+      'POST',
+      '/device-tokens',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-revoke-device`,
+        projects: [projectNames.main],
+      },
+      administratorAccessToken,
+    );
+    cleanup.deviceTokenIds.push(revokeDeviceToken.json.id);
+    const warmDevice = connectDevice({
+      token: revokeDeviceToken.json.token,
+      clientId: `${TEST_RESOURCE_PREFIX}-warm-device`,
+    });
+    await warmDevice.waitMessage((message) => message.type === 'welcome');
+    await closeDevice(warmDevice);
+    const revokeDeviceAction = await httpRequest(
+      'POST',
+      `/device-tokens/${revokeDeviceToken.json.id}/revoke`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      revokeDeviceAction.status < 300 &&
+        revokeDeviceAction.json.status === 'revoked',
+      'device token 可撤销',
+    );
+    await expectWebSocketClose(
+      {
+        token: revokeDeviceToken.json.token,
+        clientId: `${TEST_RESOURCE_PREFIX}-revoked-device`,
+      },
+      4001,
+      '撤销 device token 后 WS 正缓存立即失效',
+    );
+
+    const deleteDeviceToken = await httpRequest(
+      'POST',
+      '/device-tokens',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-delete-device`,
+        projects: [projectNames.main],
+      },
+      administratorAccessToken,
+    );
+    cleanup.deviceTokenIds.push(deleteDeviceToken.json.id);
+    const warmDeletedDevice = connectDevice({
+      token: deleteDeviceToken.json.token,
+      clientId: `${TEST_RESOURCE_PREFIX}-warm-delete-device`,
+    });
+    await warmDeletedDevice.waitMessage(
+      (message) => message.type === 'welcome',
+    );
+    await closeDevice(warmDeletedDevice);
+    const deleteDeviceAction = await httpRequest(
+      'DELETE',
+      `/device-tokens/${deleteDeviceToken.json.id}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      deleteDeviceAction.status === 200 &&
+        deleteDeviceAction.json.deleted === true,
+      'device token 可软删除',
+    );
+    cleanup.deviceTokenIds = cleanup.deviceTokenIds.filter(
+      (deviceTokenId) => deviceTokenId !== deleteDeviceToken.json.id,
+    );
+    await expectWebSocketClose(
+      {
+        token: deleteDeviceToken.json.token,
+        clientId: `${TEST_RESOURCE_PREFIX}-deleted-device`,
+      },
+      4001,
+      '软删除 device token 后 WS 正缓存立即失效',
+    );
+
+    section('WebSocket 协议完整性');
+    const clientId = `${TEST_RESOURCE_PREFIX}-main-device`;
+    const platform = 'e2e-android';
+    const extra = JSON.stringify({
+      runId: TEST_RUN_IDENTIFIER,
+      model: 'virtual',
+    });
+    mainDevice = connectDevice({
+      token: deviceToken,
+      clientId,
+      platform,
+      extra,
+      maxInFlight: 600,
+    });
+    const welcome = await mainDevice.waitMessage(
+      (message) => message.type === 'welcome',
+    );
+    assert(
+      welcome.clientId === clientId &&
+        Array.isArray(welcome.projects) &&
+        welcome.projects.length === 1,
+      'WS welcome 返回鉴权 clientId 与继承的 project',
+    );
+    assert(welcome.maxInFlight === 600, 'WS welcome 返回夹取后的 maxInFlight');
+
+    mainDevice.sendRaw('not-json');
+    mainDevice.send({ type: 'unknown-message' });
+    mainDevice.send({ type: 'heartbeat' });
+    const heartbeatAck = await mainDevice.waitMessage(
+      (message) => message.type === 'heartbeatAck',
+    );
+    assert(
+      heartbeatAck.type === 'heartbeatAck' &&
+        mainDevice.webSocket.readyState === WebSocket.OPEN,
+      '非法 JSON/未知消息被忽略且 heartbeat 获得确认',
+    );
+
+    mainDevice.send({
+      type: 'result',
+      requestId: `${TEST_RESOURCE_PREFIX}-not-waiting`,
+      clientId,
+      status: 'ok',
+      is_ok: true,
+      payload: {},
+    });
+    const lateAck = await mainDevice.waitMessage(
+      (message) =>
+        message.type === 'resultAck' &&
+        message.requestId === `${TEST_RESOURCE_PREFIX}-not-waiting`,
+    );
+    assert(lateAck.outcome === 'late', '无人等待的 WS result 返回 late ack');
+
+    await waitFor('服务端主动 ping', () => mainDevice.pingCount > 0, 7000, 100);
+    assert(mainDevice.pingCount > 0, 'WS 服务端主动 ping');
+
+    const queueByProject = await httpRequest(
+      'GET',
+      `/rpc/clientQueue?project=${encodeURIComponent(projectNames.main)}`,
+      undefined,
+      accessToken,
+    );
+    assert(
+      queueByProject.status === 200 &&
+        queueByProject.json.online.includes(clientId),
+      'GET /rpc/clientQueue 按 project 返回在线设备',
+    );
+    const queueByClient = await httpRequest(
+      'GET',
+      `/rpc/clientQueue?project=${encodeURIComponent(projectNames.main)}&clientId=${encodeURIComponent(clientId)}`,
+      undefined,
+      accessToken,
+    );
+    assert(
+      queueByClient.status === 200 && queueByClient.json.online === true,
+      'GET /rpc/clientQueue 按 clientId 返回在线状态',
+    );
+
+    const deviceList = await httpRequest(
+      'GET',
+      '/devices',
+      undefined,
+      administratorAccessToken,
+    );
+    const deviceRow = deviceList.json.find(
+      (device) => device.clientId === clientId,
+    );
+    requireValue(!!deviceRow, 'GET /devices 返回 WS 自注册设备', deviceRow);
+    assert(
+      deviceRow.online === true &&
+        deviceRow.status === 'online' &&
+        deviceRow.platform === platform &&
+        deviceRow.extra === extra &&
+        deviceRow.maxInFlight === 600 &&
+        typeof deviceRow.lastIp === 'string',
+      '设备持久态包含 online/platform/extra/maxInFlight/IP',
+    );
+    const deviceDetail = await httpRequest(
+      'GET',
+      `/devices/${deviceRow.id}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      deviceDetail.status === 200 && deviceDetail.json.clientId === clientId,
+      'GET /devices/:id 返回设备详情',
+    );
+    const missingDevice = await httpRequest(
+      'GET',
+      '/devices/2147483647',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(missingDevice.status === 404, '不存在设备详情返回 404');
+
+    // 同 clientId 新连接覆盖 session；旧连接随后断开不能误清新 session。
+    const replacementDevice = connectDevice({
+      token: deviceToken,
+      clientId,
+      platform,
+      maxInFlight: 600,
+    });
+    await replacementDevice.waitMessage(
+      (message) => message.type === 'welcome',
+    );
+    await closeDevice(mainDevice);
+    mainDevice = replacementDevice;
+    const replacementStillOnline = await waitFor(
+      '旧连接断开后新 session 仍在线',
+      async () => {
+        const response = await httpRequest(
+          'GET',
+          `/rpc/clientQueue?project=${encodeURIComponent(projectNames.main)}&clientId=${encodeURIComponent(clientId)}`,
+          undefined,
+          accessToken,
+        );
+        return response.json.online === true;
+      },
+      5000,
+      100,
+    );
+    assert(
+      replacementStillOnline === true,
+      '同 clientId 旧连接断开不会误清新 session',
+    );
+
+    const fragmentProbe = connectDevice({
+      token: deviceToken,
+      clientId: `${TEST_RESOURCE_PREFIX}-fragment-probe`,
+    });
+    await fragmentProbe.waitMessage((message) => message.type === 'welcome');
+    fragmentProbe.sendRaw('{"type":"heartbeat"}', { fin: false });
+    const fragmentClose = await fragmentProbe.closed;
+    assert(fragmentClose.code === 1009, 'WS 分片数据帧(FIN=0)被 1009 拒绝');
+
+    const oversizedProbe = connectDevice({
+      token: deviceToken,
+      clientId: `${TEST_RESOURCE_PREFIX}-oversized-probe`,
+    });
+    await oversizedProbe.waitMessage((message) => message.type === 'welcome');
+    oversizedProbe.sendRaw(Buffer.alloc(4 * 1024 * 1024 + 1, 0x61));
+    const oversizedClose = await oversizedProbe.closed;
+    assert(oversizedClose.code === 1009, 'WS 超过 4 MiB 的单帧被 1009 拒绝');
+
+    const silentDeviceToken = await httpRequest(
+      'POST',
+      '/device-tokens',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-silent-device`,
+        projects: [projectNames.other],
+      },
+      administratorAccessToken,
+    );
+    cleanup.deviceTokenIds.push(silentDeviceToken.json.id);
+    silentDevice = connectDevice(
+      {
+        token: silentDeviceToken.json.token,
+        clientId: `${TEST_RESOURCE_PREFIX}-silent-device`,
+      },
+      { autoPong: false },
+    );
+    await silentDevice.waitMessage((message) => message.type === 'welcome');
+    const silentClosePromise = silentDevice.closed;
+
+    section('RPC 成功 / 失败 / 超时 / 身份匹配 / 日志');
+    const normalJobs = [];
+    const deviceAudit = {
+      schemaVersion: 1,
+      title: '设备执行链路',
+      metadata: [
+        { key: '运行标识', value: TEST_RUN_IDENTIFIER },
+        { key: '设备', value: clientId },
+      ],
+      steps: [
+        {
+          sequence: 1,
+          code: 'lookup-primary',
+          name: '查询主上游',
+          startedAt: new Date().toISOString(),
+          durationMs: 31,
+          status: 503,
+          request: {
+            method: 'POST',
+            url: 'https://primary.example.test/lookup',
+            headers: { 'content-type': 'application/json' },
+            body: { runId: TEST_RUN_IDENTIFIER },
+          },
+          response: {
+            statusCode: 503,
+            headers: { 'content-type': 'application/json' },
+            bodyFormat: 'json',
+            body: { ok: false },
+          },
+          error: {
+            type: 'upstream',
+            code: 'UNAVAILABLE',
+            message: 'primary unavailable',
+          },
+        },
+        {
+          sequence: 2,
+          code: 'lookup-fallback',
+          name: '查询备用上游',
+          startedAt: new Date().toISOString(),
+          durationMs: 18,
+          status: 200,
+          request: {
+            method: 'GET',
+            url: 'https://fallback.example.test/lookup',
+          },
+          response: {
+            statusCode: 200,
+            bodyFormat: 'json',
+            body: { ok: true, source: 'fallback' },
+          },
+        },
+      ],
+    };
+    mainDevice.onJob = async (job) => {
+      normalJobs.push(job);
+      if (job.action === 'timeout') return;
+      if (job.action === 'secure') return;
+      if (job.action === 'invalid-audit') {
+        mainDevice.send({
+          type: 'result',
+          requestId: job.requestId,
+          clientId,
+          status: 'ok',
+          is_ok: true,
+          payload: { accepted: true },
+          appAudit: {
+            ...deviceAudit,
+            steps: [{ ...deviceAudit.steps[0], sequence: 2 }],
+          },
+        });
+        return;
+      }
+      if (job.action === 'fail') {
+        mainDevice.send({
+          type: 'result',
+          requestId: job.requestId,
+          clientId: 'spoofed-but-ignored',
+          status: 'error',
+          is_ok: false,
+          httpCode: 422,
+          error: 'device failure',
+          payload: { failed: true },
+        });
+        return;
+      }
+      mainDevice.send({
+        type: 'result',
+        requestId: job.requestId,
+        clientId: 'spoofed-but-ignored',
+        status: 'ok',
+        is_ok: true,
+        payload: { echo: job.payload, deadlineAt: job.deadlineAt },
+        ...(job.action === 'echo' && job.payload?.text === 'hello'
+          ? { appAudit: deviceAudit }
+          : {}),
+      });
+    };
+
+    const echoPayload = {
+      text: 'hello',
+      nested: { runId: TEST_RUN_IDENTIFIER },
+    };
+    const invokeEcho = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.main}/echo`,
+      { timeoutSeconds: 5, payload: echoPayload },
+      accessToken,
+    );
+    assert(
+      invokeEcho.status < 300 &&
+        invokeEcho.json.is_ok === true &&
+        invokeEcho.json.status === 'ok' &&
+        invokeEcho.json.clientId === clientId,
+      'RPC project 轮询调用成功',
+    );
+    assert(
+      JSON.stringify(invokeEcho.json.payload.echo) ===
+        JSON.stringify(echoPayload),
+      'RPC payload 经 WS 往返保持一致',
+    );
+    assert(
+      !('appAudit' in invokeEcho.json),
+      '设备 appAudit 不透传给同步 invoke 调用方',
+    );
+    const echoJob = normalJobs.find(
+      (job) => job.requestId === invokeEcho.json.requestId,
+    );
+    assert(
+      Number.isFinite(echoJob?.deadlineAt) &&
+        echoJob.deadlineAt > Date.now() - 5000,
+      '下发 WS job 带 deadlineAt',
+    );
+
+    const invokeSpecified = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.main}/echo?clientId=${encodeURIComponent(clientId)}`,
+      { payload: { specified: true } },
+      accessToken,
+    );
+    assert(
+      invokeSpecified.json.is_ok === true &&
+        invokeSpecified.json.clientId === clientId,
+      'RPC 可通过 query 指定在线 clientId',
+    );
+
+    const invokeFailure = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.main}/fail`,
+      { payload: { fail: true } },
+      accessToken,
+    );
+    assert(
+      invokeFailure.json.is_ok === false &&
+        invokeFailure.json.status === 'error' &&
+        invokeFailure.json.httpCode === 422 &&
+        invokeFailure.json.error === 'device failure',
+      '设备失败结果完整回传 status/httpCode/error',
+    );
+
+    const invokeInvalidAudit = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.main}/invalid-audit`,
+      { payload: { invalidAudit: true } },
+      accessToken,
+    );
+    assert(
+      invokeInvalidAudit.json.is_ok === true &&
+        invokeInvalidAudit.json.payload.accepted === true,
+      '非法设备 appAudit 被丢弃但不影响 RPC 业务结果',
+    );
+
+    const invokeEmpty = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.empty}/echo`,
+      { payload: {} },
+      accessToken,
+    );
+    assert(
+      invokeEmpty.json.status === 'no_device' &&
+        invokeEmpty.json.httpCode === 503,
+      '无在线设备 project 返回 no_device',
+    );
+
+    const invokeOffline = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.main}/echo?clientId=${encodeURIComponent(`${TEST_RESOURCE_PREFIX}-offline`)}`,
+      { payload: {} },
+      accessToken,
+    );
+    assert(
+      invokeOffline.json.status === 'offline' &&
+        invokeOffline.json.httpCode === 503,
+      '指定离线 clientId 返回 offline',
+    );
+
+    await httpRequest(
+      'POST',
+      `/projects/${projects.main.id}/enabled`,
+      { enabled: false },
+      administratorAccessToken,
+    );
+    const invokeDisabled = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.main}/echo`,
+      { payload: {} },
+      accessToken,
+    );
+    assert(
+      invokeDisabled.json.status === 'disabled' &&
+        invokeDisabled.json.httpCode === 403,
+      '停用 project 后 invoke 返回 disabled',
+    );
+    const disabledInfo = await httpRequest(
+      'GET',
+      '/projects/info',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      disabledInfo.json.find((row) => row.id === projects.main.id)?.status ===
+        'disabled',
+      '停用 project 的 GroupInfo 状态为 disabled',
+    );
+    await httpRequest(
+      'POST',
+      `/projects/${projects.main.id}/enabled`,
+      { enabled: true },
+      administratorAccessToken,
+    );
+
+    const timeoutStarted = Date.now();
+    const invokeTimeout = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.main}/timeout?clientId=${encodeURIComponent(clientId)}`,
+      { timeoutSeconds: 1, payload: { wait: true } },
+      accessToken,
+    );
+    assert(
+      invokeTimeout.json.status === 'timeout' &&
+        invokeTimeout.json.httpCode === 504 &&
+        Date.now() - timeoutStarted >= 900,
+      '设备不回 result 时 invoke 按接口超时',
+    );
+
+    const attackerId = `${TEST_RESOURCE_PREFIX}-attacker-device`;
+    attackerDevice = connectDevice({
+      token: deviceToken,
+      clientId: attackerId,
+      maxInFlight: 300,
+    });
+    await attackerDevice.waitMessage((message) => message.type === 'welcome');
+    const secureInvokePromise = httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.main}/secure?clientId=${encodeURIComponent(clientId)}`,
+      { timeoutSeconds: 5, payload: { secure: true } },
+      accessToken,
+    );
+    const secureJob = await mainDevice.waitMessage(
+      (message) => message.type === 'job' && message.action === 'secure',
+    );
+    attackerDevice.send({
+      type: 'result',
+      requestId: secureJob.requestId,
+      clientId,
+      status: 'ok',
+      is_ok: true,
+      payload: { source: 'attacker' },
+    });
+    const mismatchAck = await attackerDevice.waitMessage(
+      (message) =>
+        message.type === 'resultAck' &&
+        message.requestId === secureJob.requestId,
+    );
+    assert(
+      mismatchAck.outcome === 'mismatch',
+      '非目标 WS 设备伪造 result 被身份匹配拒绝',
+    );
+    mainDevice.send({
+      type: 'result',
+      requestId: secureJob.requestId,
+      clientId: attackerId,
+      status: 'ok',
+      is_ok: true,
+      payload: { source: 'expected-device' },
+    });
+    const secureInvoke = await secureInvokePromise;
+    assert(
+      secureInvoke.json.is_ok === true &&
+        secureInvoke.json.payload.source === 'expected-device',
+      '目标 WS 设备的合法 result 可完成同一请求',
+    );
+    mainDevice.send({
+      type: 'result',
+      requestId: secureJob.requestId,
+      clientId,
+      status: 'ok',
+      is_ok: true,
+      payload: { duplicate: true },
+    });
+    const duplicateAck = await mainDevice.waitMessage(
+      (message) =>
+        message.type === 'resultAck' &&
+        message.requestId === secureJob.requestId &&
+        message.outcome === 'late',
+    );
+    assert(duplicateAck.outcome === 'late', '重复 WS result 被去重并返回 late');
+
+    const echoDetail = await waitRequestIndexed(
+      administratorAccessToken,
+      invokeEcho.json.requestId,
+    );
+    assert(
+      echoDetail.payloadUnavailable === false &&
+        JSON.stringify(echoDetail.requestPayload) ===
+          JSON.stringify(echoPayload) &&
+        JSON.stringify(echoDetail.responsePayload.echo) ===
+          JSON.stringify(echoPayload),
+      'monitor 详情通过 API 返回 Manticore 请求/响应 payload',
+    );
+    assert(
+      echoDetail.appAudit?.schemaVersion === 1 &&
+        echoDetail.appAudit.title === deviceAudit.title &&
+        JSON.stringify(echoDetail.appAudit.metadata) ===
+          JSON.stringify(deviceAudit.metadata) &&
+        echoDetail.appAudit.steps.length === 2 &&
+        echoDetail.appAudit.steps[0].error.code === 'UNAVAILABLE' &&
+        echoDetail.appAudit.steps[1].response.body.source === 'fallback',
+      '设备通过 WS 上报的成功/失败 Step 可由 monitor HTTP API 完整读取',
+    );
+
+    const invalidAuditDetail = await waitRequestIndexed(
+      administratorAccessToken,
+      invokeInvalidAudit.json.requestId,
+    );
+    assert(
+      invalidAuditDetail.appAudit === null,
+      '非法 sequence 的设备 appAudit 不进入请求日志',
+    );
+
+    section('maxInFlight / 组内跳过饱和设备 / rejected');
+    const saturationDeviceToken = await httpRequest(
+      'POST',
+      '/device-tokens',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-saturation-device`,
+        projects: [projectNames.saturation],
+      },
+      administratorAccessToken,
+    );
+    cleanup.deviceTokenIds.push(saturationDeviceToken.json.id);
+    const saturationAId = `${TEST_RESOURCE_PREFIX}-sat-a`;
+    const saturationBId = `${TEST_RESOURCE_PREFIX}-sat-b`;
+    const saturationA = connectDevice({
+      token: saturationDeviceToken.json.token,
+      clientId: saturationAId,
+      maxInFlight: 256,
+    });
+    const saturationB = connectDevice({
+      token: saturationDeviceToken.json.token,
+      clientId: saturationBId,
+      maxInFlight: 256,
+    });
+    await Promise.all([
+      saturationA.waitMessage((message) => message.type === 'welcome'),
+      saturationB.waitMessage((message) => message.type === 'welcome'),
+    ]);
+
+    const heldJobs = [];
+    let releaseMode = false;
+    saturationA.onJob = (job) => {
+      heldJobs.push(job);
+      if (!releaseMode) return;
+      saturationA.send({
+        type: 'result',
+        requestId: job.requestId,
+        clientId: saturationAId,
+        status: 'ok',
+        is_ok: true,
+        payload: { released: true },
+      });
+    };
+    saturationB.onJob = (job) => {
+      saturationB.send({
+        type: 'result',
+        requestId: job.requestId,
+        clientId: saturationBId,
+        status: 'ok',
+        is_ok: true,
+        payload: { selected: saturationBId },
+      });
+    };
+
+    const heldInvokes = Array.from({ length: 256 }, (unusedValue, index) =>
+      httpRequest(
+        'POST',
+        `/rpc/invoke/${projectNames.saturation}/hold?clientId=${encodeURIComponent(saturationAId)}`,
+        { timeoutSeconds: 8, payload: { index } },
+        accessToken,
+      ),
+    );
+    await waitFor(
+      '256 个 HTTP invoke 全部通过 WS 下发到饱和探针',
+      () => heldJobs.length === 256,
+      10000,
+      25,
+    );
+    assert(heldJobs.length === 256, '仅通过 HTTP+WS 占满设备 256 个在途槽');
+
+    const skipSaturated = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.saturation}/probe`,
+      { timeoutSeconds: 3, payload: {} },
+      accessToken,
+    );
+    assert(
+      skipSaturated.json.is_ok === true &&
+        skipSaturated.json.clientId === saturationBId,
+      '组轮询跳过已满设备并选择未满设备',
+    );
+
+    await closeDevice(saturationB);
+    await waitFor(
+      '第二台设备从 clientQueue 下线',
+      async () => {
+        const response = await httpRequest(
+          'GET',
+          `/rpc/clientQueue?project=${encodeURIComponent(projectNames.saturation)}`,
+          undefined,
+          accessToken,
+        );
+        return !response.json.online.includes(saturationBId);
+      },
+      5000,
+      100,
+    );
+
+    const groupRejected = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.saturation}/hold`,
+      { timeoutSeconds: 2, payload: {} },
+      accessToken,
+    );
+    assert(
+      groupRejected.json.status === 'rejected' &&
+        groupRejected.json.httpCode === 429,
+      'project 内所有在线设备饱和时返回 rejected/429',
+    );
+    const clientRejected = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.saturation}/hold?clientId=${encodeURIComponent(saturationAId)}`,
+      { timeoutSeconds: 2, payload: {} },
+      accessToken,
+    );
+    assert(
+      clientRejected.json.status === 'rejected' &&
+        clientRejected.json.httpCode === 429,
+      '指定饱和设备时返回 rejected/429',
+    );
+
+    const heldResults = await Promise.all(heldInvokes);
+    assert(
+      heldResults.length === 256 &&
+        heldResults.every(
+          (response) =>
+            response.json.status === 'timeout' &&
+            response.json.httpCode === 504,
+        ),
+      '占槽请求均通过 HTTP timeout 返回并释放槽',
+    );
+
+    releaseMode = true;
+    const afterRelease = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.saturation}/probe?clientId=${encodeURIComponent(saturationAId)}`,
+      { timeoutSeconds: 3, payload: {} },
+      accessToken,
+    );
+    assert(
+      afterRelease.json.is_ok === true &&
+        afterRelease.json.payload.released === true,
+      '超时后在途槽已释放，设备可继续接收 RPC',
+    );
+    await closeDevice(saturationA);
+
+    section('Monitor / 筛选 / 分页 / payload / Metrics');
+    const requestList = await waitFor(
+      '本轮日志经 Worker 出现在 monitor',
+      async () => {
+        const response = await httpRequest(
+          'GET',
+          `/monitor/requests?project=${encodeURIComponent(projectNames.main)}&pageSize=200`,
+          undefined,
+          administratorAccessToken,
+        );
+        return response.status === 200 &&
+          response.json.rows.some(
+            (row) => row.requestId === invokeEcho.json.requestId,
+          )
+          ? response
+          : null;
+      },
+      15000,
+      150,
+    );
+    assert(
+      requestList.json.page === 1 &&
+        requestList.json.pageSize === 200 &&
+        requestList.json.total >= 8,
+      'monitor 请求列表支持 project 过滤与分页',
+    );
+    assert(
+      requestList.json.rows.every(
+        (row) =>
+          !('requestPayload' in row) &&
+          !('responsePayload' in row) &&
+          !('appAudit' in row),
+      ),
+      'monitor 列表只返回 PG 脊柱，不返回 payload/appAudit',
+    );
+
+    const statusFiltered = await httpRequest(
+      'GET',
+      `/monitor/requests?project=${encodeURIComponent(projectNames.main)}&status=ok&pageSize=200`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      statusFiltered.status === 200 &&
+        statusFiltered.json.rows.length > 0 &&
+        statusFiltered.json.rows.every((row) => row.status === 'ok'),
+      'monitor 支持 status 过滤',
+    );
+    const actionFiltered = await httpRequest(
+      'GET',
+      `/monitor/requests?project=${encodeURIComponent(projectNames.main)}&action=echo&clientId=${encodeURIComponent(clientId)}&from=${encodeURIComponent(new Date(Date.now() - 60000).toISOString())}&to=${encodeURIComponent(new Date(Date.now() + 60000).toISOString())}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      actionFiltered.status === 200 &&
+        actionFiltered.json.rows.some(
+          (row) => row.requestId === invokeEcho.json.requestId,
+        ) &&
+        actionFiltered.json.rows.every(
+          (row) =>
+            row.actionName === 'echo' &&
+            row.clientId === clientId &&
+            row.projectName === projectNames.main,
+        ),
+      'monitor 支持 action/clientId/from/to 联合过滤',
+    );
+
+    const requestOptions = await httpRequest(
+      'GET',
+      `/monitor/request-options?project=${encodeURIComponent(projectNames.main)}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      requestOptions.status === 200 &&
+        requestOptions.json.actions.includes('echo') &&
+        requestOptions.json.clientIds.includes(clientId),
+      'monitor request-options 返回去重 action/clientId',
+    );
+    const linkedOptions = await httpRequest(
+      'GET',
+      `/monitor/request-options?action=${encodeURIComponent(`${TEST_RESOURCE_PREFIX}-missing-action`)}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      linkedOptions.status === 200 && linkedOptions.json.projects.length === 0,
+      'monitor request-options 执行联动过滤',
+    );
+
+    const missingLogDetail = await httpRequest(
+      'GET',
+      `/monitor/requests/${TEST_RESOURCE_PREFIX}-missing-request`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(missingLogDetail.status === 404, '不存在请求日志详情返回 404');
+
+    const overview = await httpRequest(
+      'GET',
+      '/metrics/overview',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      overview.status === 200 &&
+        overview.json.totals.total >= 8 &&
+        overview.json.byStatus.some((row) => row.status === 'ok'),
+      'metrics overview 返回总量与状态分布',
+    );
+
+    const weekly = await waitFor(
+      '本轮设备指标聚合可读',
+      async () => {
+        const response = await httpRequest(
+          'GET',
+          `/metrics/weekly?project=${encodeURIComponent(projectNames.main)}`,
+          undefined,
+          administratorAccessToken,
+        );
+        return response.status === 200 &&
+          response.json.some(
+            (row) => row.clientId === clientId && row.totalRequests > 0,
+          )
+          ? response
+          : null;
+      },
+      15000,
+      150,
+    );
+    assert(
+      weekly.json.every((row) => row.project === projectNames.main),
+      'metrics weekly 只返回指定 project',
+    );
+
+    const trend = await httpRequest(
+      'GET',
+      `/metrics/trend?days=7&project=${encodeURIComponent(projectNames.main)}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      trend.status === 200 &&
+        trend.json.length === 7 &&
+        trend.json.every(
+          (point) =>
+            typeof point.statDate === 'string' &&
+            typeof point.totalRequests === 'number' &&
+            typeof point.successRate === 'number',
+        ) &&
+        trend.json.some((point) => point.totalRequests > 0),
+      'metrics trend 按天补零并包含本轮聚合',
+    );
+    const invalidTrend = await httpRequest(
+      'GET',
+      '/metrics/trend?days=91',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(invalidTrend.status === 400, 'metrics trend 拒绝 days > 90');
+
+    const finalGroupInfo = await httpRequest(
+      'GET',
+      '/projects/info',
+      undefined,
+      administratorAccessToken,
+    );
+    const mainGroupInfo = finalGroupInfo.json.find(
+      (row) => row.id === projects.main.id,
+    );
+    assert(
+      mainGroupInfo.totalDevices >= 2 &&
+        mainGroupInfo.onlineDevices >= 2 &&
+        mainGroupInfo.requests7d > 0 &&
+        mainGroupInfo.status === 'online',
+      'GroupInfo 汇总设备、在线数、近 7 天请求与运行态',
+    );
+
+    const silentClose = await Promise.race([
+      silentClosePromise,
+      sleep(32000).then(() => ({ code: null, reason: 'timeout' })),
+    ]);
+    assert(
+      silentClose.code === 1006,
+      '不回 pong/不发消息的 WS 在读超时后被服务端 terminate',
+    );
+
+    await closeDevice(attackerDevice);
+    await closeDevice(mainDevice);
+    const mainOffline = await waitFor(
+      '主设备优雅断开后持久态离线',
+      async () => {
+        const response = await httpRequest(
+          'GET',
+          '/devices',
+          undefined,
+          administratorAccessToken,
+        );
+        const row = response.json.find(
+          (device) => device.clientId === clientId,
+        );
+        return row?.online === false && row?.status === 'offline';
+      },
+      5000,
+      100,
+    );
+    assert(mainOffline === true, 'WS 优雅断开后设备持久态变为 offline');
+  } finally {
+    await bestEffortCleanup(administratorAccessToken);
+  }
+}
+
+main()
+  .then(() => {
+    console.log(
+      `\n=== BLACK-BOX SMOKE ${failed ? 'FAILED' : 'PASSED'}: ${passed} passed, ${failed} failed ===`,
+    );
+    process.exit(failed ? 1 : 0);
+  })
+  .catch((error) => {
+    console.error(`\nERROR: ${error.stack || error.message}`);
+    void bestEffortCleanup()
+      .catch(() => undefined)
+      .finally(() => process.exit(1));
+  });

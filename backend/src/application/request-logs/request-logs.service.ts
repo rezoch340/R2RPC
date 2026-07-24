@@ -21,7 +21,7 @@ export interface ListFilter {
 }
 
 // 只存标量字段;list/detail 走 PG 脊柱,payload 原文在 Manticore。
-const SPINE = {
+const REQUEST_LOG_SPINE_COLUMNS = {
   id: requestLogs.id,
   requestId: requestLogs.requestId,
   projectName: requestLogs.projectName,
@@ -40,8 +40,8 @@ const SPINE = {
 @Injectable()
 export class RequestLogsService {
   constructor(private readonly dbService: DbService) {}
-  private get db() {
-    return this.dbService.db;
+  private get database() {
+    return this.dbService.database;
   }
 
   // 写请求日志脊柱(幂等:request_id 冲突不重复插)。返回是否首插(true = 本次真的插了)。
@@ -49,7 +49,7 @@ export class RequestLogsService {
     job: RequestLogJob,
     payloadState: PayloadState,
   ): Promise<boolean> {
-    const res = await this.db
+    const insertResult = await this.database
       .insert(requestLogs)
       .values({
         requestId: job.requestId,
@@ -68,122 +68,146 @@ export class RequestLogsService {
         finishedAt: job.finishedAt ? new Date(job.finishedAt) : null,
       })
       .onConflictDoNothing({ target: requestLogs.requestId });
-    return (res.rowCount ?? 0) > 0;
+    return (insertResult.rowCount ?? 0) > 0;
   }
 
   async markState(requestId: string, state: PayloadState) {
-    await this.db
+    await this.database
       .update(requestLogs)
       .set({ payloadState: state })
       .where(eq(requestLogs.requestId, requestId));
   }
 
   // 监控列表:查脊柱,不返 payload,支持过滤 + 分页
-  async list(f: ListFilter) {
-    const conds: SQL[] = [];
-    if (f.project) conds.push(eq(requestLogs.projectName, f.project));
-    if (f.action) conds.push(eq(requestLogs.actionName, f.action));
-    if (f.clientId) conds.push(eq(requestLogs.clientId, f.clientId));
-    if (f.status) conds.push(eq(requestLogs.status, f.status));
-    if (f.from) conds.push(gte(requestLogs.createdAt, f.from));
-    if (f.to) conds.push(lte(requestLogs.createdAt, f.to));
-    const where = conds.length ? and(...conds) : undefined;
-    const page = Math.max(1, f.page ?? 1);
-    const pageSize = Math.min(200, Math.max(1, f.pageSize ?? 20));
-    const rows = await this.db
-      .select(SPINE)
+  async list(filter: ListFilter) {
+    const conditions: SQL[] = [];
+    if (filter.project) {
+      conditions.push(eq(requestLogs.projectName, filter.project));
+    }
+    if (filter.action) {
+      conditions.push(eq(requestLogs.actionName, filter.action));
+    }
+    if (filter.clientId) {
+      conditions.push(eq(requestLogs.clientId, filter.clientId));
+    }
+    if (filter.status) {
+      conditions.push(eq(requestLogs.status, filter.status));
+    }
+    if (filter.from) {
+      conditions.push(gte(requestLogs.createdAt, filter.from));
+    }
+    if (filter.to) {
+      conditions.push(lte(requestLogs.createdAt, filter.to));
+    }
+    const whereClause = conditions.length ? and(...conditions) : undefined;
+    const page = Math.max(1, filter.page ?? 1);
+    const pageSize = Math.min(200, Math.max(1, filter.pageSize ?? 20));
+    const requestRecords = await this.database
+      .select(REQUEST_LOG_SPINE_COLUMNS)
       .from(requestLogs)
-      .where(where)
+      .where(whereClause)
       .orderBy(desc(requestLogs.createdAt))
       .limit(pageSize)
       .offset((page - 1) * pageSize);
-    const [{ total }] = await this.db
+    const [{ total }] = await this.database
       .select({ total: sql<number>`count(*)::int` })
       .from(requestLogs)
-      .where(where);
-    return { rows, page, pageSize, total };
+      .where(whereClause);
+    return { rows: requestRecords, page, pageSize, total };
   }
 
   // 监控筛选下拉选项:从 request_logs 去重取 project/action/client 三类候选,供 UI 下拉。
   // 联动过滤:每一维**排除自身**、按其余已选维约束(选了 project 后 action/client 只回该组下出现过的)。
   // 实体存在要求(对齐老系统):project 须在 projects(alive)、client 须在 devices(alive);action 无实体不约束。
   // 每类封顶 200(下拉够用),超出截断。
-  async filterOptions(f: {
+  async filterOptions(filter: {
     project?: string;
     action?: string;
     clientId?: string;
   }) {
-    const LIMIT = 200;
+    const maximumOptions = 200;
 
     // projects:按 action/client 联动,inner join projects(alive)要求分组仍存在
-    const projConds: SQL[] = [];
-    if (f.action) projConds.push(eq(requestLogs.actionName, f.action));
-    if (f.clientId) projConds.push(eq(requestLogs.clientId, f.clientId));
-    const projectRows = await this.db
+    const projectConditions: SQL[] = [];
+    if (filter.action) {
+      projectConditions.push(eq(requestLogs.actionName, filter.action));
+    }
+    if (filter.clientId) {
+      projectConditions.push(eq(requestLogs.clientId, filter.clientId));
+    }
+    const projectRows = await this.database
       .selectDistinct({ name: requestLogs.projectName })
       .from(requestLogs)
       .innerJoin(
         projects,
         alive(projects, eq(projects.name, requestLogs.projectName)),
       )
-      .where(projConds.length ? and(...projConds) : undefined)
+      .where(projectConditions.length ? and(...projectConditions) : undefined)
       .orderBy(requestLogs.projectName)
-      .limit(LIMIT);
+      .limit(maximumOptions);
 
     // actions:按 project/client 联动(action 无实体,不 join)
-    const actConds: SQL[] = [];
-    if (f.project) actConds.push(eq(requestLogs.projectName, f.project));
-    if (f.clientId) actConds.push(eq(requestLogs.clientId, f.clientId));
-    const actionRows = await this.db
+    const actionConditions: SQL[] = [];
+    if (filter.project) {
+      actionConditions.push(eq(requestLogs.projectName, filter.project));
+    }
+    if (filter.clientId) {
+      actionConditions.push(eq(requestLogs.clientId, filter.clientId));
+    }
+    const actionRows = await this.database
       .selectDistinct({ name: requestLogs.actionName })
       .from(requestLogs)
-      .where(actConds.length ? and(...actConds) : undefined)
+      .where(actionConditions.length ? and(...actionConditions) : undefined)
       .orderBy(requestLogs.actionName)
-      .limit(LIMIT);
+      .limit(maximumOptions);
 
     // clientIds:按 project/action 联动,inner join devices(alive)要求设备仍存在;排除 client_id 为空的行
-    const cliConds: SQL[] = [isNotNull(requestLogs.clientId)];
-    if (f.project) cliConds.push(eq(requestLogs.projectName, f.project));
-    if (f.action) cliConds.push(eq(requestLogs.actionName, f.action));
-    const clientRows = await this.db
+    const clientConditions: SQL[] = [isNotNull(requestLogs.clientId)];
+    if (filter.project) {
+      clientConditions.push(eq(requestLogs.projectName, filter.project));
+    }
+    if (filter.action) {
+      clientConditions.push(eq(requestLogs.actionName, filter.action));
+    }
+    const clientRows = await this.database
       .selectDistinct({ clientId: requestLogs.clientId })
       .from(requestLogs)
       .innerJoin(
         devices,
         alive(devices, eq(devices.clientId, requestLogs.clientId)),
       )
-      .where(and(...cliConds))
+      .where(and(...clientConditions))
       .orderBy(requestLogs.clientId)
-      .limit(LIMIT);
+      .limit(maximumOptions);
 
     return {
-      projects: projectRows.map((r) => r.name),
-      actions: actionRows.map((r) => r.name),
+      projects: projectRows.map((projectRecord) => projectRecord.name),
+      actions: actionRows.map((actionRecord) => actionRecord.name),
       clientIds: clientRows
-        .map((r) => r.clientId)
-        .filter((c): c is string => !!c),
+        .map((clientRecord) => clientRecord.clientId)
+        .filter((clientId): clientId is string => !!clientId),
     };
   }
 
   async detailSpine(requestId: string) {
-    const [row] = await this.db
-      .select(SPINE)
+    const [requestRecord] = await this.database
+      .select(REQUEST_LOG_SPINE_COLUMNS)
       .from(requestLogs)
       .where(eq(requestLogs.requestId, requestId))
       .limit(1);
-    return row ?? null;
+    return requestRecord ?? null;
   }
 
   // 扫描陈旧 pending(worker 崩溃遗留),供 repair 标 unavailable
-  async findStalePending(minAgeMs: number, limit: number) {
-    const cutoff = new Date(Date.now() - minAgeMs);
-    return this.db
+  async findStalePending(minimumAgeMilliseconds: number, limit: number) {
+    const cutoffTime = new Date(Date.now() - minimumAgeMilliseconds);
+    return this.database
       .select({ requestId: requestLogs.requestId })
       .from(requestLogs)
       .where(
         and(
           eq(requestLogs.payloadState, 'pending'),
-          lt(requestLogs.createdAt, cutoff),
+          lt(requestLogs.createdAt, cutoffTime),
         ),
       )
       .limit(limit);
@@ -191,18 +215,18 @@ export class RequestLogsService {
 
   // 按天硬清理:删 created_at 早于 retentionDays 天的日志(log 表不软删)。返回删除条数。
   async cleanupOldRequests(retentionDays: number): Promise<number> {
-    const cutoff = new Date(Date.now() - retentionDays * 86_400_000);
-    const res = await this.db
+    const cutoffTime = new Date(Date.now() - retentionDays * 86_400_000);
+    const deleteResult = await this.database
       .delete(requestLogs)
-      .where(lt(requestLogs.createdAt, cutoff));
-    return res.rowCount ?? 0;
+      .where(lt(requestLogs.createdAt, cutoffTime));
+    return deleteResult.rowCount ?? 0;
   }
 
   // 按 scope 裁剪:每 (project,action,client) 只留最新 keep 条(created_at DESC, id DESC)。返回删除条数。
   // client_id 为 NULL 的行归为同一 scope("无 client")。
   // ponytail: 全表窗口扫描,每轮维护跑一次;量级大到扛不住再改成只裁剪近期活跃 scope。
   async trimScopes(keep: number): Promise<number> {
-    const res = await this.db.execute(sql`
+    const deleteResult = await this.database.execute(sql`
       DELETE FROM ${requestLogs}
       WHERE ${requestLogs.id} IN (
         SELECT id FROM (
@@ -215,6 +239,6 @@ export class RequestLogsService {
         WHERE rn > ${keep}
       )
     `);
-    return res.rowCount ?? 0;
+    return deleteResult.rowCount ?? 0;
   }
 }

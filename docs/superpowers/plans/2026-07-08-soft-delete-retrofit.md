@@ -1,5 +1,7 @@
 # 全局软删除 Retrofit 实施计划
 
+> 状态：✅ 已完成，本文保留实施时任务顺序，不作为当前进度或测试命令真源。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 给非日志实体表加软删除(`deleted_at` + partial unique index),删除留痕、可恢复、可重建同名;软删语义集中在 `alive()`/`softDelete()` 两个助手里(**在源头集中**,不在每个查询散写 `isNull`),并堵住"软删用户/角色仍被授权"的安全缺口。

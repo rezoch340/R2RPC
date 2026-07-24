@@ -23,28 +23,32 @@ export class RequestLogProcessor extends WorkerHost {
     private readonly logs: RequestLogsService,
     private readonly search: SearchService,
     private readonly metrics: MetricsService,
-    @InjectQueue(QUEUE.DEAD_LETTER) private readonly dlq: Queue,
+    @InjectQueue(QUEUE.DEAD_LETTER) private readonly deadLetterQueue: Queue,
   ) {
     super();
   }
 
   async process(job: Job<RequestLogJob>) {
-    const d = job.data;
-    const fresh = await this.logs.writeSpine(d, 'pending');
-    if (fresh) await this.metrics.recordCompletion(d); // 仅首见 requestId 累加(去重;重试不重复计)
-    await this.search.indexPayload(buildManticoreDoc(d));
-    await this.logs.markState(d.requestId, 'indexed');
+    const requestLog = job.data;
+    const newlyInserted = await this.logs.writeSpine(requestLog, 'pending');
+    if (newlyInserted) {
+      await this.metrics.recordCompletion(requestLog);
+    }
+    await this.search.indexPayload(buildManticoreDoc(requestLog));
+    await this.logs.markState(requestLog.requestId, 'indexed');
   }
 
   @OnWorkerEvent('failed')
   async onFailed(job: Job<RequestLogJob>) {
-    const max = job.opts.attempts ?? 1;
-    if (job.attemptsMade < max) return; // 还会重试
+    const maximumAttempts = job.opts.attempts ?? 1;
+    if (job.attemptsMade < maximumAttempts) {
+      return;
+    } // 还会重试
     this.logger.warn(`请求日志重试耗尽,转 dead-letter: ${job.data.requestId}`);
     await this.logs
       .markState(job.data.requestId, 'failed')
       .catch(() => undefined);
-    await this.dlq.add('failed-log', job.data, {
+    await this.deadLetterQueue.add('failed-log', job.data, {
       attempts: 5,
       backoff: { type: 'exponential', delay: 30000 },
       removeOnComplete: true,

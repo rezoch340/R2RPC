@@ -1,5 +1,7 @@
 # 2c: 设备自注册 + 删 client-login 实现计划
 
+> 状态：✅ 已完成，本文保留实施时任务顺序，不作为当前进度或测试命令真源。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** 设备用 **device token** 自注册上线(WS `?token=<device-token>&clientId=<自生成>`),继承该 token 的 project;**彻底删掉旧 client-login**(clients/client_groups/POST clients/api login/ClientService/Controller/Module);顺带补 2b 延后项(device-token WS 校验 cache-aside + revoke/delete 缓存失效 + `devices.device_token_id` 索引)。

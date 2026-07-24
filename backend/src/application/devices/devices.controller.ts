@@ -27,9 +27,11 @@ export class DevicesController {
   @Get(':id')
   @RequirePermission('read', 'device')
   @ApiOperation({ summary: '设备详情' })
-  async get(@Param('id', ParseIntPipe) id: number) {
-    const d = await this.devices.get(id);
-    if (!d) throw new NotFoundException('设备不存在');
-    return d;
+  async get(@Param('id', ParseIntPipe) deviceId: number) {
+    const device = await this.devices.get(deviceId);
+    if (!device) {
+      throw new NotFoundException('设备不存在');
+    }
+    return device;
   }
 }

@@ -10,34 +10,43 @@ import { ConfigService } from '../infrastructure/config/config.service';
 // preview 模式实例化应用图(不跑生命周期钩子、不连基础设施),纯静态扫描路由元数据。
 // 用法: node_modules/.bin/ts-node src/scripts/gen-openapi.ts  (或 pnpm openapi:gen)
 async function main() {
-  const app = await NestFactory.create(AppModule, {
+  const application = await NestFactory.create(AppModule, {
     preview: true,
     logger: false,
   });
   // 与 main.ts 一致:若配了全局前缀就套上,保证导出的 path 与运行时相同
-  const cfg = new ConfigService();
-  if (cfg.app.globalPrefix) app.setGlobalPrefix(cfg.app.globalPrefix);
+  const configuration = new ConfigService();
+  if (configuration.app.globalPrefix) {
+    application.setGlobalPrefix(configuration.app.globalPrefix);
+  }
 
   // 复用 main.ts 的 DocumentBuilder 配置(标题/版本/Bearer)
-  const swaggerCfg = new DocumentBuilder()
+  const swaggerConfiguration = new DocumentBuilder()
     .setTitle('RER0RPC API')
     .setVersion('0.1')
     .addBearerAuth()
     .build();
-  const doc = SwaggerModule.createDocument(app, swaggerCfg);
+  const openApiDocument = SwaggerModule.createDocument(
+    application,
+    swaggerConfiguration,
+  );
 
-  const out = join(__dirname, '../../../docs/openapi.yaml');
+  const outputPath = join(__dirname, '../../../docs/openapi.yaml');
   writeFileSync(
-    out,
-    dump(doc, { noRefs: true, sortKeys: false, lineWidth: -1 }),
+    outputPath,
+    dump(openApiDocument, {
+      noRefs: true,
+      sortKeys: false,
+      lineWidth: -1,
+    }),
   );
   console.log(
-    `OpenAPI 已写出: ${out}  (paths: ${Object.keys(doc.paths ?? {}).length})`,
+    `OpenAPI 已写出: ${outputPath}  (paths: ${Object.keys(openApiDocument.paths ?? {}).length})`,
   );
 
-  await app.close();
+  await application.close();
 }
-main().catch((e) => {
-  console.error(e);
+main().catch((error) => {
+  console.error(error);
   process.exit(1);
 });

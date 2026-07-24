@@ -725,10 +725,10 @@ paths:
             type: string
       responses:
         '200':
-          description: ''
+          description: 返回请求/响应 payload；设备上报且校验通过时 appAudit 为 V1 Step 结构，否则为 null
       security:
         - bearer: []
-      summary: 请求详情(PG 脊柱 + 懒加载 Manticore payload)
+      summary: 请求详情(PG 脊柱 + 懒加载 Manticore payload/AppAudit)
       tags:
         - monitor
 info:

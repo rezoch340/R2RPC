@@ -12,9 +12,9 @@ type SoftTable = PgTable & { deletedAt: PgColumn };
  */
 export function alive<T extends SoftTable>(
   table: T,
-  ...conds: (SQL | undefined)[]
+  ...conditions: (SQL | undefined)[]
 ): SQL {
-  return and(isNull(table.deletedAt), ...conds) as SQL;
+  return and(isNull(table.deletedAt), ...conditions) as SQL;
 }
 
 /**
@@ -24,12 +24,12 @@ export function alive<T extends SoftTable>(
  *           正确性由 build + smoke 兜底。
  */
 export function softDelete<T extends SoftTable>(
-  db: NodePgDatabase,
+  database: NodePgDatabase,
   table: T,
   where: SQL,
 ): Promise<Record<string, any>[]> {
   return (
-    db
+    database
       .update(table)
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- 泛型 set() 拿不到 deletedAt 静态类型,边界转型
       .set({ deletedAt: new Date() } as any)

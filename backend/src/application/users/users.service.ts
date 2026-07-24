@@ -12,22 +12,22 @@ import { users } from './users.schema';
 @Injectable()
 export class UsersService {
   constructor(private readonly dbService: DbService) {}
-  private get db() {
-    return this.dbService.db;
+  private get database() {
+    return this.dbService.database;
   }
 
   // 按用户名查(供登录鉴权)
   async findByUsername(username: string) {
-    const [row] = await this.db
+    const [userRecord] = await this.database
       .select()
       .from(users)
       .where(alive(users, eq(users.username, username)))
       .limit(1);
-    return row ?? null;
+    return userRecord ?? null;
   }
 
   async list() {
-    return this.db
+    return this.database
       .select({
         id: users.id,
         username: users.username,
@@ -40,8 +40,8 @@ export class UsersService {
       .where(alive(users));
   }
 
-  async findById(id: number) {
-    const [row] = await this.db
+  async findById(userId: number) {
+    const [userRecord] = await this.database
       .select({
         id: users.id,
         username: users.username,
@@ -51,17 +51,19 @@ export class UsersService {
         lastLoginAt: users.lastLoginAt,
       })
       .from(users)
-      .where(alive(users, eq(users.id, id)))
+      .where(alive(users, eq(users.id, userId)))
       .limit(1);
-    if (!row) throw new NotFoundException('用户不存在');
-    return row;
+    if (!userRecord) {
+      throw new NotFoundException('用户不存在');
+    }
+    return userRecord;
   }
 
   async create(input: { username: string; password: string; role?: string }) {
     if (await this.findByUsername(input.username)) {
       throw new ConflictException('用户名已存在');
     }
-    const [row] = await this.db
+    const [createdUser] = await this.database
       .insert(users)
       .values({
         username: input.username,
@@ -74,32 +76,34 @@ export class UsersService {
         role: users.role,
         createdAt: users.createdAt,
       });
-    return row;
+    return createdUser;
   }
 
-  async remove(id: number) {
-    await softDelete(this.db, users, eq(users.id, id));
+  async remove(userId: number) {
+    await softDelete(this.database, users, eq(users.id, userId));
     return { deleted: true };
   }
 
-  async updateLastLogin(id: number) {
-    await this.db
+  async updateLastLogin(userId: number) {
+    await this.database
       .update(users)
       .set({ lastLoginAt: new Date() })
-      .where(eq(users.id, id));
+      .where(eq(users.id, userId));
   }
 
-  async setEnabled(id: number, enabled: boolean) {
-    const [row] = await this.db
+  async setEnabled(userId: number, enabled: boolean) {
+    const [updatedUser] = await this.database
       .update(users)
       .set({ enabled })
-      .where(alive(users, eq(users.id, id)))
+      .where(alive(users, eq(users.id, userId)))
       .returning({
         id: users.id,
         username: users.username,
         enabled: users.enabled,
       });
-    if (!row) throw new NotFoundException('用户不存在');
-    return row;
+    if (!updatedUser) {
+      throw new NotFoundException('用户不存在');
+    }
+    return updatedUser;
   }
 }

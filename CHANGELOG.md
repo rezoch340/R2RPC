@@ -4,6 +4,25 @@
 
 ## [Unreleased]
 
+### 可读命名与控制流硬化
+- 全量审计 `backend/src` 与 `backend/test`：清除单字母、双字母和 `cfg/ctx/req/res/dto/tx/svc` 等含糊变量名，测试与内部集成脚本同样纳入。
+- 拆分 RPC 调度、WebSocket 上线、指标趋势、项目汇总、AccessToken Guard 和集成检查中的高复杂度流程，使用保护子句和单职责私有方法替代长分支。
+- 新增 `test/assert-readable-source.js` 命名门禁；ESLint 强制圈复杂度 ≤ 10、嵌套深度 ≤ 3、单函数语句数 ≤ 40、花括号和无冗余 `else`。
+- 新增 `pnpm lint:check`；`pnpm lint` 先执行命名门禁再自动修复 ESLint 问题。
+
+### 设备上报 AppAudit 日志 Step
+- 复用 FlowCore 的 AppAudit V1 数据模型，WS `result` 新增可选 `appAudit`；设备一次性上报 metadata 和成功/失败 Step。
+- 服务端使用 zod 校验 schemaVersion、ISO 时间、连续 sequence、字段长度、最多 64 metadata/128 Step 和 512 KiB 体积；非法审计整体丢弃但不影响 RPC 业务结果。
+- `RequestLogJob`、Manticore `app_audit_json` 和 Monitor 详情完成冷路径；PostgreSQL 脊柱与日志列表不存/不返审计。已有 Manticore 表启动时自动补列。
+- 黑盒新增真实 HTTP invoke → WS result+AppAudit → Worker → Monitor API 验证和非法审计隔离，完整套件现为 121 passed、0 failed，仍不直连持久层。
+- 新增当前设备接入协议 `docs/device-app-audit.md`、SDD 规格和实现计划，并同步全部当前项目文档。
+
+### 完整性黑盒冒烟与文档统一
+- `pnpm smoke` / `pnpm test:e2e` 统一为纯 HTTP/WebSocket 黑盒套件；新增 `test/assert-blackbox-e2e.js`，静态拒绝 E2E 导入 Drizzle、PG、Redis 或应用内部 service。
+- 黑盒覆盖扩展到 117 项：全部 HTTP controller 方法，WS token 鉴权/heartbeat/ping/20 秒读超时/4 MiB/拒分片，RPC 成功失败超时、result 来源身份、重复去重，以及用 256 个并发 HTTP invoke 真实验证 maxInFlight、跳过饱和设备和 rejected。
+- Worker 冷路径只通过 monitor/metrics API 观察；原 retention/stale/metrics/maxInFlight 直连脚本改名 `*.integration.ts` 和 `test:integration:*`，明确不属于 E2E。
+- README、后端说明、部署说明、项目总览、能力矩阵、待办、继续开发提示、配置模板和 Agent 指南已同步当前 NestJS 实现；旧 Go/MySQL 文档移入 `docs/archive/`。
+
 ### 已完成 · 阶段1 设备组一等实体(6/6)
 - 设备组升为一等实体(FK);新增 `client_groups` 关联表,一个设备可属于多个组;`clients`/`devices` 去掉松散的 `group_name` 字符串。
 - 设备登录改为按 `client_groups` 授权:组成员关系以库表为准,不再采信客户端自报的组;设备账号「建号 + 建组关联」走单事务并对组名去重。
@@ -38,7 +57,7 @@
 - `request_logs`(日志表,硬删)加自动保留:`RequestLogsService.cleanupOldRequests(days)` 按天删超龄行 + `trimScopes(keep)` 用窗口函数按 `(group,action,client)` 每 scope 只留最新 N 条(`created_at DESC, id DESC`,`client_id` NULL 归同一 scope)。
 - 复用现成的 5min 维护 worker:`WorkerBootstrap` 新增 `retention-sweep` 可重复任务,`MaintenanceProcessor` 按 `job.name` 分派(repair-stale-pending / retention-sweep 各自私有方法)。
 - 阈值走集中 YAML 配置(zod 校验,fail-fast):`retention.rawRetentionDays`(默认 3)、`retention.keepLatestPerScope`(默认 100);非法值(≤0)直接启动失败,不静默兜底。
-- 独立冒烟 `src/scripts/retention-smoke.ts`(retention 无 API 面 → 直连 PG 种子超龄/超量行,断言 cleanup/trim 行数)—— 全绿。
+- retention 底层检查现为 `src/scripts/retention.integration.ts` / `test:integration:retention`，明确是直连 PG 的内部集成检查而非 E2E。
 - 聚合表按天清理(`AGGREGATE_RETENTION_DAYS`)暂缓:`device_daily`/`rpc_daily` 表尚未建,随指标聚合体系一起做。
 
 ### 设计

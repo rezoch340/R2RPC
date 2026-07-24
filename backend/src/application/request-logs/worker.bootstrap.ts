@@ -20,7 +20,9 @@ export class WorkerBootstrap implements OnModuleInit {
     // worker 启动即对账最近 N 天,修正增量累加的丢/重(失败不阻断启动,但要留痕)
     await this.metrics
       .rebuildRecent(this.config.retention.rawRetentionDays)
-      .catch((e) => this.logger.error(`启动对账失败: ${(e as Error).message}`));
+      .catch((error) =>
+        this.logger.error(`启动对账失败: ${(error as Error).message}`),
+      );
     await this.maintenance.add(
       'repair-stale-pending',
       {},

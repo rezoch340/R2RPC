@@ -13,8 +13,8 @@ import { projects } from '../projects/projects.schema';
 import { ProjectsService } from '../projects/projects.service';
 import { deviceTokenProjects, deviceTokens } from './device-token.schema';
 
-const WS_TOKEN_POSITIVE_TTL = 60; // 秒
-const WS_TOKEN_NEGATIVE_TTL = 10; // 秒(负缓存,防伪造 token 打 DB)
+const WEBSOCKET_TOKEN_POSITIVE_TIME_TO_LIVE_SECONDS = 60;
+const WEBSOCKET_TOKEN_NEGATIVE_TIME_TO_LIVE_SECONDS = 10;
 
 type CachedDeviceToken = {
   id: number;
@@ -31,8 +31,8 @@ export class DeviceTokenService {
     private readonly redis: RedisService,
   ) {}
 
-  private get db() {
-    return this.dbService.db;
+  private get database() {
+    return this.dbService.database;
   }
 
   /**
@@ -50,17 +50,17 @@ export class DeviceTokenService {
 
     const projectIds: number[] = [];
     for (const projectName of projectNames) {
-      const gid = await this.projects.idByName(projectName);
-      if (gid === null) {
+      const projectId = await this.projects.idByName(projectName);
+      if (projectId === null) {
         throw new BadRequestException(`功能组不存在: ${projectName}`);
       }
-      projectIds.push(gid);
+      projectIds.push(projectId);
     }
 
     const token = 'dk_' + randomBytes(24).toString('base64url');
 
-    const result = await this.db.transaction(async (tx) => {
-      const [tokenRow] = await tx
+    const result = await this.database.transaction(async (transaction) => {
+      const [tokenRow] = await transaction
         .insert(deviceTokens)
         .values({
           name: input.name,
@@ -72,7 +72,7 @@ export class DeviceTokenService {
         .returning();
 
       for (const projectId of projectIds) {
-        await tx
+        await transaction
           .insert(deviceTokenProjects)
           .values({ tokenId: tokenRow.id, projectId });
       }
@@ -87,141 +87,168 @@ export class DeviceTokenService {
    * 列表:所有 token + project 名 + 在线设备数(count devices where device_token_id=? and online, alive)。
    */
   async list() {
-    const tokens = await this.db
+    const tokenRecords = await this.database
       .select()
       .from(deviceTokens)
       .where(alive(deviceTokens));
 
     return Promise.all(
-      tokens.map(async (t) => {
-        const projectNames = await this.db
+      tokenRecords.map(async (tokenRecord) => {
+        const projectNames = await this.database
           .select({ name: projects.name })
           .from(deviceTokenProjects)
           .innerJoin(
             projects,
             alive(projects, eq(deviceTokenProjects.projectId, projects.id)),
           )
-          .where(eq(deviceTokenProjects.tokenId, t.id));
+          .where(eq(deviceTokenProjects.tokenId, tokenRecord.id));
 
-        const [{ n }] = await this.db
-          .select({ n: sql<number>`count(*)::int` })
+        const [{ onlineDeviceCount }] = await this.database
+          .select({ onlineDeviceCount: sql<number>`count(*)::int` })
           .from(devices)
           .where(
             alive(
               devices,
-              and(eq(devices.deviceTokenId, t.id), eq(devices.online, true)),
+              and(
+                eq(devices.deviceTokenId, tokenRecord.id),
+                eq(devices.online, true),
+              ),
             ),
           );
 
         return {
-          ...t,
-          projects: projectNames.map((g) => g.name),
-          onlineDeviceCount: n,
+          ...tokenRecord,
+          projects: projectNames.map((projectRecord) => projectRecord.name),
+          onlineDeviceCount,
         };
       }),
     );
   }
 
   /** 撤销:status='revoked'。 */
-  async revoke(id: number) {
-    const [row] = await this.db
+  async revoke(deviceTokenId: number) {
+    const [deviceTokenRecord] = await this.database
       .update(deviceTokens)
       .set({ status: 'revoked' })
-      .where(eq(deviceTokens.id, id))
+      .where(eq(deviceTokens.id, deviceTokenId))
       .returning();
-    if (!row) throw new NotFoundException('Device token 不存在');
-    await this.delWsCache(row.token);
-    return row;
+    if (!deviceTokenRecord) {
+      throw new NotFoundException('Device token 不存在');
+    }
+    await this.deleteWebSocketCache(deviceTokenRecord.token);
+    return deviceTokenRecord;
   }
 
   /** 软删(与 revoke 正交)。 */
-  async delete(id: number) {
-    const rows = await softDelete(
-      this.db,
+  async delete(deviceTokenId: number) {
+    const deletedTokens = await softDelete(
+      this.database,
       deviceTokens,
-      eq(deviceTokens.id, id),
+      eq(deviceTokens.id, deviceTokenId),
     );
-    if (rows.length === 0) throw new NotFoundException('Device token 不存在');
-    const row = rows[0] as { token?: string };
-    if (row.token) await this.delWsCache(row.token);
+    if (deletedTokens.length === 0) {
+      throw new NotFoundException('Device token 不存在');
+    }
+    const deviceTokenRecord = deletedTokens[0] as { token?: string };
+    if (deviceTokenRecord.token) {
+      await this.deleteWebSocketCache(deviceTokenRecord.token);
+    }
     return { deleted: true };
   }
 
-  private wsCacheKey(plain: string) {
-    return `ws:devtoken:${createHash('sha256').update(plain).digest('hex')}`;
+  private webSocketCacheKey(plaintextToken: string) {
+    return `ws:devtoken:${createHash('sha256').update(plaintextToken).digest('hex')}`;
   }
 
   // DB 查:明文 token → 记录 + projectIds(供 WS 校验回落)
-  async findByToken(plain: string): Promise<CachedDeviceToken | null> {
-    const [row] = await this.db
+  async findByToken(plaintextToken: string): Promise<CachedDeviceToken | null> {
+    const [deviceTokenRecord] = await this.database
       .select()
       .from(deviceTokens)
-      .where(alive(deviceTokens, eq(deviceTokens.token, plain)))
+      .where(alive(deviceTokens, eq(deviceTokens.token, plaintextToken)))
       .limit(1);
-    if (!row) return null;
-    const projectRows = await this.db
+    if (!deviceTokenRecord) {
+      return null;
+    }
+    const projectRows = await this.database
       .select({ projectId: deviceTokenProjects.projectId })
       .from(deviceTokenProjects)
-      .where(eq(deviceTokenProjects.tokenId, row.id));
+      .where(eq(deviceTokenProjects.tokenId, deviceTokenRecord.id));
     return {
-      id: row.id,
-      status: row.status,
-      expiresAt: row.expiresAt,
-      projectIds: projectRows.map((r) => r.projectId),
+      id: deviceTokenRecord.id,
+      status: deviceTokenRecord.status,
+      expiresAt: deviceTokenRecord.expiresAt,
+      projectIds: projectRows.map((projectRecord) => projectRecord.projectId),
     };
   }
 
   // WS 连接校验(cache-aside,fail-open):有效返回 {tokenId, projectIds},失败返回 null
   async validateForConnect(
-    plain: string,
+    plaintextToken: string,
   ): Promise<{ tokenId: number; projectIds: number[] } | null> {
-    const key = this.wsCacheKey(plain);
-    let t = await this.readCache(key);
-    if (t === undefined) {
-      t = await this.findByToken(plain);
-      await this.writeCache(key, t);
+    const cacheKey = this.webSocketCacheKey(plaintextToken);
+    let deviceTokenRecord = await this.readCache(cacheKey);
+    if (deviceTokenRecord === undefined) {
+      deviceTokenRecord = await this.findByToken(plaintextToken);
+      await this.writeCache(cacheKey, deviceTokenRecord);
     }
-    if (!t) return null;
-    if (t.status !== 'active') return null;
-    if (t.expiresAt && new Date(t.expiresAt) < new Date()) return null;
-    return { tokenId: t.id, projectIds: t.projectIds };
+    if (!deviceTokenRecord) {
+      return null;
+    }
+    if (deviceTokenRecord.status !== 'active') {
+      return null;
+    }
+    if (
+      deviceTokenRecord.expiresAt &&
+      new Date(deviceTokenRecord.expiresAt) < new Date()
+    ) {
+      return null;
+    }
+    return {
+      tokenId: deviceTokenRecord.id,
+      projectIds: deviceTokenRecord.projectIds,
+    };
   }
 
   // 命中正缓存→记录;命中负缓存→null;未命中/redis 异常→undefined(回落 DB)
   private async readCache(
-    key: string,
+    cacheKey: string,
   ): Promise<CachedDeviceToken | null | undefined> {
     try {
-      const raw = await this.redis.client.get(key);
-      if (!raw) return undefined;
-      const parsed = JSON.parse(raw) as {
+      const serializedToken = await this.redis.client.get(cacheKey);
+      if (!serializedToken) {
+        return undefined;
+      }
+      const cachedToken = JSON.parse(serializedToken) as {
         notFound?: boolean;
       } & Partial<CachedDeviceToken>;
-      if (parsed.notFound) return null;
-      return parsed as CachedDeviceToken;
+      if (cachedToken.notFound) {
+        return null;
+      }
+      return cachedToken as CachedDeviceToken;
     } catch {
       return undefined;
     }
   }
 
   private async writeCache(
-    key: string,
-    t: CachedDeviceToken | null,
+    cacheKey: string,
+    deviceTokenRecord: CachedDeviceToken | null,
   ): Promise<void> {
     try {
-      if (t === null) {
+      if (deviceTokenRecord === null) {
         await this.redis.client.set(
-          key,
+          cacheKey,
           JSON.stringify({ notFound: true }),
           'EX',
-          WS_TOKEN_NEGATIVE_TTL,
+          WEBSOCKET_TOKEN_NEGATIVE_TIME_TO_LIVE_SECONDS,
         );
       } else {
         await this.redis.client.set(
-          key,
-          JSON.stringify(t),
+          cacheKey,
+          JSON.stringify(deviceTokenRecord),
           'EX',
-          WS_TOKEN_POSITIVE_TTL,
+          WEBSOCKET_TOKEN_POSITIVE_TIME_TO_LIVE_SECONDS,
         );
       }
     } catch {
@@ -229,9 +256,9 @@ export class DeviceTokenService {
     }
   }
 
-  private async delWsCache(plain: string): Promise<void> {
+  private async deleteWebSocketCache(plaintextToken: string): Promise<void> {
     try {
-      await this.redis.client.del(this.wsCacheKey(plain));
+      await this.redis.client.del(this.webSocketCacheKey(plaintextToken));
     } catch {
       // fail-open:缓存删失败不阻断撤销/删除,最长 TTL 后自然过期
     }

@@ -1,5 +1,7 @@
 # RER0RPC 三套授权域设计:后台 RBAC + 设备组一等实体 + invoke Access Token
 
+> 状态：✅ 已实施，作为历史设计归档；当前能力与命令以 `docs/RER0RPC-核心功能统计.md` 为准。
+
 - 日期:2026-07-08
 - 状态:已确认(待用户复审 spec)
 - 关联:`docs/RER0RPC-新版开工提示词.md`、`docs/design-conventions.md`;参考实现 `/Users/lpitiless/Documents/FlowCore`

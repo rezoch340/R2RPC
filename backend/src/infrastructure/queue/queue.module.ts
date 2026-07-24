@@ -9,12 +9,12 @@ import { QUEUE } from './queue.constants';
   imports: [
     BullModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (cfg: ConfigService) => ({
+      useFactory: (configuration: ConfigService) => ({
         connection: {
-          host: cfg.redis.host,
-          port: cfg.redis.port,
-          password: cfg.redis.password ?? undefined,
-          db: cfg.redis.db,
+          host: configuration.redis.host,
+          port: configuration.redis.port,
+          password: configuration.redis.password ?? undefined,
+          db: configuration.redis.db,
         },
       }),
     }),

@@ -71,6 +71,14 @@ nest g resource application/{module} --no-spec
 - 所有配置来自集中配置文件(如 `config.yaml`,`CONFIG_FILE` 指定),**校验失败即启动失败**。
 - 所有异步任务走队列;所有 API 有 Swagger + validation;所有权限走 Guard / Decorator。
 
+### 命名与控制流（强制门禁）
+
+- 变量、参数和 `catch` 绑定必须写完整语义；禁止单字母/双字母名称，以及 `cfg`、`ctx`、`req`、`res`、`resp`、`msg`、`proj`、`cond(s)`、`opts`、`params`、`obj`、`arr`、`fn`、`cb`、`err`、`idx`、`dto`、`tx`、`svc`、`doc` 等含糊缩写。
+- HTTP、URL、JWT、RPC、WS、ID 等稳定协议/领域术语可以保留；这不是允许自行发明缩写。
+- 禁止用嵌套三元表达式代替业务分支；优先使用提前返回、保护子句、语义明确的私有方法和按职责拆分。
+- 单函数圈复杂度不得超过 10、嵌套深度不得超过 3、语句数不得超过 40；所有条件分支必须使用花括号，能提前返回时不得保留多余 `else`。
+- `pnpm lint` 和 `pnpm lint:check` 会先执行 `test/assert-readable-source.js`，再由 ESLint 检查复杂度、深度、函数长度和控制流；规则覆盖 `src/` 及测试中的变量命名。
+
 ### 架构原则:分布式 + 冷热路径
 
 **可分布式部署**:app 实例**无状态**,可水平扩容;状态只放共享存储。
@@ -101,30 +109,38 @@ nest g resource application/{module} --no-spec
 
 ### 事务:方法收可选事务句柄,可组合
 
-写库方法**接收一个可选的事务句柄** `tx`:**传了就加入调用方的事务,没传就自己开一个新事务**。
+写库方法**接收一个可选的事务句柄** `transaction`:**传了就加入调用方的事务,没传就自己开一个新事务**。
 这样多个写方法嵌套调用能合进**一个事务**(要么全成要么全滚),单独调用又能独立跑。
 
 ```ts
-// 事务句柄类型:从 db.transaction 回调参数推导,免得手写冗长泛型
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+// 事务句柄类型:从 database.transaction 回调参数推导,免得手写冗长泛型
+type DatabaseTransaction = Parameters<
+  Parameters<typeof database.transaction>[0]
+>[0];
 
-async fillAndSave(params: { /* … */ tx?: Tx }) {
-  const run = async (tx: Tx) => {
-    // 所有写操作都走这个 tx:tx.insert(...).values(...) / tx.update(...)…
+async fillAndSave(input: {
+  /* … */
+  transaction?: DatabaseTransaction;
+}) {
+  const execute = async (transaction: DatabaseTransaction) => {
+    // 所有写操作都走 transaction
+    // transaction.insert(...).values(...) / transaction.update(...)…
     // …
     return result;
   };
   // 传了句柄 → 复用调用方事务;没传 → 开新事务
-  return params.tx ? run(params.tx) : this.db.transaction(run);
+  return input.transaction
+    ? execute(input.transaction)
+    : this.database.transaction(execute);
 }
 ```
 
-- **关键纪律**:`run` 里所有写操作一律走参数里的 `tx`,**绝不**直接用全局 `this.db`——
+- **关键纪律**:`execute` 里所有写操作一律走参数里的 `transaction`,**绝不**直接用全局 `this.database`——
   否则那步脱离事务,回滚时漏掉、破坏原子性。
-- 下游 service 也照此签名(`tx?` 一路往下透传),整条调用链共用同一个事务。
-- **Drizzle 支持 savepoint 真嵌套**:`tx.transaction(...)` 可开子事务、回滚到中间点(Prisma 做不到)。
-- 嫌到处透传 `tx` 烦?用 `@nestjs-cls/transactional-adapter-drizzle-orm`(AsyncLocalStorage 环境事务)
-  自动传播,service 不用再手接 `tx?` 参数。
+- 下游 service 也照此签名(`transaction?` 一路往下透传),整条调用链共用同一个事务。
+- **Drizzle 支持 savepoint 真嵌套**:`transaction.transaction(...)` 可开子事务、回滚到中间点(Prisma 做不到)。
+- 若不希望逐层透传 `transaction`，可使用 `@nestjs-cls/transactional-adapter-drizzle-orm`
+  通过 AsyncLocalStorage 自动传播。
 
 ### 缓存:cache-aside + 写即失效
 
@@ -142,13 +158,22 @@ async fillAndSave(params: { /* … */ tx?: Tx }) {
 | 存储 | 存什么 | 角色 |
 |---|---|---|
 | **关系库(PostgreSQL)** | **取证脊柱**:标量列(`id / type / method / route / statusCode / latencyMs / createdAt`)+ 标识列(如 `projectId / tokenId / appCode`) | 权威、可按标量/标识过滤;**不含原始 payload JSON** |
-| **全文库(Manticore / ES 类)** | 上述列 + **完整原始 payload(JSON)** | 全文搜索 + 原始 payload 存储 |
+| **全文库(Manticore / ES 类)** | 上述列 + **完整原始 payload / AppAudit(JSON)** | 全文搜索 + 原始 payload、设备执行 Step 存储 |
 
 - **为什么不把 payload 塞进关系库**:请求日志是高频 append 表,`requestBody/Headers/responseBody`
   可以很大,直接灌进关系库会撑爆、拖慢。原始 payload 只落全文库,关系库只留可查的脊柱。
 - **两边共用 `id`**:worker 先写关系库拿 `id`,再当全文库文档的 `logid`,取证时互查。
 - **写入异步化**:请求热路径只入队(队列),写库在 worker 里做;全文库失败不影响主请求,重试耗尽进死信队列。
-- **读取走全文库镜像**:列表**不返 payload**(轻量);详情按 `logid` **懒加载**单条原始 payload。
+- **读取走全文库镜像**:列表**不返 payload/AppAudit**(轻量);详情按 `logid` **懒加载**单条原始数据。
+
+### 设备 AppAudit Step
+
+- 设备内部业务调用只在设备端可见，必须由设备随最终 WS `result.appAudit` 批量上报；服务端不得根据最终 payload 伪造内部 Step。
+- `appAudit` 是 Core 协议保留字段，`payload.appAudit` 仍按普通业务 payload 处理。
+- 服务端在 RPC 热路径只做有界结构校验和入队，不同步写 Manticore；非法审计整体丢弃但不得使 RPC 失败。
+- PostgreSQL 只留请求日志脊柱，完整 metadata/steps/request/response/error 只进 Manticore。
+- 当前 V1 契约、体积/数量限制和设备记录器行为以 `docs/device-app-audit.md` 为准。
+- 第一版只支持最终批量快照；没有最终 `result` 的断线/超时请求不会拥有设备内部 Step。
 
 ### 禁止事项
 
@@ -161,7 +186,7 @@ async fillAndSave(params: { /* … */ tx?: Tx }) {
 - app 进程内存放跨请求状态(破坏无状态与水平扩容)
 - 数据变更后更新缓存而非删缓存 / 变更后不失效缓存(留脏数据)
 - 跨实例读-改-写只靠分布式锁而无行锁兜底(Redis 挂即脏写)
-- 事务方法内直接用全局 `db` / 连接而非传入的 `tx`(该步脱离事务)
+- 事务方法内直接用全局数据库连接而非传入的 `transaction`(该步脱离事务)
 
 ---
 
@@ -203,7 +228,10 @@ async fillAndSave(params: { /* … */ tx?: Tx }) {
 
 ## 四、测试规范
 
-- 测试跑 **Jest**(`pnpm test` / `pnpm test:e2e`,NestJS CLI 默认自带)。
-- **e2e 绝不直连数据库**——所有校验都通过 HTTP API 打(禁一次性直连库的 verify 脚本),
-  断言走响应或内存 sink 捕获。
-- 正确流程:**改完先 build 进容器 → 对运行中的容器跑 e2e / 灌数据**。
+- `pnpm test` 跑 Jest 单元测试。
+- `pnpm test:e2e` 与 `pnpm smoke` 跑同一套完整性黑盒测试；测试进程只允许使用 HTTP 和 WebSocket 公共接口。
+- **E2E 绝不直连数据库/Redis/Manticore**，不导入 Nest 应用模块或内部 service，不执行 SQL；Worker 结果必须通过 `/monitor/*`、`/metrics/*` 等公开接口观察。
+- `test/assert-blackbox-e2e.js` 是强制边界守卫，新增 E2E 文件必须被它扫描。
+- 必须真实覆盖 WS，不用内存 sink 替代：鉴权、welcome、heartbeat、服务端 ping、读超时、异常帧、RPC job/result、AppAudit、来源身份和去重均走真实 socket。
+- 底层维护算法若没有公开控制面，可写 `*.integration.ts` 直接构造 PG/Redis 状态，但命令必须放在 `test:integration:*`，明确标注**非 E2E**。
+- 正确流程：启动隔离基础设施 → 迁移和种子 → 启动 API + Worker → 运行 `pnpm smoke`。

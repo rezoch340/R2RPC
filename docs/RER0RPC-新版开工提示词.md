@@ -1,634 +1,71 @@
-# RER0RPC 新版开工提示词
+# RER0RPC 继续开发提示词
 
-> 用途：把本文件内容直接复制给新的开发 Agent / 新线程，作为 RER0RPC 的开工提示词。  
-> 目标：不要复刻旧 Go 项目的代码结构，只保留经过确认的业务语义、协议语义和工程规范。  
-> 范围：本版不做 SDK / 手机端 Runtime，也不做 monorepo / workspace。`sdk/` 目录、手机端示例工程、`docs/clients/**` 均不在范围内；手机端如何接入只在下文「客户端接入示例」里给出连接契约（登录换 wsUrl、WebSocket 收发、invoke 调度），后端需保证协议兼容既有手机端客户端。
+> 更新日期：2026-07-24。用于把当前仓库状态交给新的开发任务；重写开工阶段的旧提示词已归档到 `docs/archive/2026-07-08-新版开工提示词.md`。
 
----
+```markdown
+# RER0RPC 后端继续开发
 
-## 启动提示词
+仓库：`/Users/lpitiless/Documents/RER0RPC`
 
-你是一个资深全栈架构师和工程实现 Agent。我要重写 R0RPC。请先读取并理解本仓库 `docs/` 目录里的现有文档，再直接按下面的新版结构开工。仓库 / 项目目录名为 `RER0RPC`（旧 Go 项目 R0RPC 的重写版，产品 / 平台名即 RER0RPC）。不做 monorepo / workspace，就是一个普通仓库目录，`backend` 是主体，`frontend`、`docs`、`deploy` 各自独立：
+## 当前事实
 
-```text
-RER0RPC/
-  frontend/          # Next.js 管理后台
-  backend/           # NestJS 后端，包含 HTTP API、WebSocket Gateway、worker
-  docs/              # 设计文档、协议文档、部署文档、工程规范
-  deploy/            # Docker Compose、Linux 部署脚本
-```
+- 活代码全部在 `backend/`，NestJS 11 + TypeScript + Drizzle。
+- PostgreSQL 是业务权威库，Redis 承担 presence/队列/分布式协调，Manticore 保存 payload 和设备 AppAudit Step。
+- API 与 Worker 是独立进程：`src/main.ts`、`src/worker.ts`。
+- 设备使用 `dk_` device token 连接 `/api/client/ws`。
+- 调用方使用 `rk_` access token 调 `POST /rpc/invoke/:project/:action`。
+- 设备可在 WS `result.appAudit` 上报 V1 执行 Step，契约见 `docs/device-app-audit.md`。
+- 后台使用 JWT + CASL RBAC。
+- 后端 backlog #1–#12 已全部完成。
 
-项目定位：
+## 先读
 
-RER0RPC 是一个面向手机设备端的 RPC 中继平台。客户端不是网页客户端，而是安装到手机上的 Runtime / SDK，用于 Android、Xposed、Frida、iOS 越狱环境等。手机端通过 WebSocket 常驻连接服务端，接收服务端下发的 job，在手机本机执行动作后回传 result。
+1. `CLAUDE.md`
+2. `docs/后端进度.md`
+3. `docs/design-conventions.md`
+4. `docs/项目总览-中文.md`
+5. 涉及设备日志时读 `docs/device-app-audit.md`
+6. 与任务最接近的 source、test、schema 和历史 plan
 
-旧项目是 Go 写的，旧实现可以作为功能语义参考，但不要照搬旧代码结构。新版必须按现有设计文档里的工程规范、协议字段、状态值和存储规范重新设计。
+## 修改规则
 
-开工前必须先读这些现存文档：
+- 不直接提交 main；一功能一分支。
+- 做最小范围改动，保留现有双进程和三套鉴权边界。
+- schema 改动必须生成并提交 Drizzle 迁移。
+- 非日志实体继续遵守 description + deleted_at + partial unique。
+- 变量/参数使用完整语义名，禁止单/双字母和 `cfg/ctx/req/res/dto/tx/svc` 等含糊缩写。
+- 优先保护子句和职责拆分；圈复杂度不得超过 10、嵌套不得超过 3、单函数语句不得超过 40。
+- 事务内所有写都使用同一 `transaction`。
+- API 热路径不做慢 IO，冷路径进入 BullMQ Worker。
+- 代码注释使用中文。
 
-```text
-docs/design-conventions.md
-docs/RER0RPC-核心功能统计.md
-docs/项目总览-中文.md
-```
+## 必跑验证
 
-读取要求：
-
-- `docs/design-conventions.md` 是工程规范，必须严格遵守。
-- `docs/RER0RPC-核心功能统计.md` 是旧系统功能语义、协议字段、状态值、默认值的主要来源。
-- `docs/项目总览-中文.md` 用来理解业务目标、使用方式和部署场景。
-- 如果文档之间有冲突，以本文件的新版架构约束和 `docs/design-conventions.md` 的工程规范优先。
-
----
-
-## 顶层目录职责
-
-```text
-frontend/
-  Next.js App Router 管理后台。只做管理控制台，不做营销页。
-
-backend/
-  NestJS 后端。包含 HTTP API、WebSocket Gateway、BullMQ worker、定时维护任务。
-
-docs/
-  工程规范、设计文档、协议文档、部署文档。
-
-deploy/
-  Docker Compose、Linux 部署脚本、初始化脚本。
-```
-
-重要约束：
-
-- `frontend` 和 `backend` 各自独立 `package.json`。
-- 不做 monorepo / workspace，不用 pnpm workspace，子目录各自独立安装依赖、独立构建。
-- `backend` 内部用两个启动入口拆 API 进程和 worker 进程。
-- 根目录只做组织、文档和部署，不做共享包复杂化。
-
----
-
-## 技术栈
-
-backend：
-
-- NestJS
-- pnpm
-- Drizzle ORM
-- PostgreSQL
-- Redis
-- BullMQ
-- Manticore Search
-- JWT + RBAC
-- Swagger
-- Jest
-
-frontend：
-
-- Next.js App Router
-- TypeScript
-- 数据驱动公共组件
-- 管理后台，不做营销页
-
----
-
-## backend 进程设计
-
-backend 是一个 NestJS 项目，但拆两个进程启动：
-
-```text
-backend/src/main.ts      # 启动 HTTP API + WebSocket Gateway
-backend/src/worker.ts    # 启动 BullMQ worker / 定时维护任务
-```
-
-建议脚本：
-
-```json
-{
-  "scripts": {
-    "start:api": "nest start",
-    "start:worker": "nest start --entryFile worker",
-    "dev:api": "nest start --watch",
-    "dev:worker": "nest start --watch --entryFile worker",
-    "test": "jest",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
-  }
-}
-```
-
-API 进程职责：
-
-- 管理员登录与鉴权
-- 用户 / 分组 / 设备 / 监控 / 指标 HTTP API
-- 手机设备登录
-- WebSocket 长连接
-- RPC invoke 热路径
-- Swagger 文档
-
-worker 进程职责：
-
-- 请求日志脊柱写入
-- Manticore payload 原文写入
-- 指标聚合
-- Manticore 写入重试
-- 死信队列处理
-- payload repair 扫描
-- 设备离线维护
-- 数据保留与清理任务
-
----
-
-## backend 目录结构
-
-严格优先使用 NestJS CLI 官方结构生成模块，减少手写样板。
-
-```text
-backend/src/
-  application/
-    auth/
-    users/
-    groups/
-    devices/
-    client/
-    rpc/
-    monitor/
-    metrics/
-    request-logs/
-  infrastructure/
-    config/
-    db/
-    redis/
-    queue/
-    ws/
-    search/
-  common/
-    decorators/
-    guards/
-    filters/
-    interceptors/
-    utils/
-  main.ts
-  worker.ts
-```
-
-每个业务模块遵循 NestJS CLI 官方结构：
-
-```text
-backend/src/application/{module}/
-  dto/
-  {module}.schema.ts
-  {module}.module.ts
-  {module}.controller.ts
-  {module}.service.ts
-```
-
-模块生成方式参考：
+在 `backend/`：
 
 ```bash
-pnpm dlx @nestjs/cli g resource application/users --no-spec
-pnpm dlx @nestjs/cli g resource application/groups --no-spec
-pnpm dlx @nestjs/cli g resource application/devices --no-spec
-pnpm dlx @nestjs/cli g resource application/client --no-spec
-pnpm dlx @nestjs/cli g resource application/rpc --no-spec
-pnpm dlx @nestjs/cli g resource application/monitor --no-spec
-pnpm dlx @nestjs/cli g resource application/metrics --no-spec
-pnpm dlx @nestjs/cli g resource application/request-logs --no-spec
+node_modules/.bin/nest build
+pnpm lint:check
+node_modules/.bin/prettier --check "src/**/*.ts" "test/**/*.{ts,js}"
+node_modules/.bin/jest --runInBand
+pnpm smoke
 ```
 
-生成后删除 CLI 生成的 `entities/`，改用 `{module}.schema.ts` 写 Drizzle 表定义。
+`pnpm smoke`/`pnpm test:e2e` 必须只访问运行中的 HTTP/WS 接口。禁止 E2E 导入应用模块、数据库/Redis/Manticore 客户端或执行查询；`test/assert-blackbox-e2e.js` 会检查这一边界。
 
-禁止事项：
+底层 retention/stale/metrics/maxInFlight 算法的直连检查属于 `pnpm test:integration:*`，不得称为 E2E。
 
-- 默认不要建 `repository.ts`。
-- `controller` 不处理业务，只做 HTTP 入口、DTO、Guard、Swagger、调用 service。
-- `service` 不直接处理 HTTP request / response。
-- 不要把 worker 逻辑塞进 API 热路径。
-- 生产环境启动时不要自动迁移数据库。
+## 当前优先事项
 
----
+1. 建 CI：build、lint、format、unit、黑盒 E2E。
+2. 增加 `/health` 与 `/ready`。
+3. 增加 API/Worker 生产 Dockerfile 和部署编排。
+4. 硬化 clientId 与 clientQueue 的 project 隔离。
+5. 为后台权限查询增加失效明确的短 TTL 缓存。
 
-## 核心能力
+## 文档
 
-新版必须覆盖：
-
-1. 管理员登录与 JWT 鉴权
-2. 用户管理
-3. 分组管理
-4. 手机设备登录
-5. 手机设备 WebSocket 长连接
-6. 按 group 调用在线设备
-7. 按 clientId 指定设备调用
-8. group 内在线设备轮询
-9. 请求超时控制
-10. 设备队列与 in-flight 控制
-11. 结果迟到处理
-12. 重复结果处理
-13. clientId 不匹配处理
-14. 请求日志异步落库
-15. 大 JSON 请求 / 响应原文写入 Manticore
-16. PostgreSQL 只保存请求日志取证脊柱
-17. 指标异步聚合
-18. 设备在线状态维护
-19. Swagger API 文档
-20. Next.js 管理后台
-
----
-
-## 旧协议语义兼容
-
-保留以下 HTTP 接口语义：
-
-```text
-POST /api/client/login
-GET  /api/client/ws
-POST /rpc/invoke/{group}/{action}
-GET  /rpc/clientQueue
+- 功能完成后更新 `docs/后端进度.md` 和 `CHANGELOG.md`。
+- API 变化后执行 `pnpm openapi:gen` 并提交 `docs/openapi.yaml`。
+- 行为、配置、命令变化必须同步更新 README、backend/README、deploy/README 和相关设计文档。
 ```
-
-保留以下 WebSocket 消息类型：
-
-```text
-welcome
-job
-heartbeat
-heartbeatAck
-result
-resultAck
-error
-```
-
-保留核心字段名：
-
-```text
-clientId
-group
-action
-requestId
-payload
-timeoutSeconds
-status
-httpCode
-latencyMs
-error
-is_ok
-```
-
-必须支持：
-
-```text
-payloadEncoding = gzip+base64+json
-```
-
-`invoke` 响应继续保留 `is_ok`，用于调用方快速判断本次 RPC 是否成功。
-
-请求 payload 推荐保持扁平结构：
-
-```json
-{
-  "timeoutSeconds": 20,
-  "payload": {
-    "encode_str": "xxx"
-  }
-}
-```
-
----
-
-## 客户端接入示例（仅连接契约，不做 SDK）
-
-本版不实现 SDK / 手机端 Runtime，只在文档里给出手机端接入所需的连接契约示例。谁写手机端（Java / Frida / iOS 越狱等）按此对接即可。
-
-1. 设备登录，换取 `token` 与 `wsUrl`：
-
-```text
-POST /api/client/login
-{ "clientId": "dev-001", "group": "cn-nodes", "secret": "xxx" }
-
-响应：
-{ "token": "...", "wsUrl": "wss://relay.example.com/api/client/ws?token=..." }
-```
-
-2. 用 `wsUrl` 建立 WebSocket 长连接（token 放 query 或 Authorization 头）。连上后服务端先下发 `welcome`；之后收到 `job` → 按 `action` 本机执行 → 回 `result`，并定期收发 `heartbeat` / `heartbeatAck` 维持在线。
-
-```json
-// job（服务端 → 设备）
-{ "type": "job", "requestId": "req-123", "group": "cn-nodes", "action": "decrypt",
-  "payload": { "encode_str": "xxx" }, "timeoutSeconds": 20 }
-
-// result（设备 → 服务端）
-{ "type": "result", "requestId": "req-123", "clientId": "dev-001",
-  "status": "ok", "is_ok": true, "payload": { "plain": "xxx" } }
-```
-
-3. 调用方通过 HTTP `invoke` 触发调度（API 调度热路径）：
-
-```text
-POST /rpc/invoke/cn-nodes/decrypt
-{ "timeoutSeconds": 20, "payload": { "encode_str": "xxx" } }
-
-响应（服务端选在线设备下发 job、等 result 后同步返回）：
-{ "requestId": "req-123", "clientId": "dev-001", "is_ok": true,
-  "status": "ok", "httpCode": 200, "latencyMs": 137, "payload": { "plain": "xxx" } }
-```
-
-大 payload 用 `payloadEncoding = gzip+base64+json`。
-
----
-
-## 请求日志存储硬规范
-
-这是硬约束，不能改成把大 JSON 长期塞 PostgreSQL。
-
-PostgreSQL：
-
-- 是请求日志的取证脊柱。
-- 只存标量字段和索引字段。
-- 不保存 request payload / response payload 大 JSON 原文。
-- 负责列表、筛选、分页、状态统计。
-
-Manticore：
-
-- 是必须组件。
-- 用于保存完整 request payload / response payload 原文。
-- 第一职责是大 JSON 原文存储。
-- 不强制作为全文搜索主查询入口。
-- 详情接口按 `requestId` / `logId` 懒加载 payload。
-
-关联规则：
-
-- PostgreSQL 和 Manticore 之间使用同一个 `requestId` / `logId` 关联。
-- 列表接口默认查 PostgreSQL 脊柱，不返回大 payload。
-- 详情接口先查 PostgreSQL 脊柱，再按 `requestId` / `logId` 从 Manticore 懒加载 request / response 原文。
-- Manticore 不可用时，详情接口仍返回 PostgreSQL 脊柱，并标记 `payloadUnavailable=true`。
-
-Redis / BullMQ 降级规则：
-
-- 正常情况下，invoke 热路径只入队日志任务，不同步写 Manticore。
-- 如果 Redis / BullMQ 不可用，invoke 热路径必须降级同步写 PostgreSQL 脊柱，保证至少有取证记录。
-- Redis / BullMQ 恢复后，由 repair / retry 任务补写 Manticore payload 文档。
-
-worker 负责：
-
-1. 消费日志队列
-2. 写 PostgreSQL 请求日志脊柱
-3. 写 Manticore 完整 payload 文档
-4. Manticore 写失败重试
-5. 多次失败进入死信队列
-6. 定期扫描 PostgreSQL 中 `payload_state != indexed` 的记录并补写 Manticore
-
-PostgreSQL 请求日志表必须保存 `payload_state`：
-
-```text
-pending       已创建脊柱，payload 待写入
-indexed       Manticore 已写入
-failed        多次写入失败，需要人工或后台 repair
-unavailable   payload 原文缺失或不可恢复
-```
-
----
-
-## PostgreSQL 请求日志脊柱建议字段
-
-请求日志脊柱表只保存轻量、可过滤、可统计字段：
-
-```text
-id
-request_id
-group_name
-action_name
-client_id
-requester_user_id
-status
-http_code
-latency_ms
-error_message
-payload_state
-created_at
-finished_at
-```
-
-建议索引：
-
-```text
-request_id unique
-(group_name, action_name, client_id, created_at)
-(group_name, client_id, created_at)
-(client_id, created_at)
-(action_name, created_at)
-(created_at, group_name, action_name)
-(status)
-(payload_state)
-```
-
----
-
-## Manticore payload 文档建议字段
-
-Manticore 文档保存完整原文：
-
-```text
-log_id
-request_id
-group_name
-action_name
-client_id
-status
-http_code
-latency_ms
-created_at
-finished_at
-request_payload_json
-response_payload_json
-error_message
-```
-
-说明：
-
-- `log_id` / `request_id` 用于和 PostgreSQL 脊柱关联。
-- request / response payload 原文只放 Manticore。
-- 管理后台详情页按 `requestId` 懒加载。
-- 如果后续需要全文检索，可以基于 Manticore 增加搜索接口，但第一版不把全文搜索作为主查询路径。
-
----
-
-## Redis key 设计方向
-
-Redis 用于在线状态、短期调度状态、队列和锁。PostgreSQL 仍是权威业务数据源。
-
-建议 key：
-
-```text
-presence:{clientId}                  # 设备在线镜像，值为 groupName，带 TTL
-group:clients:{groupName}            # group 在线 client 集合
-client:session:{clientId}             # 当前连接信息
-client:queue:{clientId}               # 可选，设备待发队列
-rpc:waiter:{requestId}                # 短期等待状态
-rpc:completed:{requestId}             # 迟到 / 重复结果识别，短 TTL
-lock:{scope}:{id}                     # 分布式锁
-```
-
-约束：
-
-- Redis 故障不能导致核心业务脊柱丢失。
-- Redis 锁只用于降竞争，正确性仍要靠 PostgreSQL 事务、行锁或原子更新。
-- 需要读-改-写的业务优先使用原子 SQL，其次使用事务行锁，最后才是 Redis 锁辅助。
-
----
-
-## BullMQ 队列设计方向
-
-建议队列：
-
-```text
-request-log.queue       # 请求日志脊柱 + payload 文档
-metrics.queue           # 指标聚合
-maintenance.queue       # 清理、保留、repair
-dead-letter.queue       # 多次失败后的死信
-```
-
-日志任务至少包含：
-
-```text
-requestId
-group
-action
-clientId
-requesterUserId
-requestPayload
-responsePayload
-status
-httpCode
-latencyMs
-error
-createdAt
-finishedAt
-```
-
-失败策略：
-
-- PostgreSQL 脊柱写入失败：重试，仍失败进入死信。
-- Manticore 写入失败：更新 `payload_state=failed` 或保持 `pending` 并重试。
-- 多次失败进入死信队列。
-- repair 任务定期扫描 `payload_state != indexed` 的记录。
-
----
-
-## 管理后台查询规则
-
-请求记录列表：
-
-- 查 PostgreSQL。
-- 返回轻量字段。
-- 不返回 request / response 大 JSON。
-- 支持 group / action / client / status / 时间分页过滤。
-
-请求详情：
-
-- 先查 PostgreSQL 脊柱。
-- 再按 `requestId` / `logId` 查 Manticore。
-- Manticore 正常时返回完整 request / response payload。
-- Manticore 不可用或未写入时返回 `payloadUnavailable=true`。
-
-全文搜索：
-
-- 第一版不强制实现。
-- 如果实现，使用 Manticore 搜索 payload，返回命中的 `requestId`，再补 PostgreSQL 脊柱信息。
-- 管理后台主列表仍以 PostgreSQL 为准。
-
----
-
-## frontend 管理后台页面规划
-
-frontend 是管理后台，不做营销首页。第一屏应是工作台。
-
-建议页面：
-
-```text
-/login                 # 管理员登录
-/                      # 总览工作台
-/groups                # 分组管理
-/clients               # 在线客户端 / 手机设备浏览
-/devices               # 设备指标
-/requests              # 请求记录
-/requests/[requestId]  # 请求详情，懒加载 Manticore payload
-/users                 # 用户管理
-/invoke                # 手动调用
-```
-
-组件原则：
-
-- 公共 UI 数据驱动。
-- 页面只声明数据、列定义和 action。
-- 常用组件放 `components/`。
-- 单页私有 dialog / row actions / helper 拆到同级兄弟文件。
-- 不把大段 JSX 堆在 `page.tsx`。
-
----
-
-## 第一阶段 MVP 开发顺序
-
-第一阶段不要贪多，先打通完整闭环：
-
-1. 建立 `frontend / backend / docs / deploy` 目录
-2. 初始化 `backend` NestJS 项目
-3. 配置 Drizzle + PostgreSQL
-4. 配置 Redis + BullMQ
-5. 配置 Manticore client
-6. 实现 config 校验，配置失败即启动失败
-7. 实现 auth / users
-8. 实现 groups
-9. 实现 devices
-10. 实现 client login
-11. 实现 WebSocket gateway
-12. 实现 RPC invoke 调度
-13. 实现 request log 队列
-14. 实现 Redis / BullMQ 不可用时同步写 PostgreSQL 脊柱的降级
-15. 实现 worker 写 PostgreSQL 脊柱 + Manticore payload
-16. 实现 payload_state / retry / dead-letter / repair
-17. 实现 monitor requests 列表和详情
-18. 实现 metrics 基础聚合
-19. 实现 frontend 最小管理后台
-20. 补 e2e 测试，e2e 只走 HTTP API，不直连数据库
-21. 补 deploy Docker Compose
-
-MVP 验收标准：
-
-- 管理员能登录。
-- 能创建 client 用户和 group。
-- 手机端 / 测试客户端能登录并建立 WebSocket。
-- 调用方能 `POST /rpc/invoke/{group}/{action}`。
-- 服务端能把 job 下发到在线手机端。
-- 手机端能回 result。
-- invoke 能同步返回结果。
-- Redis / BullMQ 不可用时，仍能写 PostgreSQL 请求日志脊柱。
-- Manticore 正常时，请求详情能看到完整 request / response payload。
-- Manticore 不可用时，请求详情仍能看到 PostgreSQL 脊柱并标记 payload 不可用。
-
----
-
-## 开工要求
-
-请按下面顺序执行，不要停在泛泛方案：
-
-1. 先完整读取上面列出的现存 docs。
-2. 输出一份简短的“已读取文档摘要”，说明你从旧系统继承哪些协议语义、接口、字段和存储规范。
-3. 输出一份可执行的第一阶段实现计划，必须覆盖：
-   - 仓库整体目录结构（非 monorepo / workspace）
-   - `frontend / backend / docs / deploy` 的职责边界
-   - `backend` 的 API / worker 双入口设计
-   - 后端业务模块划分
-   - `frontend` 管理后台页面规划
-   - WebSocket 协议设计
-   - RPC 调度流程
-   - PostgreSQL 数据模型：只存请求日志脊柱
-   - Manticore index 设计：保存完整 request / response payload
-   - Redis key 设计
-   - BullMQ 队列设计
-   - 请求日志写入、Redis 故障降级、Manticore 重试、死信与 repair 设计
-   - 指标聚合设计
-   - 管理后台请求记录列表 / 详情如何查：列表查 PostgreSQL，详情懒加载 Manticore payload
-   - 第一阶段 MVP 开发顺序
-4. 如果当前目录还没有新版项目骨架，创建 `frontend / backend / docs / deploy`。
-5. 优先初始化 `backend`，用 NestJS CLI 官方结构生成模块骨架。
-6. 再初始化 `frontend` 的 Next.js 管理后台骨架。
-7. 每一步都要遵守 `docs/design-conventions.md`。
-
-如果遇到必须二选一且文档没有规定的工程选择，先采用最保守、最贴近现有规范的方案继续推进，并在最终说明里列出假设。

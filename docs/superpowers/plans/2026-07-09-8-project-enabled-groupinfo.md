@@ -1,5 +1,7 @@
 # #8: 分组 enabled + GroupInfo 派生统计 实现计划
 
+> 状态：✅ 已完成，本文保留实施时任务顺序，不作为当前进度或测试命令真源。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development(推荐)或 superpowers:executing-plans。Steps 用 `- [ ]`。
 
 **Goal:** projects 加 `enabled`(启停)+ invoke 派发时校验禁用组拒派 + 启停端点;`GET /projects/info` 返回每 project 派生统计(设备数/在线数/近7天请求/成功率/lastSeen + 运行态 disabled·no_device·online·stale·offline)。

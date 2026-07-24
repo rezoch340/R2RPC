@@ -1,5 +1,7 @@
 # #5+#6: WS 健壮性(服务端 ping/读超时 + 帧上限/deadline)实现计划
 
+> 状态：✅ 已完成，本文保留实施时任务顺序，不作为当前进度或测试命令真源。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development(推荐)。Steps 用 `- [ ]`。
 
 **Goal:** #5 服务端主动 ping(5s)+ 读超时(20s 无活动)判离线断开;#6 单帧 4 MiB 上限(ws maxPayload)+ job `deadlineAt`(过期任务派发前丢弃)。

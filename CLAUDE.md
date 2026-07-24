@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 RER0RPC 是设备侧 RPC 中继平台(思路类似 Sekiro):调用方按 `project`(功能组)或指定 `clientId`,把请求下发到在线设备,设备执行后实时回传结果。**活代码全在 `backend/`(NestJS 重写版)。**
 
-> ⚠️ `docs/项目总览-中文.md` 描述的是**老 Go 系统**(`cmd/`/`internal/`、MySQL、端口 9876)——那套代码本仓库并不存在,别照它写。真实架构:NestJS + PostgreSQL + Redis + BullMQ + Manticore,端口 **3000**,默认管理员 `admin/admin123456`。老 Go 文档只用来**对齐功能语义**(`docs/RER0RPC-核心功能统计.md`,老名 `group`=新名 `project`)。
+当前文档已经统一为 NestJS + PostgreSQL + Redis + BullMQ + Manticore 架构，端口 **3000**，默认管理员 `admin/admin123456`。旧 Go/MySQL 文档只保存在 `docs/archive/`，不得作为当前实现依据。
 
 ## 动手前先读
 
@@ -20,18 +20,21 @@ RER0RPC 是设备侧 RPC 中继平台(思路类似 Sekiro):调用方按 `project
 
 ```bash
 pnpm build                 # nest build。提交/PR 前必过:build + lint + format
-pnpm lint / pnpm format    # eslint --fix / prettier
+pnpm lint:check            # 命名 + ESLint，只检查不修改
+pnpm lint / pnpm format    # 命名门禁 + eslint --fix / prettier
 pnpm start:api             # API 进程(HTTP + WS 网关,端口 3000)
 pnpm start:worker          # Worker 进程(独立!--entryFile worker)
 pnpm db:generate           # drizzle-kit 从 src/**/*.schema.ts 生成迁移(见坑)
 pnpm db:migrate            # 应用迁移(独立步骤,绝不在 app 启动时跑)
 pnpm seed:admin            # 种子 admin + demo projects + RBAC 权限(幂等,可重跑)
-pnpm smoke                 # 端到端冒烟(node test/smoke.e2e.js,需 API 在跑)
-pnpm retention:smoke | device:stale:smoke | metrics:smoke   # 无 API 面(worker)功能的直连 PG 冒烟
+pnpm smoke                 # 121 项纯 HTTP/WS 黑盒完整性冒烟，需 API+Worker 在跑
+pnpm test:e2e              # 与 smoke 相同；先执行黑盒边界守卫
+pnpm test:integration:retention | test:integration:device-stale
+pnpm test:integration:metrics | test:integration:max-inflight # 内部直连检查，明确不是 E2E
 pnpm test                  # Jest 单测(*.spec.ts)
 ```
 
-- **前置基础设施**:PostgreSQL / Redis / Manticore 按 `config.yaml`(默认 `localhost:5432/6379/9308`)须已在跑;仓库无 docker-compose,自行起。配置走 `CONFIG_FILE`(默认 `./config.yaml`,`config.example.yaml` 是模板),zod 校验失败即启动失败。
+- **前置基础设施**:PostgreSQL / Redis / Manticore 按 `config.yaml`(默认 `localhost:5432/6379/9308`)须已在跑；仓库提供 `deploy/docker-compose.yml` 与 `deploy/dev-up.sh`。配置走 `CONFIG_FILE`(默认 `./config.yaml`,`config.example.yaml` 是模板),zod 校验失败即启动失败。
 - **drizzle 迁移坑**:`db:generate` 在**同一次同时 drop 旧表 + 建新表**时,会交互式问"rename vs create"——非交互环境会卡住,须明确回答(拆表/新表通常选 **create**)。纯 ADD COLUMN / 只新增表不问。改破坏式迁移前确认 `docs/后端进度.md` 里该阶段允许破坏。
 
 ## 双进程架构(关键)
@@ -52,15 +55,16 @@ pnpm test                  # Jest 单测(*.spec.ts)
 ## 两条主链路
 
 **invoke(热)** `POST /rpc/invoke/:project/:action`(`@Public` + `AccessTokenGuard` 校验 token 有该 project,非用户 JWT):
-project→id → `PresenceService.pickOnline` 从 Redis `project:clients:{pid}` 轮询选在线设备(或 `?clientId=` 指定)→ `ConnectionRegistry` 注册 waiter + `markWaiting` → `dispatchJob`(本地或经 ClusterBus 跨实例)→ 设备 WS 回 `result` → `handleResult`(`rpc:completed` 去重 + 路由回等待实例)resolve → `enqueueLog` 入队(冷)。
+project→id → `PresenceService.pickOnlineAcquire` 从 Redis `project:clients:{projectId}` 轮询选在线设备并占槽(或 `?clientId=` 指定)→ `ConnectionRegistry` 注册 waiter + `markWaiting` → `dispatchJob`(本地或经 ClusterBus 跨实例)→ 设备 WS 回 `result`(可带 AppAudit V1)→ `handleResult`(`rpc:completed` 去重 + 路由回等待实例)resolve → 校验审计 → `enqueueRequestLog` 入队(冷)。
 
-**请求日志/指标(冷)**:`RequestLogProcessor` 消费 REQUEST_LOG 队列 → `writeSpine` 写 PG `request_logs`(取证脊柱,标量列,幂等,**返回是否首插**)→ 索引 payload 到 Manticore → 标 indexed;**首插时**顺带 `MetricsService.recordCompletion` 累加日聚合(靠首插判去重,BullMQ 重试不重复计)。列表查 PG 脊柱(不返 payload),详情按 requestId 从 Manticore 懒加载。指标:`device_daily_metrics`/`rpc_daily_metrics` per-completion upsert 自增;Worker 启动 `rebuildRecent` 从 request_logs 重灌最近 N 整天对账;`metrics-cleanup` 按 `aggregateRetentionDays` 清理。
+**请求日志/指标(冷)**:`RequestLogProcessor` 消费 REQUEST_LOG 队列 → `writeSpine` 写 PG `request_logs`(取证脊柱,标量列,幂等,**返回是否首插**)→ 索引 payload + 设备 AppAudit Step 到 Manticore → 标 indexed;**首插时**顺带 `MetricsService.recordCompletion` 累加日聚合(靠首插判去重,BullMQ 重试不重复计)。列表查 PG 脊柱(不返 payload/AppAudit),详情按 requestId 从 Manticore 懒加载。指标:`device_daily_metrics`/`rpc_daily_metrics` per-completion upsert 自增;Worker 启动 `rebuildRecent` 从 request_logs 重灌最近 N 整天对账;`metrics-cleanup` 按 `aggregateRetentionDays` 清理。
 
 ## DB 约定
 
 - **Drizzle**:表定义 `{module}.schema.ts`(`pgTable`);`drizzle.config.ts` 用 glob(`src/**/*.schema.ts`)收集。schema 改了 → `db:generate` + `db:migrate`。
 - **实体表铁律**:非日志表必须有 `description` + 软删(`deleted_at` + `alive()`/`softDelete()`,来自 `src/common/db/soft-delete.ts`),token/name 唯一走 **partial unique**(`WHERE deleted_at IS NULL`);读一律过 `alive()`。
 - **日志/派生表豁免**(硬清理、可从别处重建):`request_logs`、`*_daily_metrics` —— 不加 description/deleted_at。
+- **设备 AppAudit**：只认 WS `result.appAudit` 保留字段，V1 契约/限制见 `docs/device-app-audit.md`；非法审计整体丢弃但不影响 RPC。
 - **缓存 cache-aside + 写即删**:写库(权威)后**删**对应 Redis key(不是更新),下次请求懒回填;撤销/软删/stale 等被动变更同步删缓存。presence(WS 上线/心跳/断开)是主动写。
 - 迁移**独立步骤**跑,绝不在 app 启动时改库。
 
@@ -73,6 +77,8 @@ CASL;权限是 DB `permissions` 行,`(action, subject)` **free-form**(新 subjec
 - **不直接提交 main**:功能分支 → PR → 合并 → 同步主干、清分支。commit 用 emoji + 中文。
 - **注释中文**,放被注释代码**上一行**(非行尾)。
 - **并发读-改-写**优先级:原子语句(`UPDATE ... SET n=n+1`,drizzle 用 `sql` 自增)> 行锁事务(`.for('update')`)> Redis 分布式锁(fail-open)。
-- **事务**:写库方法收可选 `tx?` 句柄(传了复用调用方事务、没传自开);`run` 内所有写一律走 `tx`,**绝不**用全局 `this.db`。
-- **e2e 走 HTTP**:有 API 的功能 e2e 一律打 API、不直连库(`test/smoke.e2e.js`);仅**无 API 面**的 worker 功能(stale/metrics/retention)才写直连 PG 的 `src/scripts/*-smoke.ts`。
+- **命名与控制流**:变量/参数写完整语义，禁止单/双字母和 `cfg/ctx/req/res/dto/tx/svc` 等含糊缩写；优先保护子句和职责拆分，圈复杂度 ≤ 10、嵌套 ≤ 3、单函数语句 ≤ 40。`pnpm lint:check` 是强制门禁。
+- **事务**:写库方法收可选 `transaction?` 句柄(传了复用调用方事务、没传自开);执行函数内所有写一律走 `transaction`,**绝不**用全局 `this.database`。
+- **E2E 只走公开接口**:`test/smoke.e2e.js` 只能使用 HTTP/WS；禁止导入应用模块、数据库/Redis 客户端或执行 SQL。Worker 冷路径通过 monitor/metrics API 观察；`test/assert-blackbox-e2e.js` 防止边界回退。
+- retention/stale/metrics/maxInFlight 的底层直连脚本统一命名 `*.integration.ts`，只能作为 `test:integration:*` 内部算法检查，**不得称为 E2E/冒烟**。
 - 别默认建 `repository.ts`;新模块用 `nest g`(不手写样板),schema 用 Drizzle 替掉 CLI 的 `entities/`。

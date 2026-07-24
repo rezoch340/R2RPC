@@ -1,5 +1,7 @@
 # 2b: device token(设备注册凭证 + CRUD + 在线设备数)实现计划
 
+> 状态：✅ 已完成，本文保留实施时任务顺序，不作为当前进度或测试命令真源。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 新增 `device_tokens` + `device_token_projects` 两表 + 一个镜像 access-token 模块的 CRUD(建/列/撤销/软删),权限 `manage/device-token`,列表带「该 token 上了多少在线设备」。

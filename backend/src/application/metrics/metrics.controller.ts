@@ -33,7 +33,7 @@ export class MetricsController {
   @ApiOperation({
     summary: '按天趋势序列(默认近7天,缺天补零;可选 ?days ?project)',
   })
-  trend(@Query() q: QueryTrendDto) {
-    return this.metrics.trend(q.days ?? 7, q.project);
+  trend(@Query() query: QueryTrendDto) {
+    return this.metrics.trend(query.days ?? 7, query.project);
   }
 }

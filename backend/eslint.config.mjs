@@ -29,7 +29,12 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
-      "prettier/prettier": ["error", { endOfLine: "auto" }],
+      complexity: ['error', 10],
+      curly: ['error', 'all'],
+      'max-depth': ['error', 3],
+      'max-statements': ['error', 40],
+      'no-else-return': ['error', { allowElseIf: false }],
+      'prettier/prettier': ['error', { endOfLine: 'auto' }],
     },
   },
 );

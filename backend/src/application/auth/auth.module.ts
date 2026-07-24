@@ -13,10 +13,12 @@ import { JwtStrategy } from './jwt.strategy';
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
-      useFactory: (cfg: ConfigService) => ({
-        secret: cfg.jwt.secret,
+      useFactory: (configuration: ConfigService) => ({
+        secret: configuration.jwt.secret,
         // expiresIn 已由 config zod 校验为字符串(如 '7d');ms 的 StringValue 模板类型无法从 runtime string 推断,这里断言
-        signOptions: { expiresIn: cfg.jwt.expiresIn as `${number}` },
+        signOptions: {
+          expiresIn: configuration.jwt.expiresIn as `${number}`,
+        },
       }),
     }),
   ],

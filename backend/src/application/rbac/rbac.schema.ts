@@ -21,10 +21,10 @@ export const roles = pgTable(
       .defaultNow(),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
-  (t) => [
+  (table) => [
     uniqueIndex('roles_name_uq')
-      .on(t.name)
-      .where(sql`${t.deletedAt} IS NULL`),
+      .on(table.name)
+      .where(sql`${table.deletedAt} IS NULL`),
   ],
 );
 export const permissions = pgTable(
@@ -36,10 +36,10 @@ export const permissions = pgTable(
     description: varchar('description', { length: 255 }),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
-  (t) => [
+  (table) => [
     uniqueIndex('perm_action_subject_uq')
-      .on(t.action, t.subject)
-      .where(sql`${t.deletedAt} IS NULL`),
+      .on(table.action, table.subject)
+      .where(sql`${table.deletedAt} IS NULL`),
   ],
 );
 export const rolePermissions = pgTable(
@@ -53,7 +53,7 @@ export const rolePermissions = pgTable(
       .references(() => permissions.id, { onDelete: 'cascade' }),
     description: varchar('description', { length: 255 }),
   },
-  (t) => [primaryKey({ columns: [t.roleId, t.permissionId] })],
+  (table) => [primaryKey({ columns: [table.roleId, table.permissionId] })],
 );
 export const userRoles = pgTable(
   'user_roles',
@@ -66,5 +66,5 @@ export const userRoles = pgTable(
       .references(() => roles.id, { onDelete: 'cascade' }),
     description: varchar('description', { length: 255 }),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.roleId] })],
+  (table) => [primaryKey({ columns: [table.userId, table.roleId] })],
 );

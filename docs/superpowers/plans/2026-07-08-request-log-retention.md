@@ -1,5 +1,7 @@
 # request_logs 保留/裁剪 Implementation Plan
 
+> 状态：✅ 已完成，本文保留实施时任务顺序，不作为当前进度或测试命令真源。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 给 `request_logs` 加自动保留:按天硬清理 + 每 `(group,action,client)` scope 只留最新 N 条,挂在已有的 5min 维护 worker 上,防止日志表无限增长。
