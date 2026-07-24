@@ -31,7 +31,7 @@ const validAudit = () => ({
 });
 
 describe('设备 AppAudit V1 校验', () => {
-  it('接受 FlowCore 兼容的 metadata、请求和响应 Step', () => {
+  it('接受包含 metadata、请求和响应的完整 Step', () => {
     const result = validateDeviceAppAudit(validAudit());
     expect(result.success).toBe(true);
     if (result.success) {

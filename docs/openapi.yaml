@@ -756,6 +756,52 @@ paths:
       summary: 删除 access token(软删,与撤销正交)
       tags:
         - access-token
+  /rpc/debug/options:
+    get:
+      operationId: RpcController_debugOptions
+      parameters:
+        - name: project
+          required: false
+          in: query
+          description: 用于加载历史 action 和在线设备的功能组
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 手动 RPC 调试可选功能组、历史 action 与在线设备
+      tags:
+        - rpc
+  /rpc/debug/invoke/{project}/{action}:
+    post:
+      operationId: RpcController_debugInvoke
+      parameters:
+        - name: project
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: action
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvokeDto'
+      responses:
+        '200':
+          description: ''
+      security:
+        - bearer: []
+      summary: 使用后台权限手动发起 RPC 调试调用
+      tags:
+        - rpc
   /rpc/invoke/{project}/{action}:
     post:
       operationId: RpcController_invoke

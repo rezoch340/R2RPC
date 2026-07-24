@@ -88,9 +88,50 @@ Swagger 位于 `/docs`，设备 WebSocket 位于 `/api/client/ws`。
 - 权限挂载和用户分组同时支持请求体形式与原 URL 形式，旧客户端无需迁移。
 - RBAC 读接口要求 `read/rbac`；所有 RBAC 写接口再叠加 `RootGuard`，仅种子管理员可执行，
   普通用户即使拥有 `manage/rbac` 也不能修改权限组、权限目录或用户分组。
-- 没有 schema 变化；部署后重跑 `pnpm seed:admin` 即可补齐 `read/rbac`。
+- 每条内置权限都必须提供面向管理员的完整 `description`；种子脚本会幂等补齐现有权限说明。
+- 没有 schema 变化；部署后重跑 `pnpm seed:admin` 即可补齐权限及说明。
+
+### 内置权限目录
+
+| 权限 | 说明 |
+|---|---|
+| `read/user` | 查看后台账号 |
+| `create/user` | 创建后台账号 |
+| `delete/user` | 删除后台账号 |
+| `update/user` | 修改后台账号资料、密码和启用状态 |
+| `read/project` | 查看功能组 |
+| `create/project` | 创建功能组 |
+| `delete/project` | 删除功能组 |
+| `update/project` | 修改功能组启用状态 |
+| `read/metrics` | 查看运行指标和趋势 |
+| `read/monitor` | 查看 RPC 请求日志 |
+| `read/system-log` | 查看系统操作审计日志 |
+| `invoke/rpc` | 保留的 RPC 调用权限；公开调用仍使用 Access Token |
+| `read/rpc` | 查看 RPC 运行信息 |
+| `read/rbac` | 查看权限组和权限目录 |
+| `manage/rbac` | 管理权限组、权限目录和用户分组 |
+| `manage/access-token` | 管理调用方 Access Token |
+| `manage/device-token` | 管理设备 Device Token |
+| `read/device` | 查看设备及在线状态 |
+| `invoke/manual-rpc` | 在管理控制台手动发起 RPC 调试调用 |
 
 完整设计见 `../docs/superpowers/specs/2026-07-24-permission-groups-design.md`。
+
+## 手动 RPC 调试
+
+- `GET /rpc/debug/options?project=<name>` 返回可选功能组、所选功能组的历史 Action 和当前在线
+  `clientId`，要求后台 JWT 具有 `invoke/manual-rpc`。
+- `POST /rpc/debug/invoke/:project/:action?clientId=<optional>` 接收现有
+  `{ timeoutSeconds?, payload }` 契约，通过真实 RPC 派发链路调用设备；不需要也不接受
+  Access Token。
+- 未指定 `clientId` 时仍由服务端在功能组内轮询；指定时只调用该在线设备。
+- 手动调用继续写 `request_logs`，并把 JWT 用户编号写入 `requesterUserId`；公开
+  `/rpc/invoke/*` 则继续记录 `accessTokenId`。
+- 调试调用写系统操作审计，记录功能组、Action、目标设备和超时，但不记录 Payload。
+- 公开 `POST /rpc/invoke/:project/:action` 及 `GET /rpc/clientQueue` 的 Access Token
+  边界保持不变。
+
+完整设计见 `../docs/superpowers/specs/2026-07-24-manual-rpc-debugger-design.md`。
 
 ## 令牌功能组作用域
 
@@ -149,9 +190,11 @@ BASE_URL=http://127.0.0.1:3000 pnpm smoke
 - 覆盖用户资料、改密和管理员资料/密码/启停/删除/RBAC 角色关系隔离
 - 覆盖权限组编辑、嵌套权限、用户分组查询和非 root 持 `manage/rbac` 仍被拒绝
 - 覆盖两类令牌二次编辑功能组、缓存即时失效和 Device Token 旧作用域连接断开重连
+- 覆盖全部 19 条内置权限说明、`invoke/manual-rpc` 拒绝/放行、真实设备往返、系统审计和
+  `requesterUserId` 溯源
 - 覆盖登录成功/失败、控制面读取、Guard 拒绝、业务写入、筛选和密码不泄露
 - 通过 monitor/metrics API 观察 Worker 冷路径
-- 当前为 155 项运行时检查
+- 当前为 162 项运行时检查
 
 `test/assert-blackbox-e2e.js` 会拒绝 E2E 导入持久层客户端或应用内部服务。
 
@@ -185,7 +228,7 @@ pnpm openapi:gen
 
 生成文件：`../docs/openapi.yaml`。
 
-当前导出基线为 37 个 HTTP 路径模板；设备 WebSocket 协议单独位于 `/api/client/ws`。
+当前导出基线为 39 个 HTTP 路径模板；设备 WebSocket 协议单独位于 `/api/client/ws`。
 
 ## 关键目录
 

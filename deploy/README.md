@@ -68,9 +68,10 @@ cd backend
 pnpm smoke
 ```
 
-该命令执行 155 项纯 HTTP/WebSocket 黑盒检查，覆盖全部 HTTP controller 方法、系统操作审计、
+该命令执行 162 项纯 HTTP/WebSocket 黑盒检查，覆盖全部 HTTP controller 方法、系统操作审计、
 权限组、管理员账号隔离与改密、两类令牌作用域二次编辑与缓存失效、Device Token 旧连接主动
-断开重连、WS 协议和设备 AppAudit Step 冷路径，不直接连接数据库、Redis 或 Manticore。
+断开重连、手动 RPC 权限/调用/审计/发起人溯源、WS 协议和设备 AppAudit Step 冷路径，
+不直接连接数据库、Redis 或 Manticore。
 可用 `BASE_URL` 指向其他运行实例：
 
 ```bash
@@ -86,8 +87,8 @@ cd frontend
 E2E_API_URL=http://127.0.0.1:3000 pnpm test:e2e
 ```
 
-当前 Playwright 为 10 项，通过登录 UI 获取 JWT，覆盖全部管理页、筛选分页、令牌作用域编辑、
-非安全上下文复制回退、右侧日志详情、导航预取和登录保护；边界守卫禁止导入后端或直连
+当前 Playwright 为 11 项，通过登录 UI 获取 JWT，覆盖全部管理页、手动 RPC 调试、筛选分页、
+令牌作用域编辑、非安全上下文复制回退、右侧日志详情、导航预取和登录保护；边界守卫禁止导入后端或直连
 PostgreSQL/Redis/Manticore。
 
 如果宿主机默认端口已被其他项目占用，请覆盖 compose 端口并用独立 `CONFIG_FILE` 对齐，

@@ -39,10 +39,10 @@
 ## 3. 非目标
 
 - 不把系统操作日志混入 RPC `request_logs`。
-- 不记录 RPC invoke、设备 WebSocket 消息或 AppAudit Step；它们已有独立日志链路。
+- 不记录公开 Access Token RPC、设备 WebSocket 消息或 AppAudit Step；它们已有独立日志链路。
 - 不为关系表、请求日志和聚合表增加无业务意义的 `name`。
 - 首版不提供系统日志修改、删除或清理 API。
-- 不把 Swagger 静态资源、RPC invoke 或设备 WebSocket 数据面流量写入系统日志。
+- 不把 Swagger 静态资源、公开 RPC invoke 或设备 WebSocket 数据面流量写入系统日志。
 
 ## 4. 数据模型
 
@@ -76,7 +76,8 @@
 4. 审计存储失败只记服务端 error，不把已经成功的业务操作伪装成失败。
 5. 只从声明的安全 path/body/query 字段构建 metadata，禁止复制完整 body。
 6. `password`、access token、device token 永远不进入日志。
-7. RPC invoke、设备 WS 和 AppAudit 继续走请求日志/协议日志，不重复进入控制面审计。
+7. 公开 RPC invoke、设备 WS 和 AppAudit 继续走请求日志/协议日志，不重复进入控制面审计。
+   后续新增的后台 JWT 手动 RPC 属于低频控制面操作，另写不含 Payload 的白名单审计。
 
 自动推导使用一张控制面资源表和 HTTP 方法映射，不写长 `if/else`；新增写端点仍必须显式声明
 操作名称与安全字段。
@@ -156,9 +157,9 @@ GET /system-logs
 ## 9. 实施结果
 
 - 新增 `system_logs` 后 Drizzle 识别 15 张表；迁移总数为 9。
-- 种子权限 18 条，operator 的 `read/*` 权限 8 条。
-- OpenAPI 导出 37 个 HTTP 路径模板。
+- 种子权限 19 条且全部带完整说明，operator 的 `read/*` 权限 8 条。
+- OpenAPI 导出 39 个 HTTP 路径模板。
 - Jest 8 个 suite、24 个测试全部通过。
 - 隔离 PostgreSQL/Redis/Manticore + API + Worker 环境中，完整黑盒
-  `155 passed, 0 failed`。
+  `162 passed, 0 failed`。
 - E2E 边界守卫确认测试只访问 HTTP/WebSocket；build、lint 和 Prettier check 全部通过。

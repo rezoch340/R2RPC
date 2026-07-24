@@ -15,8 +15,9 @@ export interface InvokeParams {
   payload: unknown;
   timeoutSeconds?: number;
   clientId?: string;
-  // invoke 调用方是 access token(3.4 起不再走用户 JWT),记录 token id 供 request_logs 溯源
+  // 公开 invoke 记录 access token，管理控制台手动调试记录后台用户。
   accessTokenId?: number;
+  requesterUserId?: number;
 }
 
 // 手机端回传的 result 形状
@@ -441,7 +442,7 @@ export class RpcService {
       project: input.project,
       action: input.action,
       clientId: response.clientId,
-      requesterUserId: null,
+      requesterUserId: input.requesterUserId ?? null,
       accessTokenId: input.accessTokenId ?? null,
       status: response.status,
       httpCode: response.httpCode,

@@ -20,7 +20,7 @@ CASL 生效。但当前管理 API 更接近底层关联表操作，还缺少面�
 ## 2. 术语与边界
 
 - **权限组**：`roles` 行；名称、描述和一组权限的集合。
-- **权限**：`permissions` 的 `(action, subject)`。
+- **权限**：`permissions` 的 `(action, subject)`，内置权限同时提供可直接展示的完整说明。
 - **用户分组**：`user_roles` 将多个权限组分配给一个用户；用户权限是所有有效组权限的并集。
 - **种子管理员**：`users.is_root=true`。只有该身份可以修改权限组、权限目录和用户分组。
 - **可查看者**：具有 `read/rbac` 的普通用户可以读取权限组、权限目录和用户已分配组。
@@ -70,7 +70,7 @@ GET /rbac/roles
         "id": 1,
         "action": "read",
         "subject": "user",
-        "description": null
+        "description": "查看后台账号"
       }
     ]
   }
@@ -162,6 +162,7 @@ RBAC 写接口同时保留 `@RequirePermission('manage', 'rbac')` 作为 fail-cl
 ## 8. 兼容策略
 
 - 数据库 schema 不变，部署只需重跑 `pnpm seed:admin` 增加 `read/rbac`。
+- 种子会幂等更新全部内置权限 `description`，已有环境无需手工修改权限说明。
 - `manage/rbac` 保留给旧数据兼容，但不再足以执行写操作。
 - CASL 的 `manage` 动作仍可覆盖 `read/rbac`，所以已有管理角色的读取不会中断。
 - 旧 POST URL 继续工作，新客户端优先使用请求体形式。
@@ -185,3 +186,5 @@ RBAC 写接口同时保留 `@RequirePermission('manage', 'rbac')` 作为 fail-cl
 - 完整隔离环境中 API + Worker 黑盒为 `136 passed, 0 failed`。
 - `test/assert-blackbox-e2e.js` 确认 E2E 只访问 HTTP/WebSocket。
 - build、`pnpm lint:check` 与 Prettier check 全部通过。
+- 后续手动 RPC 调试增加 `invoke/manual-rpc` 后，当前内置权限为 19 条且说明全部非空；完整
+  权限目录见 `../../../backend/README.md`。

@@ -166,3 +166,27 @@ export interface SystemLogRecord {
   userAgent: string | null;
   createdAt: string;
 }
+
+export interface RpcDebugProject {
+  id: number;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+}
+
+export interface RpcDebugOptions {
+  projects: RpcDebugProject[];
+  actions: string[];
+  clientIds: string[];
+}
+
+export interface RpcInvokeResponse {
+  requestId: string;
+  clientId: string | null;
+  is_ok: boolean;
+  status: string;
+  httpCode: number;
+  latencyMs: number;
+  payload?: unknown;
+  error?: string;
+}

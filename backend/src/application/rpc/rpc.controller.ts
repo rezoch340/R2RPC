@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   Post,
   Query,
@@ -10,10 +11,15 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import { AccessTokenGuard } from '../../common/guards/access-token.guard';
+import type { AuthedRequest } from '../../common/types/authed-request';
 import { ProjectsService } from '../projects/projects.service';
+import { RequestLogsService } from '../request-logs/request-logs.service';
 import { PresenceService } from '../../infrastructure/ws/presence.service';
 import { InvokeDto } from './dto/invoke.dto';
+import { QueryRpcDebugOptionsDto } from './dto/query-rpc-debug-options.dto';
 import { RpcService } from './rpc.service';
 
 @ApiTags('rpc')
@@ -24,7 +30,74 @@ export class RpcController {
     private readonly rpcService: RpcService,
     private readonly presenceService: PresenceService,
     private readonly projectsService: ProjectsService,
+    private readonly requestLogsService: RequestLogsService,
   ) {}
+
+  @Get('rpc/debug/options')
+  @RequirePermission('invoke', 'manual-rpc')
+  @SystemAudit({
+    name: '读取手动 RPC 调试上下文',
+    action: 'read',
+    subject: 'manual-rpc',
+    targetType: 'rpc-debugger',
+    metadataQueryFields: ['project'],
+  })
+  @ApiOperation({ summary: '手动 RPC 调试可选功能组、历史 action 与在线设备' })
+  async debugOptions(@Query() query: QueryRpcDebugOptionsDto) {
+    const projectRecords = await this.projectsService.list();
+    const selectedProject = projectRecords.find(
+      (projectRecord) => projectRecord.name === query.project,
+    );
+    if (!selectedProject) {
+      return {
+        projects: projectRecords,
+        actions: [],
+        clientIds: [],
+      };
+    }
+    const [onlineClientIds, requestOptions] = await Promise.all([
+      this.presenceService.listOnline(selectedProject.id),
+      this.requestLogsService.filterOptions({ project: selectedProject.name }),
+    ]);
+    return {
+      projects: projectRecords,
+      actions: requestOptions.actions,
+      clientIds: onlineClientIds.sort((firstClientId, secondClientId) =>
+        firstClientId.localeCompare(secondClientId),
+      ),
+    };
+  }
+
+  @Post('rpc/debug/invoke/:project/:action')
+  @HttpCode(200)
+  @RequirePermission('invoke', 'manual-rpc')
+  @SystemAudit({
+    name: '手动发起 RPC 调试调用',
+    action: 'invoke',
+    subject: 'manual-rpc',
+    targetType: 'rpc-debugger',
+    targetParameter: 'project',
+    metadataParameters: ['project', 'action'],
+    metadataQueryFields: ['clientId'],
+    metadataBodyFields: ['timeoutSeconds'],
+  })
+  @ApiOperation({ summary: '使用后台权限手动发起 RPC 调试调用' })
+  debugInvoke(
+    @Param('project') project: string,
+    @Param('action') action: string,
+    @Body() input: InvokeDto,
+    @Query('clientId') clientId: string | undefined,
+    @Req() request: AuthedRequest,
+  ) {
+    return this.rpcService.invoke({
+      project,
+      action,
+      payload: input.payload,
+      timeoutSeconds: input.timeoutSeconds,
+      clientId,
+      requesterUserId: request.user!.id,
+    });
+  }
 
   // invoke 走独立 access token 体系(非用户 JWT/RBAC):@Public 跳过全局 JwtAuthGuard/PermissionGuard,
   // 改由 AccessTokenGuard 校验 token 有效性 + :project 作用域,并把 token 信息挂到 req.accessToken

@@ -10,6 +10,8 @@ shadcn/base-nova 和 TanStack Query。
 - 设备：在线态、平台、IP、并发上限、扩展信息、字段筛选和分页
 - Access Token / Device Token：创建、复制、二次编辑功能组、撤销、删除、字段筛选和分页
 - 请求日志：HTTP 服务端筛选分页、Manticore payload 懒加载和 AppAudit Step
+- 手动 RPC 调试：选择功能组、历史 Action、在线设备和超时，编辑/格式化 Payload，并展示
+  原始请求、响应、状态与耗时
 - 后台账号：资料、改密、启停、删除、权限组分配、字段筛选和分页
 - 权限组：组内权限、权限目录、两张表独立筛选分页和 root-only 写隔离
 - 系统日志：登录、控制面读取、拒绝访问、业务写入、多字段服务端筛选分页和安全 metadata
@@ -69,8 +71,9 @@ E2E_API_URL=http://127.0.0.1:3000 pnpm test:e2e
 
 前端 E2E 使用浏览器登录并访问公开 HTTP API。`test/assert-blackbox-e2e.cjs`
 会拒绝测试导入后端内部模块、数据库或 Redis 客户端；测试不直接连接任何持久层。
-当前 Playwright 基线为 **10 passed**，覆盖全部管理页、字段筛选分页、两类令牌功能组二次
-编辑、非安全上下文复制回退、请求详情抽屉、账号改密入口、移动导航、导航预取和登录保护。
+当前 Playwright 基线为 **11 passed**，覆盖全部管理页、手动 RPC 调试、字段筛选分页、两类
+令牌功能组二次编辑、非安全上下文复制回退、请求详情抽屉、账号改密入口、移动导航、导航
+预取和登录保护。
 
 `pnpm lint` 会先执行命名门禁：组件、页面、E2E 和工具代码都禁止单/双字母变量及
 `cfg/ctx/req/res/dto/tx/svc` 等含糊缩写。
@@ -83,8 +86,11 @@ E2E_API_URL=http://127.0.0.1:3000 pnpm test:e2e
 - 表格正文使用无衬线字体，只有设备编号、令牌、动作等技术字段使用等宽字体。
 - 长载荷、说明、令牌明文和高变化扩展字段不进入筛选条件。
 - 分页请求期间保留上一页数据；侧栏导航预取目标页公开接口后再切换，避免页面闪加载骨架。
+- 手动 RPC 重复调用期间保留上一份实际请求和响应，新结果完成后原位替换，不清空结果区。
 - Mutation 成功后通过 TanStack Query 精确失效对应 query key。
 - RBAC 只用于前端显隐；后端 Guard 始终是最终授权边界。
+- 手动 RPC 页面和导航使用 `invoke/manual-rpc` 显隐，并只调用后台 JWT 保护的
+  `/rpc/debug/*`；不得让浏览器读取或代填 Access Token。
 - `isRoot` 目标的修改入口只对本人开放；RBAC 写入口只对 root 展示。
 - 请求详情从右侧抽屉打开，按 requestId 懒加载 payload 和 AppAudit；每个 AppAudit Step 默认收起，列表不携带大字段。
 - 复制交互统一使用 `CopyButton`；页面不得直接调用 `navigator.clipboard.writeText`。
