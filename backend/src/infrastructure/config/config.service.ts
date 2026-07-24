@@ -40,6 +40,9 @@ export class ConfigService {
   get bootstrap() {
     return this.all.bootstrap;
   }
+  get performance() {
+    return this.all.performance;
+  }
   get retention() {
     return this.all.retention;
   }

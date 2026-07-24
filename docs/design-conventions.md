@@ -266,6 +266,8 @@ async fillAndSave(input: {
   `invoke/manual-rpc` 显隐；禁止让浏览器读取、选择或代填 Access Token。
 - API、Worker、迁移、种子和前端使用同一 `config.yaml` schema；`CONFIG_FILE` 仅选择文件
   位置，禁止从分散环境变量读取 CORS、管理员、前端 API 地址或其他业务配置值。
+- 性能测试也读取同一 schema 的 `performance` 段；场景、速率、超时和阈值不得改用散落的
+  环境变量。
 - 前端只向浏览器注入 `frontend.apiUrl/apiPort` 白名单；数据库、Redis、JWT 和
   `bootstrap.admin` 不得进入浏览器 HTML。
 - Next.js 开发服务器自动允许本机 IPv4 网卡地址访问 HMR；反向代理或自定义开发域名通过
@@ -334,7 +336,7 @@ async fillAndSave(input: {
 - `pnpm test` 跑 Jest 单元测试。
 - `pnpm test:e2e` 与 `pnpm smoke` 跑同一套完整性黑盒测试；测试进程只允许使用 HTTP 和 WebSocket 公共接口。
 - **E2E 绝不直连数据库/Redis/Manticore**，不导入 Nest 应用模块或内部 service，不执行 SQL；Worker 结果必须通过 `/monitor/*`、`/metrics/*` 等公开接口观察。
-- `test/assert-blackbox-e2e.js` 是强制边界守卫，新增 E2E 文件必须被它扫描。
+- `test/assert-blackbox-e2e.js` 是强制边界守卫，新增 E2E 文件和性能执行器必须被它扫描。
 - 前端 `test/assert-blackbox-e2e.cjs` 执行同一边界：Playwright 只能操作浏览器和公开 HTTP
   API，不得使用持久层作为测试捷径。
 - 必须真实覆盖 WS，不用内存 sink 替代：鉴权、welcome、heartbeat、服务端 ping、读超时、异常帧、RPC job/result、AppAudit、来源身份和去重均走真实 socket。
@@ -342,3 +344,8 @@ async fillAndSave(input: {
 - 正确流程：启动隔离基础设施 → 迁移和种子 → 启动 API + Worker → 运行 `pnpm smoke`。
 - 前端完整流程：统一配置指向同一真实 API/Worker → `CONFIG_FILE=<config> pnpm test:e2e`；
   不允许用数据库造数据后再冒充 E2E。
+- 性能执行器只能通过公开 HTTP/WebSocket 施压，虚拟设备必须走 Device Token 鉴权和真实
+  job/result；禁止导入 Nest 模块或直连 PostgreSQL/Redis/Manticore。预热数据不得混入正式
+  样本，Hello 响应、全部设备覆盖或质量阈值失败必须非零退出并写 JSON 报告。
+- Compose 内所有服务都必须保留 `cpus`、`mem_limit` 和 `pids_limit`；包含一次性服务与
+  performance profile 的声明上限总和不得超过 4.00 核和 4 GiB。

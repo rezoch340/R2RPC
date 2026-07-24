@@ -27,6 +27,7 @@ cp deploy/config.example.yaml deploy/config.yaml
 - `db`、`redis`、`manticore`：基础设施连接。
 - `jwt`：签名、有效期、授权缓存 TTL。
 - `bootstrap.admin`：幂等种子管理员。
+- `performance`：目标 API、功能组、虚拟设备数、压测时长/并发/速率、质量阈值和报告路径。
 - `retention`：原始日志和聚合保留策略。
 
 只保留可选 `CONFIG_FILE` 作为配置文件位置选择器；应用配置值不得再从环境变量读取。
@@ -45,6 +46,7 @@ cp deploy/config.example.yaml deploy/config.yaml
 | `api` | `backend/Dockerfile` | 3000 | HTTP、Swagger、WebSocket、RPC 热路径 |
 | `worker` | `backend/Dockerfile` | — | BullMQ 冷路径和定时维护 |
 | `frontend` | `frontend/Dockerfile` | 3001 | Next.js 管理控制台 |
+| `performance` | `backend/Dockerfile` | — | `performance` profile 下的一次性公开 API 混合压测 |
 
 启动顺序由健康检查和完成条件保证：
 
@@ -53,10 +55,34 @@ PostgreSQL healthy → migration completed → seed completed → API / Worker
 Redis healthy ───────────────────────────────────────────→ API / Worker
 Manticore healthy ───────────────────────────────────────→ API / Worker
 API healthy ─────────────────────────────────────────────→ Frontend
+API healthy + Worker started ─────────────────────────────→ Performance
 ```
 
 应用容器以非 root 用户运行，统一配置只读挂载，持久数据进入命名卷；不固定
 `container_name`，不同 Compose project 可以并行。
+
+## 4 核 4 GiB 硬预算
+
+`compose.yaml` 对每个服务同时声明 `cpus`、`mem_limit` 和 `pids_limit`。即使按最保守口径把
+常驻服务、一次性 migration/seed 和可选 performance 服务全部相加，CPU 上限也恰好为
+**4.00 核**，内存上限为 **3840 MiB**，不会超过 **4 GiB**。
+
+| 服务 | CPU 上限 | 内存上限 | PID 上限 |
+|---|---:|---:|---:|
+| `postgres` | 0.65 | 640 MiB | 128 |
+| `redis` | 0.25 | 256 MiB | 64 |
+| `manticore` | 0.65 | 640 MiB | 128 |
+| `migration` | 0.15 | 192 MiB | 64 |
+| `seed` | 0.15 | 192 MiB | 64 |
+| `api` | 0.85 | 704 MiB | 256 |
+| `worker` | 0.40 | 384 MiB | 192 |
+| `frontend` | 0.30 | 320 MiB | 128 |
+| `performance` | 0.60 | 512 MiB | 128 |
+| **声明上限合计** | **4.00** | **3840 MiB** | — |
+
+该预算约束 Compose 创建的运行容器；Docker BuildKit、Docker daemon 与宿主机本身不属于
+Compose 服务资源统计。migration、seed 和 performance 是一次性容器，正常运行时不会长期
+同时占用预算，但仍已计入上述最坏情况合计。
 
 ## 一键完整启动
 
@@ -86,6 +112,24 @@ docker compose run --rm migration
 docker compose run --rm seed
 ```
 
+## 容器内性能测试
+
+先按“一键完整启动”运行常驻服务，再执行：
+
+```bash
+docker compose --profile performance run --rm performance
+cat performance-results/latest.json
+```
+
+performance 服务使用 `deploy/config.yaml` 的 `performance` 段，以 `bootstrap.admin`
+登录后通过公开 API 创建临时令牌，并向 `http://api:3000/api/client/ws` 挂载 4 台虚拟设备。
+10 个混合场景包含控制面读取、手动自动路由 Hello、Access Token 自动轮询 Hello 和随机指定
+设备 Hello，不允许直连数据库、Redis、Manticore 或 Nest 内部 service。默认执行 3 秒预热和
+20 秒计量，以 16 并发维持 80 req/s；错误率、P95、吞吐或设备覆盖不合格时容器退出失败。
+
+结果写入宿主机 `performance-results/latest.json`，目录由 Git 忽略。调整参数时复制并修改
+`deploy/config.yaml`，无需增加环境变量。
+
 ## 宿主机开发
 
 ```bash
@@ -114,6 +158,7 @@ pnpm dev
 ```bash
 docker compose config --quiet
 docker compose build api frontend
+docker compose --profile performance run --rm performance
 
 cd backend
 pnpm lint:check
@@ -132,8 +177,11 @@ pnpm test:e2e
 - 后端 Jest：**10 suites / 35 tests**
 - 后端 HTTP/WebSocket 黑盒：**172 passed**
 - 前端 Playwright：**12 passed**
+- 受限 Compose 性能测试：**4 devices / 1600 requests / 0 failures / 80.03 req/s / P95 7.50 ms**
 
-黑盒测试只访问公开 HTTP/WebSocket，不直连 PostgreSQL、Redis 或 Manticore。
+黑盒与性能测试只访问公开 HTTP/WebSocket，不直连 PostgreSQL、Redis 或 Manticore。受限
+性能基线中 3 个 Hello 场景各执行 160 次，4 台设备全部收到任务；实际容器资源限制已通过
+Docker `HostConfig` 核验。
 
 ## 关停与清理
 

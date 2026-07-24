@@ -26,7 +26,7 @@ pnpm install
 pnpm dev
 ```
 
-前端监听 `http://127.0.0.1:3001`。API、Worker、迁移、种子和前端共用根目录
+前端监听 `http://127.0.0.1:3001`。API、Worker、迁移、种子、性能执行器和前端共用根目录
 `config.yaml`：
 
 ```bash

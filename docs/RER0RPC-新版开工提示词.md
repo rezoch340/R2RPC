@@ -22,13 +22,15 @@
 - 19 条内置权限均有完整说明；后台手动 RPC 调试使用独立 `invoke/manual-rpc`，公开
   `/rpc/invoke/*` 继续使用 Access Token。
 - 后台账号支持资料修改和改密；`isRoot` 管理员资料、密码、启停、删除和 RBAC 关系只能由本人修改。
-- 后端 backlog #1–#15、管理前端 #16、手动 RPC #17、后台授权缓存 #18 和统一配置/Compose
-  #19 已全部完成。
+- 后端 backlog #1–#15、管理前端 #16、手动 RPC #17、后台授权缓存 #18、统一配置/Compose
+  #19 和容器性能验收 #20 已全部完成。
 - 管理前端 #16 已完成，覆盖全部后台管理公开面；默认端口 3001。
 - 当前基线：OpenAPI 39 个路径模板、后端 HTTP/WebSocket 黑盒 172 passed、前端 Playwright
   12 passed、Jest 10 suites / 35 tests。
 - API、Worker、迁移、种子和前端共用根目录 `config.yaml` schema；根目录 `compose.yaml`
   提供 PostgreSQL、Redis、Manticore 和全部应用服务编排。
+- Compose 全部服务都有限制，CPU 声明上限合计 4.00 核、内存 3840 MiB；可选
+  `performance` profile 默认挂 4 台虚拟 WS 设备，压测自动/随机设备 Hello 并生成 JSON 报告。
 - 全部列表默认 10 条/页、最大 100 条/页；运行概览使用折线趋势图，请求详情使用宽版右侧
   抽屉，AppAudit Step 默认收起。
 - 两类令牌均支持二次编辑 project；Access Token 更新立即失效鉴权缓存，Device Token 更新
@@ -51,7 +53,8 @@
 10. 涉及前端架构时读 `docs/superpowers/specs/2026-07-24-management-frontend-design.md`
 11. 涉及手动 RPC 时读 `docs/superpowers/specs/2026-07-24-manual-rpc-debugger-design.md`
 12. 涉及配置或容器时读 `docs/superpowers/specs/2026-07-24-unified-configuration-compose-design.md`
-13. 与任务最接近的 source、test、schema 和历史 plan
+13. 涉及性能测试或资源预算时读 `docs/superpowers/specs/2026-07-24-container-performance-suite-design.md`
+14. 与任务最接近的 source、test、schema 和历史 plan
 
 ## 修改规则
 
@@ -89,6 +92,7 @@ pnpm lint:check
 node_modules/.bin/prettier --check "src/**/*.ts" "test/**/*.{ts,js}"
 node_modules/.bin/jest --runInBand
 pnpm smoke
+pnpm performance
 ```
 
 `pnpm smoke`/`pnpm test:e2e` 必须只访问运行中的 HTTP/WS 接口。禁止 E2E 导入应用模块、数据库/Redis/Manticore 客户端或执行查询；`test/assert-blackbox-e2e.js` 会检查这一边界。

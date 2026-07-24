@@ -38,6 +38,7 @@ cp config.example.yaml config.yaml
 - JWT（含 `authorizationCacheTtlSeconds`，用户授权缓存默认 60 秒，允许 60–300 秒）
 - Manticore
 - `bootstrap.admin` 种子管理员
+- `performance` 固定速率压测参数、质量阈值和报告路径
 - 原始日志和日聚合保留策略
 
 配置由 zod 校验，非法值会让进程启动失败。
@@ -173,6 +174,34 @@ docker compose up -d --build
 
 完整设计见 `../docs/superpowers/specs/2026-07-24-system-audit-logs-design.md`。
 
+## 性能测试
+
+性能执行器以 `bootstrap.admin` 登录，通过公开 API 创建临时 Access Token/Device Token，
+再以 `performance.virtualDeviceCount` 挂载虚拟 WebSocket 设备。混合场景覆盖控制面读取、
+手动 RPC 自动路由、Access Token 自动轮询 Hello 和随机指定在线设备 Hello。每个设备返回
+真实 WS `result`；执行器不导入应用模块，也不访问 PostgreSQL、Redis 或 Manticore。
+
+API 与 Worker 已运行时，可在宿主机执行：
+
+```bash
+pnpm performance
+```
+
+完整容器验收从仓库根目录执行：
+
+```bash
+docker compose --profile performance run --rm performance
+cat performance-results/latest.json
+```
+
+`performance` 配置控制功能组、虚拟设备数、预热时间、持续时间、并发数、目标请求速率、
+单请求超时、最大错误率、P95 延迟上限、最小吞吐和 JSON 报告路径。预热数据不计入报告；
+任一质量阈值不满足或正式计量未覆盖全部虚拟设备时进程以非零状态退出。默认挂载 4 台设备，
+执行 3 秒预热、20 秒测量、16 并发和 80 req/s；结束后关闭连接并删除临时令牌。
+
+完整契约与资源预算见
+`../docs/superpowers/specs/2026-07-24-container-performance-suite-design.md`。
+
 ## 测试
 
 ### 单元测试
@@ -218,7 +247,7 @@ BASE_URL=http://127.0.0.1:3000 pnpm smoke
 - 通过 monitor/metrics API 观察 Worker 冷路径
 - 当前为 172 项运行时检查
 
-`test/assert-blackbox-e2e.js` 会拒绝 E2E 导入持久层客户端或应用内部服务。
+`test/assert-blackbox-e2e.js` 会拒绝 E2E 或性能执行器导入持久层客户端或应用内部服务。
 
 ### 内部集成检查
 

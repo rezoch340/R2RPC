@@ -27,6 +27,7 @@ dist/
 build/
 coverage/
 *.tsbuildinfo
+performance-results/
 !backend/pnpm-workspace.yaml
 !frontend/pnpm-workspace.yaml
 

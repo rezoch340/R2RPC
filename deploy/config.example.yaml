@@ -38,6 +38,20 @@ bootstrap:
     username: admin
     password: admin123456
 
+performance:
+  baseUrl: http://api:3000
+  projectName: cn-nodes
+  virtualDeviceCount: 4
+  durationSeconds: 20
+  warmupSeconds: 3
+  concurrency: 16
+  targetRequestsPerSecond: 80
+  requestTimeoutMilliseconds: 5000
+  maximumErrorRate: 0.01
+  maximum95thPercentileLatencyMilliseconds: 750
+  minimumThroughputRequestsPerSecond: 60
+  resultFile: /app/performance-results/latest.json
+
 retention:
   rawRetentionDays: 3
   keepLatestPerScope: 100

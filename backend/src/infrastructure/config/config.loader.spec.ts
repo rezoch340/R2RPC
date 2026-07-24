@@ -108,6 +108,14 @@ describe('统一配置加载器', () => {
       username: 'admin',
       password: 'admin123456',
     });
+    expect(loadedConfiguration.performance).toMatchObject({
+      baseUrl: 'http://127.0.0.1:3000',
+      projectName: 'cn-nodes',
+      virtualDeviceCount: 4,
+      durationSeconds: 20,
+      concurrency: 16,
+      targetRequestsPerSecond: 80,
+    });
     expect(loadedConfiguration.retention.aggregateRetentionDays).toBe(30);
   });
 
