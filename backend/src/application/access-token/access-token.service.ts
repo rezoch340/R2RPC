@@ -4,10 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
-import { RedisService } from '../../infrastructure/redis/redis.service';
+import { accessTokenCacheKey } from '../../infrastructure/redis/cache-keys';
+import { RedisCacheAsideService } from '../../infrastructure/redis/redis-cache-aside.service';
 import { projects } from '../projects/projects.schema';
 import { ProjectsService } from '../projects/projects.service';
 import { accessTokenProjects, accessTokens } from './access-token.schema';
@@ -17,7 +18,7 @@ export class AccessTokenService {
   constructor(
     private readonly dbService: DbService,
     private readonly projects: ProjectsService,
-    private readonly redis: RedisService,
+    private readonly redisCacheAsideService: RedisCacheAsideService,
   ) {}
 
   private get database() {
@@ -82,31 +83,32 @@ export class AccessTokenService {
   async updateProjects(accessTokenId: number, projectsInput: string[]) {
     const { projectNames, projectIds } =
       await this.resolveProjectSelection(projectsInput);
-    const accessTokenRecord = await this.database.transaction(
-      async (transaction) => {
-        const [tokenRecord] = await transaction
-          .select()
-          .from(accessTokens)
-          .where(alive(accessTokens, eq(accessTokens.id, accessTokenId)))
-          .limit(1);
-        if (!tokenRecord) {
-          throw new NotFoundException('Token 不存在');
-        }
+    const accessTokenRecord =
+      await this.redisCacheAsideService.writeAndInvalidate(
+        () =>
+          this.database.transaction(async (transaction) => {
+            const [tokenRecord] = await transaction
+              .select()
+              .from(accessTokens)
+              .where(alive(accessTokens, eq(accessTokens.id, accessTokenId)))
+              .limit(1);
+            if (!tokenRecord) {
+              throw new NotFoundException('Token 不存在');
+            }
 
-        await transaction
-          .delete(accessTokenProjects)
-          .where(eq(accessTokenProjects.tokenId, accessTokenId));
-        await transaction.insert(accessTokenProjects).values(
-          projectIds.map((projectId) => ({
-            tokenId: accessTokenId,
-            projectId,
-          })),
-        );
-        return tokenRecord;
-      },
-    );
-
-    await this.deleteAccessTokenCache(accessTokenRecord.token);
+            await transaction
+              .delete(accessTokenProjects)
+              .where(eq(accessTokenProjects.tokenId, accessTokenId));
+            await transaction.insert(accessTokenProjects).values(
+              projectIds.map((projectId) => ({
+                tokenId: accessTokenId,
+                projectId,
+              })),
+            );
+            return tokenRecord;
+          }),
+        (tokenRecord) => accessTokenCacheKey(tokenRecord.token),
+      );
     return { ...accessTokenRecord, projects: projectNames };
   }
 
@@ -147,22 +149,20 @@ export class AccessTokenService {
    * (guard 侧对已验证过的 token 会缓存 60s,若不主动删,撤销后仍可再用满 60s)
    */
   async revoke(accessTokenId: number) {
-    const result = await this.database
-      .update(accessTokens)
-      .set({ status: 'revoked' })
-      .where(eq(accessTokens.id, accessTokenId))
-      .returning();
-
-    if (result.length === 0) {
-      throw new NotFoundException('Token 不存在');
-    }
-
-    const accessTokenRecord = result[0];
-    if (accessTokenRecord?.token) {
-      await this.deleteAccessTokenCache(accessTokenRecord.token);
-    }
-
-    return accessTokenRecord;
+    return this.redisCacheAsideService.writeAndInvalidate(
+      async () => {
+        const [accessTokenRecord] = await this.database
+          .update(accessTokens)
+          .set({ status: 'revoked' })
+          .where(eq(accessTokens.id, accessTokenId))
+          .returning();
+        if (!accessTokenRecord) {
+          throw new NotFoundException('Token 不存在');
+        }
+        return accessTokenRecord;
+      },
+      (accessTokenRecord) => accessTokenCacheKey(accessTokenRecord.token),
+    );
   }
 
   /**
@@ -200,18 +200,21 @@ export class AccessTokenService {
    * 同步删 redis 正缓存,确保已删 token 立即失效(findByToken 会因 alive() 过滤返回 null → guard 401)。
    */
   async delete(accessTokenId: number) {
-    const deletedTokens = await softDelete(
-      this.database,
-      accessTokens,
-      eq(accessTokens.id, accessTokenId),
+    await this.redisCacheAsideService.writeAndInvalidate(
+      async () => {
+        const deletedTokens = await softDelete(
+          this.database,
+          accessTokens,
+          eq(accessTokens.id, accessTokenId),
+        );
+        const deletedToken = deletedTokens[0] as { token: string } | undefined;
+        if (!deletedToken) {
+          throw new NotFoundException('Token 不存在');
+        }
+        return deletedToken;
+      },
+      (deletedToken) => accessTokenCacheKey(deletedToken.token),
     );
-    if (deletedTokens.length === 0) {
-      throw new NotFoundException('Token 不存在');
-    }
-    const accessTokenRecord = deletedTokens[0] as { token?: string };
-    if (accessTokenRecord.token) {
-      await this.deleteAccessTokenCache(accessTokenRecord.token);
-    }
     return { deleted: true };
   }
 
@@ -230,14 +233,5 @@ export class AccessTokenService {
       projectIds.push(projectId);
     }
     return { projectNames, projectIds };
-  }
-
-  private async deleteAccessTokenCache(plaintextToken: string): Promise<void> {
-    const cacheKey = `invoke:token:${createHash('sha256').update(plaintextToken).digest('hex')}`;
-    try {
-      await this.redis.client.del(cacheKey);
-    } catch {
-      // fail-open:缓存删失败不阻断写操作,最长 60s 后自然过期
-    }
   }
 }

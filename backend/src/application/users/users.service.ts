@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { hashPassword } from '../../common/utils/password';
 import { DbService } from '../../infrastructure/db/db.service';
+import { UserAuthorizationCacheService } from '../../infrastructure/redis/user-authorization-cache.service';
 import { AdministratorAccountPolicyService } from './administrator-account-policy.service';
 import { users } from './users.schema';
 
@@ -26,6 +27,7 @@ export class UsersService {
   constructor(
     private readonly dbService: DbService,
     private readonly administratorAccountPolicyService: AdministratorAccountPolicyService,
+    private readonly userAuthorizationCacheService: UserAuthorizationCacheService,
   ) {}
 
   private get database() {
@@ -127,15 +129,17 @@ export class UsersService {
       requesterUserId,
       targetUserId,
     );
-    const [deletedUser] = await softDelete(
-      this.database,
-      users,
-      eq(users.id, targetUserId),
-    );
-    if (!deletedUser) {
-      throw new NotFoundException('用户不存在');
-    }
-    return { deleted: true };
+    return this.userAuthorizationCacheService.writeAndInvalidate(async () => {
+      const [deletedUser] = await softDelete(
+        this.database,
+        users,
+        eq(users.id, targetUserId),
+      );
+      if (!deletedUser) {
+        throw new NotFoundException('用户不存在');
+      }
+      return { deleted: true };
+    }, [targetUserId]);
   }
 
   async updateLastLogin(userId: number) {
@@ -154,18 +158,20 @@ export class UsersService {
       requesterUserId,
       targetUserId,
     );
-    const [updatedUser] = await this.database
-      .update(users)
-      .set({ enabled })
-      .where(alive(users, eq(users.id, targetUserId)))
-      .returning({
-        id: users.id,
-        username: users.username,
-        enabled: users.enabled,
-      });
-    if (!updatedUser) {
-      throw new NotFoundException('用户不存在');
-    }
-    return updatedUser;
+    return this.userAuthorizationCacheService.writeAndInvalidate(async () => {
+      const [updatedUser] = await this.database
+        .update(users)
+        .set({ enabled })
+        .where(alive(users, eq(users.id, targetUserId)))
+        .returning({
+          id: users.id,
+          username: users.username,
+          enabled: users.enabled,
+        });
+      if (!updatedUser) {
+        throw new NotFoundException('用户不存在');
+      }
+      return updatedUser;
+    }, [targetUserId]);
   }
 }

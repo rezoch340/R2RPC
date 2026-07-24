@@ -18,8 +18,9 @@
 - 全部实体表支持字段筛选与分页，默认 10 条/页、最大 100 条/页
 - 运行概览使用近 7 天折线趋势图；请求详情使用宽版右侧抽屉，AppAudit Step 默认收起
 - Access Token 与 Device Token 均可二次编辑功能组；鉴权缓存立即失效，Device Token 的旧作用域连接会主动断开并按新作用域重连
+- 后台用户与权限快照使用公共 Redis cache-aside：默认缓存 60 秒，未命中回源 PostgreSQL 并回写；用户或 RBAC 写入成功后立即失效
 - 令牌和 JSON 载荷统一使用公共复制组件，局域网 HTTP 下会自动回退到兼容复制
-- 162 项纯 HTTP/WS 黑盒冒烟
+- 172 项纯 HTTP/WS 黑盒冒烟
 - 前端 Playwright 11 项浏览器 E2E，只通过 UI 与公开 HTTP API，不直连持久层
 - 设备 SDK：不在本仓库范围
 

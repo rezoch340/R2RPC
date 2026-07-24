@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+### 后台授权公共 cache-aside
+- 新增公共 `RedisCacheAsideService`：`getOrLoad` 统一 Redis 命中、zod 契约校验、
+  PostgreSQL fallback 和回写，`writeAndInvalidate` 统一权威库写成功后的缓存删除。
+- JWT 用户身份与权限快照默认缓存 60 秒，可配置范围为 60–300 秒；Redis 故障按缓存未命中
+  fail-open，不阻断 PostgreSQL 鉴权或业务写入。
+- 权限组挂载/移除权限、权限或权限组删除、用户分组/移组、账号启停和软删除会删除全部受影响
+  用户缓存，现有 JWT 立即应用最新身份与权限。
+- Access Token Guard、Device Token WS 鉴权及两类令牌写操作同步迁移到公共组件，删除重复的
+  Redis 读取、回源、回写和失效代码。
+- 新增 7 项公共组件单元测试和仅走 HTTP/WS 的授权缓存实时失效场景；Jest
+  **9 suites / 31 tests**，完整黑盒 **172 passed, 0 failed**。
+- `clientId` 多租户隔离与 `clientQueue?clientId=` project 边界硬化已明确移出项目范围，
+  不再列为当前待办；现有单租户接口语义保持不变。
+
 ### 手动 RPC 调试
 - 新增后台 JWT 保护的 `GET /rpc/debug/options` 与
   `POST /rpc/debug/invoke/:project/:action`；上下文返回功能组、历史 Action 和在线设备，调用
@@ -20,7 +34,7 @@
   **11 passed**，Jest **8 suites / 24 tests**、前后端 lint 与生产构建通过。
 
 ### 文档收口
-- 同步根目录、后端、前端、部署、项目总览、能力矩阵、进度、待办、工程规范、交接提示与设计索引，统一当前 39 个 OpenAPI 路径、162 项后端黑盒和 11 项前端 Playwright 基线。
+- 同步根目录、后端、前端、部署、项目总览、能力矩阵、进度、待办、工程规范、交接提示与设计索引，统一当前 39 个 OpenAPI 路径、172 项后端黑盒、9 suites / 31 tests Jest 和 11 项前端 Playwright 基线。
 - 补齐两类令牌作用域编辑、Device Token close 4002、复制回退、列表分页筛选、折线趋势图和宽版日志抽屉的行为说明。
 - 明确历史计划、规格和归档只用于追溯；历史阶段数字和实施步骤不作为当前进度。
 

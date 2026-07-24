@@ -757,6 +757,10 @@ async function main() {
       (permission) =>
         permission.action === 'read' && permission.subject === 'user',
     );
+    const readProjectPermission = permissionsList.json.find(
+      (permission) =>
+        permission.action === 'read' && permission.subject === 'project',
+    );
     const manualRpcPermission = permissionsList.json.find(
       (permission) =>
         permission.action === 'invoke' && permission.subject === 'manual-rpc',
@@ -786,6 +790,7 @@ async function main() {
     requireValue(
       permissionsList.status === 200 &&
         !!readUserPermission &&
+        !!readProjectPermission &&
         !!manualRpcPermission &&
         delegatedManagementPermissions.every(Boolean),
       'GET /rbac/permissions 含手动 RPC、权限组、系统日志与管理员隔离所需的种子权限',
@@ -878,6 +883,113 @@ async function main() {
       userAuthenticationToken,
     );
     assert(permittedRead.status === 200, '具有 read/user 的用户可 GET /users');
+
+    const deniedProjectRead = await httpRequest(
+      'GET',
+      '/projects',
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      deniedProjectRead.status === 403,
+      '缓存已建立时缺少 read/project 的用户不能 GET /projects',
+    );
+    const attachReadProject = await httpRequest(
+      'POST',
+      `/rbac/roles/${roleId}/permissions/${readProjectPermission.id}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      attachReadProject.status < 300,
+      '权限组新增权限后自动删除成员授权缓存',
+    );
+    const permittedProjectRead = await httpRequest(
+      'GET',
+      '/projects',
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      permittedProjectRead.status === 200,
+      '权限组新增权限后现有 JWT 立即获得接口权限',
+    );
+    const detachReadProject = await httpRequest(
+      'DELETE',
+      `/rbac/roles/${roleId}/permissions/${readProjectPermission.id}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      detachReadProject.status === 200,
+      '权限组移除权限后自动删除成员授权缓存',
+    );
+    const revokedProjectRead = await httpRequest(
+      'GET',
+      '/projects',
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      revokedProjectRead.status === 403,
+      '权限组移除权限后现有 JWT 立即失去接口权限',
+    );
+
+    const reattachCustomPermission = await httpRequest(
+      'POST',
+      `/rbac/roles/${roleId}/permissions/${customPermissionId}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      reattachCustomPermission.status < 300,
+      '已分配权限组可再次绑定自定义权限',
+    );
+    const profileWithCustomPermission = await httpRequest(
+      'GET',
+      '/auth/me',
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      profileWithCustomPermission.status === 200 &&
+        profileWithCustomPermission.json.permissions.some(
+          (permission) =>
+            permission.action === customPermission.json.action &&
+            permission.subject === customPermission.json.subject,
+        ),
+      '自定义权限绑定后现有 JWT 立即获得权限',
+    );
+    const deleteCustomPermission = await httpRequest(
+      'DELETE',
+      `/rbac/permissions/${customPermissionId}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      deleteCustomPermission.status === 200 &&
+        deleteCustomPermission.json.deleted === true,
+      '删除权限后自动删除所有持有者授权缓存',
+    );
+    cleanup.permissionIds = cleanup.permissionIds.filter(
+      (permissionId) => permissionId !== customPermissionId,
+    );
+    const profileWithoutCustomPermission = await httpRequest(
+      'GET',
+      '/auth/me',
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      profileWithoutCustomPermission.status === 200 &&
+        !profileWithoutCustomPermission.json.permissions.some(
+          (permission) =>
+            permission.action === customPermission.json.action &&
+            permission.subject === customPermission.json.subject,
+        ),
+      '删除权限后现有 JWT 立即失去对应权限',
+    );
+
     const deniedWrite = await httpRequest(
       'POST',
       '/users',
@@ -1084,11 +1196,25 @@ async function main() {
       revokedPermission.status === 403,
       '移除角色后现有 JWT 立即失去接口权限',
     );
-    await httpRequest(
+    const reassignRole = await httpRequest(
       'POST',
       `/rbac/users/${userId}/roles/${roleId}`,
       undefined,
       administratorAccessToken,
+    );
+    assert(
+      reassignRole.status < 300 && reassignRole.json.assigned === true,
+      '重新分配权限组后自动删除用户授权缓存',
+    );
+    const restoredPermission = await httpRequest(
+      'GET',
+      '/users',
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      restoredPermission.status === 200,
+      '重新分配权限组后现有 JWT 立即恢复接口权限',
     );
 
     const disableUser = await httpRequest(
@@ -1177,21 +1303,6 @@ async function main() {
       administratorAccessToken,
     );
     assert(detachReadUser.status === 200, '角色移除 read/user 权限');
-
-    const deleteCustomPermission = await httpRequest(
-      'DELETE',
-      `/rbac/permissions/${customPermissionId}`,
-      undefined,
-      administratorAccessToken,
-    );
-    assert(
-      deleteCustomPermission.status === 200 &&
-        deleteCustomPermission.json.deleted === true,
-      'DELETE /rbac/permissions/:id 执行软删除',
-    );
-    cleanup.permissionIds = cleanup.permissionIds.filter(
-      (permissionId) => permissionId !== customPermissionId,
-    );
 
     const deleteRole = await httpRequest(
       'DELETE',
