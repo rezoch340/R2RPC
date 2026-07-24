@@ -146,7 +146,8 @@ metadata 只包含安全白名单字段，不保存密码或 token 明文。RPC/
 AppAudit Step，列表不携带大字段。运行概览使用近 7 天折线趋势图；请求详情为宽版右侧抽屉，
 所有 AppAudit Step 默认收起。令牌与 JSON 载荷统一使用 `CopyButton`，Clipboard API
 不可用或被拒绝时自动回退。手动 RPC 页可选择功能组、历史 Action、在线设备和超时，格式化
-Payload，并排查看原始请求、响应、业务状态和耗时；页面入口由 `invoke/manual-rpc` 控制。
+Payload，并排查看原始请求、响应、业务状态和耗时；重复调用等待期间保留上一份结果，操作
+按钮不改变文案、尺寸、位置和不透明度；页面入口由 `invoke/manual-rpc` 控制。
 
 ## 3. WebSocket 协议
 

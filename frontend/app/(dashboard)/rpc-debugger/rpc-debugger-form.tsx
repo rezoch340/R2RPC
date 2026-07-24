@@ -1,6 +1,6 @@
 'use client';
 
-import { Braces, Play, RefreshCw } from 'lucide-react';
+import { Braces, LoaderCircle, Play, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -191,6 +191,7 @@ export function RpcDebuggerForm({
             <Button
               type="button"
               variant="outline"
+              className={isInvoking ? 'disabled:opacity-100' : undefined}
               disabled={isLoading || isInvoking}
               onClick={() => void onRefreshContext()}
             >
@@ -199,15 +200,21 @@ export function RpcDebuggerForm({
             </Button>
             <Button
               type="submit"
+              className={isInvoking ? 'disabled:opacity-100' : undefined}
               disabled={
                 isLoading ||
                 isInvoking ||
                 !selectedProjectName ||
                 !actionName.trim()
               }
+              aria-busy={isInvoking}
             >
-              <Play className={isInvoking ? 'animate-pulse' : ''} />
-              {isInvoking ? '等待设备返回…' : '发起调用'}
+              {isInvoking ? (
+                <LoaderCircle className="animate-spin" />
+              ) : (
+                <Play />
+              )}
+              发起调用
             </Button>
           </div>
         </form>

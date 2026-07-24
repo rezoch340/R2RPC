@@ -300,6 +300,8 @@ async fillAndSave(input: {
 - 表格长文本必须使用受控列宽、单行省略和 `title` 完整值；窄视口使用表格横向滚动，禁止文本覆盖相邻列。
 - 请求详情的 payload/AppAudit 必须按 requestId 懒加载，列表不得携带大字段。
 - 请求详情使用右侧抽屉；AppAudit Step 默认收起，由用户按需展开。
+- 异步操作不得通过脉冲动画、变长文案或禁用透明度改变造成按钮组闪烁和位移；使用固定文案、
+  固定尺寸图标位和 `aria-busy` 表达等待状态，同时继续阻止重复提交。
 - 复制令牌或 JSON 时统一使用 `CopyButton` 和 `lib/clipboard.ts`；优先 Clipboard API，
   缺失或权限拒绝时回退到隐藏文本框，不得让页面直接调用
   `navigator.clipboard.writeText`。
