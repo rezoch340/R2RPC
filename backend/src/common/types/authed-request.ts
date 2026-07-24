@@ -19,7 +19,7 @@ export interface AuthenticatedRequestHeaders extends Record<
 }
 
 export interface AuthedRequest {
-  body: Record<string, unknown>;
+  body?: Record<string, unknown>;
   headers: AuthenticatedRequestHeaders;
   ip?: string;
   method: string;
@@ -29,4 +29,5 @@ export interface AuthedRequest {
   socket: { remoteAddress?: string };
   user?: AuthenticatedUser; // JwtStrategy.validate 填充
   accessToken?: AccessTokenContext; // AccessTokenGuard 填充
+  systemAuditRecorded?: boolean;
 }

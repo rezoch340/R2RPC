@@ -28,7 +28,7 @@
 ## 2. 目标
 
 1. 新增不可由 HTTP 修改或删除的 `system_logs` 追加型审计表。
-2. 记录后台 JWT 用户在管理 API 中执行的所有业务写操作。
+2. 记录登录成功/失败、后台 JWT 用户的全部控制面读取、Guard/路由阶段拒绝和业务写操作。
 3. 每条日志能直接回答：谁、何时、做了什么、操作对象、结果、来源 IP。
 4. 新增只读 `GET /system-logs`，支持筛选与分页。
 5. 使用 `read/system-log` 授权；root 继续由全局权限守卫直通。
@@ -41,7 +41,7 @@
 - 不记录 RPC invoke、设备 WebSocket 消息或 AppAudit Step；它们已有独立日志链路。
 - 不为关系表、请求日志和聚合表增加无业务意义的 `name`。
 - 首版不提供系统日志修改、删除或清理 API。
-- 首版不记录在进入 controller 前就被 Guard 拒绝的请求；记录已通过鉴权和权限守卫的业务操作结果。
+- 不把 Swagger 静态资源、RPC invoke 或设备 WebSocket 数据面流量写入系统日志。
 
 ## 4. 数据模型
 
@@ -52,7 +52,7 @@
 | `id` | 递增主键 |
 | `name` | 操作名称，例如“创建用户” |
 | `description` | 人类可读摘要，例如“admin 创建用户 alice” |
-| `actor_user_id` | 操作者用户编号 |
+| `actor_user_id` | 操作者用户编号；登录失败等匿名阶段为 0 |
 | `actor_username` | 操作者用户名快照，用户以后改名/删除仍可取证 |
 | `action` / `subject` | 结构化动作和资源 |
 | `target_type` / `target_id` / `target_name` | 操作对象快照 |
@@ -66,16 +66,19 @@
 
 ## 5. 记录方式
 
-后台 mutation 显式增加 `@SystemAudit(...)` 元数据，全局 `SystemAuditInterceptor` 只处理带该元数据
-的方法：
+后台 mutation 显式增加 `@SystemAudit(...)` 元数据；登录显式声明安全操作者字段。全局
+`SystemAuditInterceptor` 对没有显式定义的 JWT 控制面读取自动推导资源和动作：
 
 1. controller 成功返回后，等待审计记录写入，再把业务响应返回客户端。
 2. controller/service 抛错时记录 failed 和 HTTP 状态，然后原样抛出业务错误。
-3. 审计存储失败只记服务端 error，不把已经成功的业务操作伪装成失败。
-4. 只从装饰器声明的 path/body 字段构建 metadata，禁止复制完整 body。
-5. `password`、access token、device token 永远不进入日志。
+3. Guard 或路由阶段在拦截器执行前失败时，由依赖注入的全局异常过滤器补记；请求级标记避免重复。
+4. 审计存储失败只记服务端 error，不把已经成功的业务操作伪装成失败。
+5. 只从声明的安全 path/body/query 字段构建 metadata，禁止复制完整 body。
+6. `password`、access token、device token 永远不进入日志。
+7. RPC invoke、设备 WS 和 AppAudit 继续走请求日志/协议日志，不重复进入控制面审计。
 
-该方式比根据 URL 写大段 `if/else` 更可读；新增写端点时必须显式声明操作名称与安全字段。
+自动推导使用一张控制面资源表和 HTTP 方法映射，不写长 `if/else`；新增写端点仍必须显式声明
+操作名称与安全字段。
 
 ## 6. 查询 API
 
@@ -139,18 +142,19 @@ GET /system-logs
 
 1. 迁移后共 15 张 PostgreSQL 表。
 2. 用户、project、token、权限组和权限关系的后台 mutation 均声明系统审计。
-3. 创建用户后可立即通过 HTTP 查询到“admin 创建用户 xxx”。
-4. 修改密码不会在系统日志响应中出现密码。
-5. 系统日志没有修改和删除 API。
-6. 普通用户必须具有 `read/system-log` 才能查询。
-7. build、命名/复杂度门禁、Jest、OpenAPI 和完整 HTTP/WS 黑盒全部通过。
+3. 登录成功、登录失败、读取具体账号和 Guard 拒绝均可通过 HTTP 查询。
+4. 创建用户后可立即通过 HTTP 查询到“admin 创建用户 xxx”。
+5. 登录和修改密码日志均不会出现密码或 token。
+6. 系统日志没有修改和删除 API。
+7. 普通用户必须具有 `read/system-log` 才能查询。
+8. build、命名/复杂度门禁、Jest、OpenAPI 和完整 HTTP/WS 黑盒全部通过。
 
 ## 9. 实施结果
 
 - 新增 `system_logs` 后 Drizzle 识别 15 张表；迁移总数为 9。
 - 种子权限 18 条，operator 的 `read/*` 权限 8 条。
 - OpenAPI 导出 35 个 HTTP 路径模板。
-- Jest 7 个 suite、17 个测试全部通过。
+- Jest 8 个 suite、24 个测试全部通过。
 - 隔离 PostgreSQL/Redis/Manticore + API + Worker 环境中，完整黑盒
-  `139 passed, 0 failed`。
+  `143 passed, 0 failed`。
 - E2E 边界守卫确认测试只访问 HTTP/WebSocket；build、lint 和 Prettier check 全部通过。

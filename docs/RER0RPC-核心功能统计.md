@@ -4,8 +4,8 @@
 
 ## 1. 完成度
 
-后端既定 backlog #1–#15 全部完成。代码包含 35 个 HTTP 路径模板、1 个设备 WebSocket
-网关、API/Worker 双进程、15 张 PostgreSQL 表和 9 个数据库迁移。
+后端既定 backlog #1–#15 与管理前端 #16 全部完成。代码包含 35 个 HTTP 路径模板、1 个设备
+WebSocket 网关、API/Worker 双进程、15 张 PostgreSQL 表、9 个数据库迁移和 9 个管理页面。
 
 | 领域 | 能力 | 状态 | 黑盒覆盖 |
 |---|---|---|---|
@@ -27,6 +27,8 @@
 | 分布式 | Redis session/waiter/pub-sub/结果去重 | ✅ | 单实例闭环 ✅ |
 | OpenAPI | 规范导出与生成脚本 | ✅ | build 校验 |
 | 代码质量 | 完整变量名、复杂度/嵌套/函数长度门禁 | ✅ | `pnpm lint:check` |
+| 管理前端 | Next.js + shadcn，完整后台公开面 | ✅ | Playwright + HTTP |
+| 前端质量 | 页面/组件/E2E 完整变量名门禁、ESLint、生产构建 | ✅ | `frontend/pnpm lint` |
 
 ## 2. HTTP API
 
@@ -68,8 +70,9 @@
 - `GET /system-logs`
 
 要求 `read/system-log`，支持 `actorUsername/action/subject/status/from/to/page/pageSize`。
-`system_logs` 只追加、不软删，没有修改和删除 API；后台 mutation 通过显式 `@SystemAudit`
-记录操作者、对象和结果。metadata 只包含端点白名单字段，不保存密码或 token 明文。
+`system_logs` 只追加、不软删，没有修改和删除 API；记录登录成功/失败、控制面读取、
+Guard/路由阶段拒绝和后台 mutation。mutation 通过显式 `@SystemAudit` 保留准确业务语义；
+metadata 只包含安全白名单字段，不保存密码或 token 明文。RPC/WS 数据面不重复写入。
 
 ### Project
 
@@ -104,6 +107,24 @@
 - `GET /metrics/trend`
 
 完整 schema 见 `docs/openapi.yaml`。
+
+### 管理前端路由
+
+| 路由 | 后端公开接口 |
+|---|---|
+| `/` | `/metrics/overview`、`/metrics/trend`、`/projects/info`、`/devices` |
+| `/projects` | `/projects`、`/projects/info`、启停与删除 |
+| `/devices` | `/devices` |
+| `/access-tokens` | `/access-tokens`、`/projects` |
+| `/device-tokens` | `/device-tokens`、`/projects` |
+| `/request-logs` | `/monitor/requests`、`/monitor/requests/:requestId` |
+| `/users` | `/users`、`/rbac/users/:userId/roles` |
+| `/permission-groups` | `/rbac/roles`、`/rbac/permissions` 与关联接口 |
+| `/system-logs` | `/system-logs` |
+
+前端使用后台 JWT，按 `permissions` 和 `isRoot` 控制入口显隐；后端 Guard 始终执行真实授权。
+用户本人可从账号菜单改密，root 账号仍只允许本人修改。请求详情按需加载 Manticore payload 和
+AppAudit Step，列表不携带大字段。
 
 ## 3. WebSocket 协议
 
@@ -243,7 +264,7 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 `pnpm smoke` 与 `pnpm test:e2e` 执行同一套完整性测试：
 
-- 139 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
+- 143 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
 - 覆盖全部 HTTP controller 方法。
 - 覆盖系统操作日志、筛选、普通用户权限委派和密码不泄露。
 - 覆盖权限组编辑、嵌套权限、用户已分配组、新旧关联入口和 root-only 写隔离。
@@ -256,7 +277,11 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 `test/assert-blackbox-e2e.js` 会静态拒绝 E2E 导入持久层客户端或应用内部服务。
 
-Jest 当前为 7 个 suite、17 个测试，包含系统审计摘要/白名单/失败结果、管理员策略分支以及
+前端 `test/assert-blackbox-e2e.cjs` 使用同一口径，Playwright 只操作浏览器和公开 HTTP API；
+不会导入后端、数据库或 Redis。前端 `test/assert-readable-source.cjs` 覆盖页面、组件和 E2E。
+
+Jest 当前为 8 个 suite、24 个测试，包含系统审计推导、登录/读取/拒绝访问、
+摘要/白名单/失败结果/无请求体回归、管理员策略分支以及
 RootGuard 的 root、非 root `manage/rbac` 和缺失身份分支。
 
 ### 内部集成

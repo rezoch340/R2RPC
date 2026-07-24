@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-RER0RPC 是设备侧 RPC 中继平台(思路类似 Sekiro):调用方按 `project`(功能组)或指定 `clientId`,把请求下发到在线设备,设备执行后实时回传结果。**活代码全在 `backend/`(NestJS 重写版)。**
+RER0RPC 是设备侧 RPC 中继平台(思路类似 Sekiro):调用方按 `project`(功能组)或指定 `clientId`,把请求下发到在线设备,设备执行后实时回传结果。活代码位于 `backend/`(NestJS API/Worker)与 `frontend/`(Next.js 管理控制台)。
 
 当前文档已经统一为 NestJS + PostgreSQL + Redis + BullMQ + Manticore 架构，端口 **3000**，默认管理员 `admin/admin123456`。旧 Go/MySQL 文档只保存在 `docs/archive/`，不得作为当前实现依据。
 
@@ -27,12 +27,25 @@ pnpm start:worker          # Worker 进程(独立!--entryFile worker)
 pnpm db:generate           # drizzle-kit 从 src/**/*.schema.ts 生成迁移(见坑)
 pnpm db:migrate            # 应用迁移(独立步骤,绝不在 app 启动时跑)
 pnpm seed:admin            # 种子 admin + demo projects + RBAC 权限(幂等,可重跑)
-pnpm smoke                 # 139 项纯 HTTP/WS 黑盒完整性冒烟，需 API+Worker 在跑
+pnpm smoke                 # 143 项纯 HTTP/WS 黑盒完整性冒烟，需 API+Worker 在跑
 pnpm test:e2e              # 与 smoke 相同；先执行黑盒边界守卫
 pnpm test:integration:retention | test:integration:device-stale
 pnpm test:integration:metrics | test:integration:max-inflight # 内部直连检查，明确不是 E2E
 pnpm test                  # Jest 单测(*.spec.ts)
 ```
+
+## 前端命令(在 `frontend/` 下跑)
+
+```bash
+pnpm dev                   # Next.js 开发服务器,端口 3001
+pnpm lint                  # 命名门禁 + ESLint
+pnpm build                 # 生产构建
+pnpm test:e2e              # 浏览器黑盒,只访问 UI 与公开 HTTP API
+```
+
+前端参考 FlowCore 的 Next.js + shadcn 组织方式，但页面与类型按 RER0RPC OpenAPI 实现。
+管理页不得导入后端内部模块或直连数据库/Redis/Manticore；RBAC 前端显隐不是安全边界，最终授权
+仍由后端 Guard 决定。API 默认允许 CORS，生产用 `CORS_ORIGIN` 限定控制台来源。
 
 - **前置基础设施**:PostgreSQL / Redis / Manticore 按 `config.yaml`(默认 `localhost:5432/6379/9308`)须已在跑；仓库提供 `deploy/docker-compose.yml` 与 `deploy/dev-up.sh`。配置走 `CONFIG_FILE`(默认 `./config.yaml`,`config.example.yaml` 是模板),zod 校验失败即启动失败。
 - **drizzle 迁移坑**:`db:generate` 在**同一次同时 drop 旧表 + 建新表**时,会交互式问"rename vs create"——非交互环境会卡住,须明确回答(拆表/新表通常选 **create**)。纯 ADD COLUMN / 只新增表不问。改破坏式迁移前确认 `docs/后端进度.md` 里该阶段允许破坏。
@@ -85,8 +98,10 @@ RBAC 角色绑定/解绑都必须先调用 `AdministratorAccountPolicyService`�
 `request.user.id`。`users.role` 是遗留展示字段，不参与授权或管理员保护。设计见
 `docs/superpowers/specs/2026-07-24-administrator-account-isolation-design.md`。
 
-后台业务写端点必须显式增加 `@SystemAudit(...)`。只把安全 path/body 字段列入 metadata 白名单，
-禁止复制完整请求体或记录密码/token 明文。系统操作日志通过 `GET /system-logs`
+后台业务写端点必须显式增加 `@SystemAudit(...)`；登录与所有 JWT 控制面读取由全局拦截器
+自动记录，Guard/路由阶段拒绝由全局异常过滤器补记。只把安全 path/body/query 字段列入
+metadata 白名单，禁止复制完整请求体或记录密码/token 明文。RPC invoke、设备 WS 和
+AppAudit 继续走各自日志链路，不重复写 `system_logs`。系统操作日志通过 `GET /system-logs`
 (`read/system-log`) 查询；它与 RPC `request_logs`、设备 AppAudit 是三类不同日志。设计见
 `docs/superpowers/specs/2026-07-24-system-audit-logs-design.md`。
 

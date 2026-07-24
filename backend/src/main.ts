@@ -4,7 +4,6 @@ import { WsAdapter } from '@nestjs/platform-ws';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ConfigService } from './infrastructure/config/config.service';
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 // API 进程入口:HTTP API + WebSocket Gateway + Swagger
 async function bootstrap() {
@@ -25,7 +24,15 @@ async function bootstrap() {
   application.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true }),
   );
-  application.useGlobalFilters(new AllExceptionsFilter());
+  const configuredCorsOrigins = process.env.CORS_ORIGIN;
+  application.enableCors({
+    credentials: false,
+    origin: configuredCorsOrigins
+      ? configuredCorsOrigins
+          .split(',')
+          .map((configuredOrigin) => configuredOrigin.trim())
+      : true,
+  });
   application.enableShutdownHooks();
 
   const swaggerConfiguration = new DocumentBuilder()

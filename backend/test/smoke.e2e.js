@@ -604,6 +604,57 @@ async function main() {
       !JSON.stringify(administratorUserLogs.json).includes(changedPassword),
       '系统操作审计不记录密码',
     );
+    const administratorAuthenticationLogs = await httpRequest(
+      'GET',
+      '/system-logs?actorUsername=admin&action=login&subject=auth&pageSize=200',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      administratorAuthenticationLogs.status === 200 &&
+        administratorAuthenticationLogs.json.rows.some(
+          (systemLog) =>
+            systemLog.name === '登录系统' &&
+            systemLog.status === 'succeeded' &&
+            systemLog.actorUserId === administratorProfile.json.id,
+        ),
+      '系统日志记录登录成功和登录账号',
+    );
+    const failedAuthenticationLogs = await httpRequest(
+      'GET',
+      `/system-logs?actorUsername=${encodeURIComponent(username)}&action=login&subject=auth&status=failed&pageSize=200`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      failedAuthenticationLogs.status === 200 &&
+        failedAuthenticationLogs.json.rows.some(
+          (systemLog) =>
+            systemLog.name === '登录系统' &&
+            systemLog.statusCode === 401 &&
+            systemLog.actorUserId === 0,
+        ) &&
+        !JSON.stringify(failedAuthenticationLogs.json).includes(
+          changedPassword,
+        ),
+      '系统日志记录登录失败但不记录密码',
+    );
+    const administratorReadLogs = await httpRequest(
+      'GET',
+      '/system-logs?actorUsername=admin&action=read&subject=user&pageSize=200',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      administratorReadLogs.status === 200 &&
+        administratorReadLogs.json.rows.some(
+          (systemLog) =>
+            systemLog.name === '读取后台账号' &&
+            systemLog.targetId === String(userId) &&
+            systemLog.status === 'succeeded',
+        ),
+      '系统日志记录读取了哪个后台账号',
+    );
 
     const roleName = `${TEST_RESOURCE_PREFIX}-role`;
     const createRole = await httpRequest(
@@ -778,6 +829,20 @@ async function main() {
     assert(
       deniedWrite.status === 403,
       '缺少 create/user 的用户不能 POST /users',
+    );
+    const deniedAccessLogs = await httpRequest(
+      'GET',
+      `/system-logs?actorUsername=${encodeURIComponent(username)}&action=execute&subject=user&status=failed&pageSize=200`,
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      deniedAccessLogs.status === 200 &&
+        deniedAccessLogs.json.rows.some(
+          (systemLog) =>
+            systemLog.name === '执行后台账号' && systemLog.statusCode === 403,
+        ),
+      '系统日志记录 Guard 拒绝的控制面访问',
     );
 
     const userMe = await httpRequest(

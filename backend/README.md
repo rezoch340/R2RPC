@@ -38,6 +38,9 @@ cp config.example.yaml config.yaml
 
 配置由 zod 校验，非法值会让进程启动失败。
 
+API 默认允许浏览器跨域访问。生产环境可设置 `CORS_ORIGIN` 为允许的控制台 Origin，多个值用
+逗号分隔；例如 `CORS_ORIGIN=https://console.example.com`。
+
 ## 初始化
 
 ```bash
@@ -93,8 +96,10 @@ Swagger 位于 `/docs`，设备 WebSocket 位于 `/api/client/ws`。
 
 - `system_logs` 是不可变追加表，包含 `name`、`description`、操作者、动作、对象、结果、IP 和时间。
 - `GET /system-logs` 使用 `read/system-log`，支持操作者、action、subject、状态、时间和分页筛选。
-- 后台 mutation 显式声明 `@SystemAudit`；拦截器记录成功/失败业务结果。
-- metadata 只读取装饰器声明的白名单字段，不复制完整请求体，密码与 token 明文不会入库。
+- 登录成功/失败、JWT 控制面读取、Guard/路由阶段拒绝和后台 mutation 全部记录；mutation
+  继续显式声明 `@SystemAudit` 以提供准确业务名称和对象。
+- metadata 只读取声明的安全 path/body/query 字段，不复制完整请求体，密码与 token 明文不会入库。
+- RPC invoke、设备 WebSocket 与 AppAudit 使用各自日志链路，不重复写入高频系统访问日志。
 - 系统日志没有修改或删除 API，也不与 RPC `request_logs`、设备 AppAudit 混用。
 
 完整设计见 `../docs/superpowers/specs/2026-07-24-system-audit-logs-design.md`。
@@ -132,9 +137,9 @@ BASE_URL=http://127.0.0.1:3000 pnpm smoke
 - 覆盖设备通过真实 WS 上报 AppAudit 成功/失败 Step、非法审计隔离和 Monitor API 读取
 - 覆盖用户资料、改密和管理员资料/密码/启停/删除/RBAC 角色关系隔离
 - 覆盖权限组编辑、嵌套权限、用户分组查询和非 root 持 `manage/rbac` 仍被拒绝
-- 覆盖“谁做了什么”的系统日志、筛选、权限委派和密码不泄露
+- 覆盖登录成功/失败、控制面读取、Guard 拒绝、业务写入、筛选和密码不泄露
 - 通过 monitor/metrics API 观察 Worker 冷路径
-- 当前为 139 项运行时检查
+- 当前为 143 项运行时检查
 
 `test/assert-blackbox-e2e.js` 会拒绝 E2E 导入持久层客户端或应用内部服务。
 
