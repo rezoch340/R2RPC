@@ -1,4 +1,4 @@
-// RER0RPC 黑盒完整性冒烟:
+// R2RPC 黑盒完整性冒烟:
 // - 测试进程只使用 HTTP(fetch) 与 WebSocket(ws) 公共接口。
 // - 禁止导入应用内部模块或直连 PG/Redis/Manticore。
 // - 前置:基础设施、迁移、种子、API 与 Worker 均已启动。

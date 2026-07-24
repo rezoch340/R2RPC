@@ -1,4 +1,4 @@
-package io.rer0rpc.sdk
+package io.r2rpc.sdk
 
 import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
@@ -33,7 +33,7 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 
-data class Rer0RpcDeviceOptions(
+data class R2RpcDeviceOptions(
     val baseUrl: String,
     val deviceToken: String,
     val clientId: String = AndroidDeviceIdentifier.fromWidevineMediaDrm(),
@@ -48,8 +48,8 @@ data class Rer0RpcDeviceOptions(
     val onError: (Throwable) -> Unit = {},
 )
 
-class Rer0RpcDevice(
-    private val options: Rer0RpcDeviceOptions,
+class R2RpcDevice(
+    private val options: R2RpcDeviceOptions,
 ) : Closeable {
     init {
         require(options.baseUrl.isNotBlank()) { "baseUrl 不能为空" }
@@ -192,7 +192,7 @@ class Rer0RpcDevice(
 
     private fun handleWelcome(message: JsonObject) {
         if (message["clientId"]?.jsonPrimitive?.contentOrNull != options.clientId) {
-            options.onError(Rer0RpcException("welcome clientId 与本地设备不一致"))
+            options.onError(R2RpcException("welcome clientId 与本地设备不一致"))
             webSocket?.close(4003, "clientId mismatch")
             return
         }
@@ -211,7 +211,7 @@ class Rer0RpcDevice(
             }
                 .getOrElse { parsingFailure ->
                     options.onError(
-                        Rer0RpcException("无法解析 RPC Job", parsingFailure),
+                        R2RpcException("无法解析 RPC Job", parsingFailure),
                     )
                     return
                 }
@@ -357,7 +357,7 @@ class Rer0RpcDevice(
             webSocket: WebSocket,
             response: Response,
         ) {
-            if (this@Rer0RpcDevice.webSocket !== webSocket) {
+            if (this@R2RpcDevice.webSocket !== webSocket) {
                 webSocket.cancel()
             }
         }
@@ -405,7 +405,7 @@ class Rer0RpcDevice(
         if (closeCode == 4001) {
             running.set(false)
             updateState(DeviceConnectionState.STOPPED)
-            options.onError(Rer0RpcAuthenticationException())
+            options.onError(R2RpcAuthenticationException())
             return
         }
         scheduleReconnect()

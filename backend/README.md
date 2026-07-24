@@ -1,4 +1,4 @@
-# RER0RPC Backend
+# R2RPC Backend
 
 NestJS 11 后端，采用 API/Worker 双进程：
 
@@ -74,7 +74,7 @@ Swagger 位于 `/docs`，设备 WebSocket 位于 `/api/client/ws`。
 生产镜像与完整 Compose：
 
 ```bash
-docker build -t rer0rpc-backend backend
+docker build -t r2rpc-backend backend
 cp deploy/config.example.yaml deploy/config.yaml
 docker compose up -d --build
 ```

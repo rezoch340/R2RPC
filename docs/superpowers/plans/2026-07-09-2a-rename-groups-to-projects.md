@@ -85,7 +85,7 @@
 - [ ] **Step 1: `git mv` 目录与文件**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend
+cd /Users/lpitiless/Documents/R2RPC/backend
 git mv src/application/groups src/application/projects
 git mv src/application/projects/groups.schema.ts     src/application/projects/projects.schema.ts
 git mv src/application/projects/groups.service.ts     src/application/projects/projects.service.ts
@@ -250,7 +250,7 @@ git rm src/scripts/migrate-groups.ts
 - [ ] **Step 19: format + lint + build,验证全绿**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && pnpm format && pnpm lint && pnpm build
+cd /Users/lpitiless/Documents/R2RPC/backend && pnpm format && pnpm lint && pnpm build
 ```
 Expected: 三条全 0 退出。若报 `group` 相关的未定义/找不到模块,回到对应 Step 补齐。最后 grep 兜底(应只剩 `client_groups`/`clientGroups`/`group_id`/`groupId`/`.groupBy(`/`rpc:rr`/中文"组" 这些**故意保留**项):
 
@@ -262,7 +262,7 @@ Expected: 空,或只剩你确认过的保留项。
 - [ ] **Step 20: 提交 Task 1**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add -A && \
+cd /Users/lpitiless/Documents/R2RPC && git add -A && \
 git commit -m "refactor(2a): rename groups→projects across schema + code (build green)"
 ```
 
@@ -284,7 +284,7 @@ schema 已定稿,重生单个迁移并在干净库上验证。
 - [ ] **Step 1: 删旧迁移与快照**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend
+cd /Users/lpitiless/Documents/R2RPC/backend
 git rm drizzle/*.sql
 git rm -r drizzle/meta
 ```
@@ -292,7 +292,7 @@ git rm -r drizzle/meta
 - [ ] **Step 2: 从改名后 schema 重生单迁移**(空 meta → 全 CREATE,无 rename 交互 prompt)
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && pnpm db:generate
+cd /Users/lpitiless/Documents/R2RPC/backend && pnpm db:generate
 ```
 Expected: 生成一个 `drizzle/0000_*.sql`(含 `projects`/`access_token_projects(project_id)`/`request_logs(project_name)`/`metrics(project_name)`/`client_groups(group_id)`/`clients`/`devices`/`users`/`access_tokens` 等所有表)+ 新 `drizzle/meta/`。**无交互提问**。抽查:
 
@@ -308,7 +308,7 @@ Expected: 命中 `projects`、`access_token_projects`、`project_name`;`client_g
 写一次性重置脚本到 scratchpad(不入库),读 `config.yaml` 的库连接,DROP+CREATE public schema:
 
 ```bash
-cat > /private/tmp/claude-501/-Users-lpitiless-Documents-RER0RPC/bd6c3fcf-9b15-4329-b4b2-85361c4dc229/scratchpad/reset-db.cjs <<'EOF'
+cat > /private/tmp/claude-501/-Users-lpitiless-Documents-R2RPC/bd6c3fcf-9b15-4329-b4b2-85361c4dc229/scratchpad/reset-db.cjs <<'EOF'
 const { readFileSync } = require('node:fs');
 const { load } = require('js-yaml');
 const { Pool } = require('pg');
@@ -320,28 +320,28 @@ const cfg = load(readFileSync('config.yaml', 'utf8')).db;
   await pool.end();
 })().catch((e) => { console.error(e); process.exit(1); });
 EOF
-cd /Users/lpitiless/Documents/RER0RPC/backend && node /private/tmp/claude-501/-Users-lpitiless-Documents-RER0RPC/bd6c3fcf-9b15-4329-b4b2-85361c4dc229/scratchpad/reset-db.cjs
+cd /Users/lpitiless/Documents/R2RPC/backend && node /private/tmp/claude-501/-Users-lpitiless-Documents-R2RPC/bd6c3fcf-9b15-4329-b4b2-85361c4dc229/scratchpad/reset-db.cjs
 ```
 Expected: `dev 库已重置`。
 
 - [ ] **Step 4: 迁移 + seed**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && pnpm db:migrate && pnpm seed:admin
+cd /Users/lpitiless/Documents/R2RPC/backend && pnpm db:migrate && pnpm seed:admin
 ```
 Expected: `迁移完成`;seed 打印管理员 + demo projects(原 `cn-nodes`/`us-nodes`)+ 权限,无报错。
 
 - [ ] **Step 5: 验证 schema 已同步(db:generate 无残差)**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && pnpm db:generate
+cd /Users/lpitiless/Documents/R2RPC/backend && pnpm db:generate
 ```
 Expected: `No schema changes, nothing to migrate`(或等价"无变更")。若又生成迁移,说明 schema 与快照不一致,排查后回退多余文件。
 
 - [ ] **Step 6: 提交 Task 2**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add -A && \
+cd /Users/lpitiless/Documents/R2RPC && git add -A && \
 git commit -m "refactor(2a): squash migrations to fresh 0000 for projects schema"
 ```
 
@@ -383,7 +383,7 @@ mysql -h <manticore_host> -P 9306 -e 'DROP TABLE IF EXISTS <table>;'
 - [ ] **Step 4: 跑冒烟**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && pnpm retention:smoke
+cd /Users/lpitiless/Documents/R2RPC/backend && pnpm retention:smoke
 # smoke 需 API 在线:另起终端 pnpm start:api,再:
 pnpm smoke
 ```
@@ -392,8 +392,8 @@ Expected: `RETENTION SMOKE PASSED`;smoke 全部断言 PASS(client-login 拿 proj
 - [ ] **Step 5: format + lint + build 复检 + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && pnpm format && pnpm lint && pnpm build
-cd /Users/lpitiless/Documents/RER0RPC && git add -A && \
+cd /Users/lpitiless/Documents/R2RPC/backend && pnpm format && pnpm lint && pnpm build
+cd /Users/lpitiless/Documents/R2RPC && git add -A && \
 git commit -m "test(2a): update smoke + retention-smoke to projects field names"
 ```
 
@@ -422,7 +422,7 @@ git commit -m "test(2a): update smoke + retention-smoke to projects field names"
 - [ ] **Step 2: 提交 + 推分支 + 开 PR**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add -A && \
+cd /Users/lpitiless/Documents/R2RPC && git add -A && \
 git commit -m "docs(2a): mark rename groups→projects done + completion record" && \
 git push -u origin feat/2a-rename-groups-to-projects && \
 gh pr create --title "refactor(2a): rename groups→projects" --body "设备接入模型重构 epic(#2)子项 2a。库+码彻底 rename;client_groups 保留待 2c 删;迁移 squash 重建。计划见 docs/superpowers/plans/2026-07-09-2a-rename-groups-to-projects.md" --base main

@@ -4,7 +4,7 @@ import { readRuntimeConfiguration } from '@/lib/runtime-config';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'RER0RPC 控制台',
+  title: 'R2RPC 控制台',
   description: '设备侧 RPC 中继平台管理控制台',
 };
 
@@ -21,7 +21,7 @@ export default function RootLayout({
       <body className="min-h-full">
         <script
           dangerouslySetInnerHTML={{
-            __html: `window.__RER0RPC_CONFIG__=${runtimeConfiguration};`,
+            __html: `window.__R2RPC_CONFIG__=${runtimeConfiguration};`,
           }}
         />
         <Providers>{children}</Providers>

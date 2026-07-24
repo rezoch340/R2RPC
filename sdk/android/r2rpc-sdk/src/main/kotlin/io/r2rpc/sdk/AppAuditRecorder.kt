@@ -1,4 +1,4 @@
-package io.rer0rpc.sdk
+package io.r2rpc.sdk
 
 import java.text.SimpleDateFormat
 import java.util.Date

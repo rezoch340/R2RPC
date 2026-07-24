@@ -43,7 +43,7 @@
 - [ ] **Step 2: 生成+应用+reseed+build**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend
+cd /Users/lpitiless/Documents/R2RPC/backend
 node_modules/.bin/drizzle-kit generate
 grep -nE 'ADD COLUMN "max_in_flight"' drizzle/0006_*.sql
 node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/migrate.ts
@@ -55,7 +55,7 @@ Expected:`0006` 有 `ADD COLUMN "max_in_flight"`(非交互);迁移完成;build 0
 - [ ] **Step 3: 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/application/devices/devices.schema.ts backend/drizzle && git commit -m "feat(4): devices.max_in_flight column + migration"
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src/application/devices/devices.schema.ts backend/drizzle && git commit -m "feat(4): devices.max_in_flight column + migration"
 ```
 
 ---
@@ -163,8 +163,8 @@ welcome 回带:`this.send(socket, { type: 'welcome', clientId, projects, maxInFl
 - [ ] **Step 4: build + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -5
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src && git commit -m "feat(4): device self-report maxInFlight on WS connect + Redis inflight counter methods"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -5
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src && git commit -m "feat(4): device self-report maxInFlight on WS connect + Redis inflight counter methods"
 ```
 
 ---
@@ -210,8 +210,8 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/src && git commit -m "f
 - [ ] **Step 2: build + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -6
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/application/rpc/rpc.service.ts && git commit -m "feat(4): invoke acquires inflight slot, rejects (429) when device saturated; releases in finally"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -6
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src/application/rpc/rpc.service.ts && git commit -m "feat(4): invoke acquires inflight slot, rejects (429) when device saturated; releases in finally"
 ```
 
 ---
@@ -299,7 +299,7 @@ main().catch((e) => { console.error(e); process.exit(1); });
 - [ ] **Step 4: 跑两个冒烟**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend
+cd /Users/lpitiless/Documents/R2RPC/backend
 node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/max-inflight-smoke.ts 2>&1 | tail -8
 node_modules/.bin/nest build 2>&1 | tail -2
 pkill -f 'node dist/main.js' 2>/dev/null; sleep 1
@@ -313,8 +313,8 @@ Expected:`MAXINFLIGHT SMOKE PASSED`(4 断言);e2e `SMOKE PASSED`(含 welcome.max
 - [ ] **Step 5: prettier + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/prettier --write "src/**/*.ts" "test/**/*.js" >/dev/null
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/scripts/max-inflight-smoke.ts backend/package.json backend/test/smoke.e2e.js && git commit -m "test(4): inflight-slot direct smoke + welcome/devices maxInFlight e2e assertions"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/prettier --write "src/**/*.ts" "test/**/*.js" >/dev/null
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src/scripts/max-inflight-smoke.ts backend/package.json backend/test/smoke.e2e.js && git commit -m "test(4): inflight-slot direct smoke + welcome/devices maxInFlight e2e assertions"
 ```
 
 ---
@@ -340,7 +340,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/scripts/max-infligh
 - [ ] **Step 2: 提交 + 推 + PR**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add docs/后端进度.md && git commit -m "docs(4): mark maxInFlight + rejected done" && git push -u origin feat/4-max-in-flight && gh pr create --base main --title "feat(4): maxInFlight 在途并发限流(+ #10 rejected)" --body "设备自报 maxInFlight[256,1024] + invoke 在途限流(满则 rejected/429)+ Redis 计数 acquire/release 精确配对。计划见 docs/superpowers/plans/2026-07-09-4-max-in-flight.md"
+cd /Users/lpitiless/Documents/R2RPC && git add docs/后端进度.md && git commit -m "docs(4): mark maxInFlight + rejected done" && git push -u origin feat/4-max-in-flight && gh pr create --base main --title "feat(4): maxInFlight 在途并发限流(+ #10 rejected)" --body "设备自报 maxInFlight[256,1024] + invoke 在途限流(满则 rejected/429)+ Redis 计数 acquire/release 精确配对。计划见 docs/superpowers/plans/2026-07-09-4-max-in-flight.md"
 ```
 
 - [ ] **Step 3:** 回填 PR 号,补一提交。

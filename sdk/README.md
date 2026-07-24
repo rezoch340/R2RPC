@@ -1,6 +1,6 @@
-# RER0RPC SDK
+# R2RPC SDK
 
-本目录提供与当前 RER0RPC 协议同步维护的官方设备端与调用方 SDK：
+本目录提供与当前 R2RPC 协议同步维护的官方设备端与调用方 SDK：
 
 | SDK | 设备 WebSocket | 调用方 HTTP | 自动重连 | Action 超时 | AppAudit V1 |
 |---|---:|---:|---:|---:|---:|

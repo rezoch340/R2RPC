@@ -1044,7 +1044,7 @@ paths:
       tags:
         - system-logs
 info:
-  title: RER0RPC API
+  title: R2RPC API
   description: ''
   version: '0.1'
   contact: {}

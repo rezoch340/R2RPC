@@ -369,5 +369,5 @@ async fillAndSave(input: {
 - Compose 内所有服务都必须保留 `cpus`、`mem_limit` 和 `pids_limit`；包含一次性服务与
   performance profile 的声明上限总和不得超过 4.00 核和 4 GiB。
 - JavaScript SDK 必须通过 `corepack pnpm check`；Android SDK 必须通过
-  `./gradlew :rer0rpc-sdk:testDebugUnitTest :rer0rpc-sdk:assembleRelease`。SDK HTTP/WS
+  `./gradlew :r2rpc-sdk:testDebugUnitTest :r2rpc-sdk:assembleRelease`。SDK HTTP/WS
   测试使用公开协议和 Mock Server，不以导入后端 service 代替协议验收。

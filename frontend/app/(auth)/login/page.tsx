@@ -55,7 +55,7 @@ export default function LoginPage() {
             </span>
             <div>
               <p className="font-heading font-semibold tracking-[0.14em]">
-                RER0RPC
+                R2RPC
               </p>
               <p className="font-mono text-[10px] tracking-[0.16em] text-slate-500 uppercase">
                 Relay Console

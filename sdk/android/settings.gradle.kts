@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "rer0rpc-android-sdk"
-include(":rer0rpc-sdk")
+rootProject.name = "r2rpc-android-sdk"
+include(":r2rpc-sdk")

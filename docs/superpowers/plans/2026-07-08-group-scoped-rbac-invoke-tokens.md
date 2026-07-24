@@ -4,7 +4,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement task-by-task. Steps use checkbox (`- [ ]`) syntax.
 
-**Goal:** 给 RER0RPC 落地三套授权域:后台 CASL RBAC、设备组一等实体(设备多组)、invoke 独立 access token(按设备组作用域、可过期)。
+**Goal:** 给 R2RPC 落地三套授权域:后台 CASL RBAC、设备组一等实体(设备多组)、invoke 独立 access token(按设备组作用域、可过期)。
 
 **Architecture:** 后台走用户 JWT + `PermissionGuard`(CASL)+ isRoot;设备组升为一等实体(FK)+ `client_groups` 多对多;invoke/clientQueue 改用 `AccessTokenGuard`(独立 token,redis 缓存)。三套互不耦合。
 

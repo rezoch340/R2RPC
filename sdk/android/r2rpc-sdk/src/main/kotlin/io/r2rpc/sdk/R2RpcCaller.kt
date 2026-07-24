@@ -1,4 +1,4 @@
-package io.rer0rpc.sdk
+package io.r2rpc.sdk
 
 import java.io.Closeable
 import java.util.concurrent.TimeUnit
@@ -13,7 +13,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
-data class Rer0RpcCallerOptions(
+data class R2RpcCallerOptions(
     val baseUrl: String,
     val accessToken: String,
     val requestTimeoutMilliseconds: Long = 20_000,
@@ -26,8 +26,8 @@ private data class InvokeRequest(
     val timeoutSeconds: Int? = null,
 )
 
-class Rer0RpcCaller(
-    private val options: Rer0RpcCallerOptions,
+class R2RpcCaller(
+    private val options: R2RpcCallerOptions,
 ) : Closeable {
     init {
         require(options.baseUrl.isNotBlank()) { "baseUrl 不能为空" }
@@ -127,7 +127,7 @@ class Rer0RpcCaller(
             httpClient.newCall(requestBuilder.build()).execute().use { response ->
                 val responseBody = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
-                    throw Rer0RpcHttpException(
+                    throw R2RpcHttpException(
                         message = "$method $path 失败: HTTP ${response.code}",
                         statusCode = response.code,
                         responseBody = responseBody,

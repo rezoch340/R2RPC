@@ -18,9 +18,9 @@ frontend:
 db:
   host: 127.0.0.1
   port: 5432
-  user: rer0rpc
-  password: rer0rpc
-  database: rer0rpc
+  user: r2rpc
+  password: r2rpc
+  database: r2rpc
 
 redis:
   host: 127.0.0.1

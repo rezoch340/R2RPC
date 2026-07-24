@@ -1,12 +1,12 @@
 import {
   AppAuditRecorder,
-  Rer0RpcDevice,
-} from '@rer0rpc/javascript-sdk';
+  R2RpcDevice,
+} from '@r2rpc/javascript-sdk';
 
-const device = new Rer0RpcDevice({
-  baseUrl: process.env.RER0RPC_BASE_URL ?? 'http://127.0.0.1:3000',
-  deviceToken: process.env.RER0RPC_DEVICE_TOKEN ?? '',
-  clientId: process.env.RER0RPC_CLIENT_ID ?? 'javascript-device-example',
+const device = new R2RpcDevice({
+  baseUrl: process.env.R2RPC_BASE_URL ?? 'http://127.0.0.1:3000',
+  deviceToken: process.env.R2RPC_DEVICE_TOKEN ?? '',
+  clientId: process.env.R2RPC_CLIENT_ID ?? 'javascript-device-example',
   platform: 'nodejs',
   onStateChange: ({ state }) => console.log(`device state: ${state}`),
   onError: (error) => console.error(error),

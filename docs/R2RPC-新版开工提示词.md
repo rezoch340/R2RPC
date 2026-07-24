@@ -1,11 +1,11 @@
-# RER0RPC 继续开发提示词
+# R2RPC 继续开发提示词
 
 > 更新日期：2026-07-24。用于把当前仓库状态交给新的开发任务；重写开工阶段的旧提示词已归档到 `docs/archive/2026-07-08-新版开工提示词.md`。
 
 ```markdown
-# RER0RPC 全栈继续开发
+# R2RPC 全栈继续开发
 
-仓库：`/Users/lpitiless/Documents/RER0RPC`
+仓库：`/Users/lpitiless/Documents/R2RPC`
 
 ## 当前事实
 
@@ -117,7 +117,7 @@ pnpm test:e2e
 
 ```bash
 (cd javascript && corepack pnpm check)
-(cd android && ./gradlew :rer0rpc-sdk:testDebugUnitTest :rer0rpc-sdk:assembleRelease)
+(cd android && ./gradlew :r2rpc-sdk:testDebugUnitTest :r2rpc-sdk:assembleRelease)
 ```
 
 SDK 测试只能走公开 HTTP/WebSocket 协议，不得导入后端模块或直连持久层。

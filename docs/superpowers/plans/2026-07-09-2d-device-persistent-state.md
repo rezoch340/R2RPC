@@ -71,7 +71,7 @@ import {
 - [ ] **Step 2: 生成 + 应用迁移 + reseed**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend
+cd /Users/lpitiless/Documents/R2RPC/backend
 node_modules/.bin/drizzle-kit generate
 grep -nE 'ADD COLUMN "(status|platform|last_ip|extra)"' drizzle/0003_*.sql
 node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/migrate.ts
@@ -83,8 +83,8 @@ Expected: `0003_*.sql` 有 4 个 ADD COLUMN;**无交互 prompt**;`迁移完成`;
 - [ ] **Step 3: build + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -3
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/application/devices/devices.schema.ts backend/drizzle && git commit -m "feat(2d): devices add status/platform/last_ip/extra columns + migration"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -3
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src/application/devices/devices.schema.ts backend/drizzle && git commit -m "feat(2d): devices add status/platform/last_ip/extra columns + migration"
 ```
 
 ---
@@ -277,8 +277,8 @@ import { DevicesService } from '../devices/devices.service';
 - [ ] **Step 6: build + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -6
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src && git commit -m "feat(2d): capture platform/ip/extra + status on connect; stale-scan maintenance worker"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -6
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src && git commit -m "feat(2d): capture platform/ip/extra + status on connect; stale-scan maintenance worker"
 ```
 Expected:build 0。
 
@@ -332,8 +332,8 @@ export class DevicesController {
 - [ ] **Step 3: build + reseed(补权限)+ 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -3 && node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/seed-admin.ts 2>&1 | tail -2
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src && git commit -m "feat(2d): devices list/detail API + read/device permission"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -3 && node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/seed-admin.ts 2>&1 | tail -2
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src && git commit -m "feat(2d): devices list/detail API + read/device permission"
 ```
 Expected:build 0;seed 打印「权限 14 条」(13 + read/device)。
 
@@ -366,7 +366,7 @@ Expected:build 0;seed 打印「权限 14 条」(13 + read/device)。
 - [ ] **Step 2: build + 跑 e2e smoke**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend
+cd /Users/lpitiless/Documents/R2RPC/backend
 node_modules/.bin/nest build 2>&1 | tail -2
 pkill -f 'node dist/main.js' 2>/dev/null; sleep 1
 node dist/main.js > /tmp/api-2d.log 2>&1 &
@@ -457,15 +457,15 @@ main().catch((e) => {
 - [ ] **Step 5: 跑 stale 冒烟**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/device-stale-smoke.ts 2>&1 | tail -8
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/ts-node -r tsconfig-paths/register src/scripts/device-stale-smoke.ts 2>&1 | tail -8
 ```
 Expected:`DEVICE STALE SMOKE PASSED`(2 条 PASS)。
 
 - [ ] **Step 6: prettier + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/prettier --write "src/**/*.ts" "test/**/*.js" >/dev/null
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/test/smoke.e2e.js backend/src/scripts/device-stale-smoke.ts backend/package.json && git commit -m "test(2d): device state assertions in smoke + stale-scan direct smoke"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/prettier --write "src/**/*.ts" "test/**/*.js" >/dev/null
+cd /Users/lpitiless/Documents/R2RPC && git add backend/test/smoke.e2e.js backend/src/scripts/device-stale-smoke.ts backend/package.json && git commit -m "test(2d): device state assertions in smoke + stale-scan direct smoke"
 ```
 
 ---
@@ -496,7 +496,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/test/smoke.e2e.js backe
 - [ ] **Step 2: 提交 + 推 + PR**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add docs/后端进度.md && git commit -m "docs(2d): mark device persistent state done + clientId follow-up + completion record" && git push -u origin feat/2d-device-persistent-state && gh pr create --base main --title "feat(2d): 设备持久态(stale 扫描 + 列表/详情 + platform/ip/extra/status)" --body "epic #2 子项 2d(收尾)。devices 落齐持久态列 + stale 对账 worker + 设备只读 API。clientId 信任硬化按用户决策记为待办。计划见 docs/superpowers/plans/2026-07-09-2d-device-persistent-state.md"
+cd /Users/lpitiless/Documents/R2RPC && git add docs/后端进度.md && git commit -m "docs(2d): mark device persistent state done + clientId follow-up + completion record" && git push -u origin feat/2d-device-persistent-state && gh pr create --base main --title "feat(2d): 设备持久态(stale 扫描 + 列表/详情 + platform/ip/extra/status)" --body "epic #2 子项 2d(收尾)。devices 落齐持久态列 + stale 对账 worker + 设备只读 API。clientId 信任硬化按用户决策记为待办。计划见 docs/superpowers/plans/2026-07-09-2d-device-persistent-state.md"
 ```
 
 - [ ] **Step 3:** 回填 PR 号到完成记录,补一提交。

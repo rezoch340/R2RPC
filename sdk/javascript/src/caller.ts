@@ -1,4 +1,4 @@
-import { Rer0RpcHttpError } from './errors.js';
+import { R2RpcHttpError } from './errors.js';
 import type {
   DeviceOnlineStatus,
   JsonObjectValue,
@@ -7,19 +7,19 @@ import type {
   RpcResponse,
 } from './types.js';
 
-export interface Rer0RpcCallerOptions {
+export interface R2RpcCallerOptions {
   baseUrl: string;
   accessToken: string;
   requestTimeoutMilliseconds?: number;
   fetchImplementation?: typeof fetch;
 }
 
-export class Rer0RpcCaller {
+export class R2RpcCaller {
   private readonly baseUrl: string;
   private readonly requestTimeoutMilliseconds: number;
   private readonly fetchImplementation: typeof fetch;
 
-  constructor(private readonly options: Rer0RpcCallerOptions) {
+  constructor(private readonly options: R2RpcCallerOptions) {
     if (!options.baseUrl.trim()) {
       throw new TypeError('baseUrl 不能为空');
     }
@@ -99,7 +99,7 @@ export class Rer0RpcCaller {
   ): Promise<ResponseBody> {
     const requestController = new AbortController();
     const timeout = setTimeout(
-      () => requestController.abort(new Error('RER0RPC 请求超时')),
+      () => requestController.abort(new Error('R2RPC 请求超时')),
       this.requestTimeoutMilliseconds,
     );
     const abortFromExternalSignal = () =>
@@ -123,7 +123,7 @@ export class Rer0RpcCaller {
       const responseText = await response.text();
       const responseBody = parseResponseBody(responseText);
       if (!response.ok) {
-        throw new Rer0RpcHttpError(
+        throw new R2RpcHttpError(
           `${method} ${path} 失败: HTTP ${response.status}`,
           response.status,
           responseBody,

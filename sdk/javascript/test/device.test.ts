@@ -5,7 +5,7 @@ import {
   vi as vitest,
 } from 'vitest';
 import {
-  Rer0RpcDevice,
+  R2RpcDevice,
   type WebSocketFactory,
   type WebSocketLike,
 } from '../src/index.js';
@@ -37,12 +37,12 @@ class FakeWebSocket implements WebSocketLike {
   }
 }
 
-describe('Rer0RpcDevice', () => {
+describe('R2RpcDevice', () => {
   testCase('处理真实 Job 并返回 Result', async () => {
     const webSocket = new FakeWebSocket();
     const webSocketFactory: WebSocketFactory = () => webSocket;
     const stateChanges: string[] = [];
-    const device = new Rer0RpcDevice({
+    const device = new R2RpcDevice({
       baseUrl: 'http://127.0.0.1:3000',
       deviceToken: 'dk_fixture',
       clientId: 'device-1',
@@ -89,7 +89,7 @@ describe('Rer0RpcDevice', () => {
 
   testCase('没有处理器时返回可诊断错误', async () => {
     const webSocket = new FakeWebSocket();
-    const device = new Rer0RpcDevice({
+    const device = new R2RpcDevice({
       baseUrl: 'http://127.0.0.1:3000',
       deviceToken: 'dk_fixture',
       clientId: 'device-1',
@@ -120,7 +120,7 @@ describe('Rer0RpcDevice', () => {
   testCase('Action 超时后只返回一次 timeout 结果', async () => {
     vitest.useFakeTimers();
     const webSocket = new FakeWebSocket();
-    const device = new Rer0RpcDevice({
+    const device = new R2RpcDevice({
       baseUrl: 'http://127.0.0.1:3000',
       deviceToken: 'dk_fixture',
       clientId: 'device-1',
@@ -168,7 +168,7 @@ describe('Rer0RpcDevice', () => {
     const secondWebSocket = new FakeWebSocket();
     const availableWebSockets = [firstWebSocket, secondWebSocket];
     let connectionIndex = 0;
-    const device = new Rer0RpcDevice({
+    const device = new R2RpcDevice({
       baseUrl: 'http://127.0.0.1:3000',
       deviceToken: 'dk_fixture',
       clientId: 'device-1',

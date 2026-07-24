@@ -1,4 +1,4 @@
-package io.rer0rpc.sdk
+package io.r2rpc.sdk
 
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -15,7 +15,7 @@ import okhttp3.WebSocketListener
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 
-class Rer0RpcDeviceTest {
+class R2RpcDeviceTest {
     private val server = MockWebServer()
 
     @AfterTest
@@ -86,8 +86,8 @@ class Rer0RpcDeviceTest {
             ),
         )
         val device =
-            Rer0RpcDevice(
-                Rer0RpcDeviceOptions(
+            R2RpcDevice(
+                R2RpcDeviceOptions(
                     baseUrl = server.url("/").toString(),
                     deviceToken = "dk_fixture",
                     clientId = "device-1",
@@ -177,8 +177,8 @@ class Rer0RpcDeviceTest {
             ),
         )
         val device =
-            Rer0RpcDevice(
-                Rer0RpcDeviceOptions(
+            R2RpcDevice(
+                R2RpcDeviceOptions(
                     baseUrl = server.url("/").toString(),
                     deviceToken = "dk_fixture",
                     clientId = "device-1",

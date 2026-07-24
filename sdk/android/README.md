@@ -1,11 +1,11 @@
-# RER0RPC Android / Kotlin SDK
+# R2RPC Android / Kotlin SDK
 
 Android SDK 是 `minSdk 21`、Java 8 字节码兼容的 Android Library（AAR），使用 OkHttp
 WebSocket、Kotlin Coroutines 和 kotlinx.serialization。它不依赖 Activity 或 Service，可用于
 普通 Android App、前台服务以及 Xposed 宿主模块。
 
 设备端默认读取 Widevine `MediaDrm.PROPERTY_DEVICE_UNIQUE_ID`，编码为小写十六进制并作为
-RER0RPC `clientId`。读取结果在进程内只初始化一次，不需要电话、存储或广告权限；相同 APK
+R2RPC `clientId`。读取结果在进程内只初始化一次，不需要电话、存储或广告权限；相同 APK
 作用域内可跨进程重启保持稳定。
 
 ## 引入
@@ -14,7 +14,7 @@ RER0RPC `clientId`。读取结果在进程内只初始化一次，不需要电�
 
 ```bash
 cd sdk/android
-./gradlew :rer0rpc-sdk:publishToMavenLocal
+./gradlew :r2rpc-sdk:publishToMavenLocal
 ```
 
 在 Android 项目的仓库和依赖中加入：
@@ -26,7 +26,7 @@ repositories {
 }
 
 dependencies {
-    implementation("io.rer0rpc:rer0rpc-android:0.1.0")
+    implementation("io.r2rpc:r2rpc-android:0.1.0")
 }
 ```
 
@@ -34,26 +34,26 @@ SDK 的 AAR 已声明 `android.permission.INTERNET`，应用 Manifest 合并后�
 
 ## 设备上线
 
-`Rer0RpcDeviceOptions.clientId` 默认使用 MediaDrm ID，不需要业务自行生成或持久化。
-`baseUrl` 传 RER0RPC HTTP(S) 服务根地址，不要附加 `/api/client/ws`。
+`R2RpcDeviceOptions.clientId` 默认使用 MediaDrm ID，不需要业务自行生成或持久化。
+`baseUrl` 传 R2RPC HTTP(S) 服务根地址，不要附加 `/api/client/ws`。
 
 ```kotlin
-import io.rer0rpc.sdk.AppAuditRecorder
-import io.rer0rpc.sdk.AppAuditBodyFormat
-import io.rer0rpc.sdk.AppAuditResponse
-import io.rer0rpc.sdk.AppAuditStepInput
-import io.rer0rpc.sdk.AppAuditStepSuccess
-import io.rer0rpc.sdk.DeviceActionResult
-import io.rer0rpc.sdk.Rer0RpcDevice
-import io.rer0rpc.sdk.Rer0RpcDeviceOptions
+import io.r2rpc.sdk.AppAuditRecorder
+import io.r2rpc.sdk.AppAuditBodyFormat
+import io.r2rpc.sdk.AppAuditResponse
+import io.r2rpc.sdk.AppAuditStepInput
+import io.r2rpc.sdk.AppAuditStepSuccess
+import io.r2rpc.sdk.DeviceActionResult
+import io.r2rpc.sdk.R2RpcDevice
+import io.r2rpc.sdk.R2RpcDeviceOptions
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 val device =
-    Rer0RpcDevice(
-        Rer0RpcDeviceOptions(
+    R2RpcDevice(
+        R2RpcDeviceOptions(
             baseUrl = "https://relay.example.com",
-            deviceToken = BuildConfig.RER0RPC_DEVICE_TOKEN,
+            deviceToken = BuildConfig.R2RPC_DEVICE_TOKEN,
             platform = "android",
             extra =
                 buildJsonObject {
@@ -61,10 +61,10 @@ val device =
                 },
             maxInFlight = 512,
             onConnectionEvent = { event ->
-                Log.i("RER0RPC", "${event.state}: ${event.reconnectAttempt}")
+                Log.i("R2RPC", "${event.state}: ${event.reconnectAttempt}")
             },
             onError = { throwable ->
-                Log.e("RER0RPC", "connection error", throwable)
+                Log.e("R2RPC", "connection error", throwable)
             },
         ),
     )
@@ -106,7 +106,7 @@ device.start()
 - `stop()` 停止并允许后续再次 `start()`。
 - `close()` 用于宿主永久销毁，释放 SDK 自建的线程和连接；调用后不要重新启动。
 - `device.clientId` 暴露当前连接使用的 MediaDrm ID；迁移旧设备映射或 JVM 测试时可显式
-  传入 `Rer0RpcDeviceOptions.clientId` 覆盖默认值。
+  传入 `R2RpcDeviceOptions.clientId` 覆盖默认值。
 - Action 处理器运行在 SDK 的 IO CoroutineScope，不阻塞主线程。
 - 未注册、抛错和超时分别自动转换为规范的 `404/error`、`500/error` 和
   `408/timeout` result。
@@ -114,14 +114,14 @@ device.start()
 ## 调用 RPC
 
 ```kotlin
-import io.rer0rpc.sdk.Rer0RpcCaller
-import io.rer0rpc.sdk.Rer0RpcCallerOptions
+import io.r2rpc.sdk.R2RpcCaller
+import io.r2rpc.sdk.R2RpcCallerOptions
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 val caller =
-    Rer0RpcCaller(
-        Rer0RpcCallerOptions(
+    R2RpcCaller(
+        R2RpcCallerOptions(
             baseUrl = "https://relay.example.com",
             accessToken = accessToken,
         ),
@@ -145,14 +145,14 @@ caller.close()
 ```
 
 调用方方法均为 `suspend`，可在 ViewModel、Service 或其他 CoroutineScope 中调用。HTTP
-非 2xx 响应会抛出 `Rer0RpcHttpException`，其中保留状态码和原始响应体。
+非 2xx 响应会抛出 `R2RpcHttpException`，其中保留状态码和原始响应体。
 `payload` 使用 `JsonObject`；数组、字符串和其他顶层标量不符合当前 invoke DTO。
 
 ## 开发验证
 
 ```bash
 cd sdk/android
-./gradlew :rer0rpc-sdk:testDebugUnitTest :rer0rpc-sdk:assembleRelease
+./gradlew :r2rpc-sdk:testDebugUnitTest :r2rpc-sdk:assembleRelease
 ```
 
 测试使用 MockWebServer 走真实 HTTP 和 WebSocket 协议，不调用后端内部模块。

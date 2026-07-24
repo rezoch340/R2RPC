@@ -6,7 +6,7 @@
 
 ## 1. 背景
 
-RER0RPC 已有 `roles`、`permissions`、`role_permissions` 和 `user_roles`，权限计算也已经通过
+R2RPC 已有 `roles`、`permissions`、`role_permissions` 和 `user_roles`，权限计算也已经通过
 CASL 生效。但当前管理 API 更接近底层关联表操作，还缺少面向管理界面的“权限组”契约：
 
 - 角色列表不返回组内权限。

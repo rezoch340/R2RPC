@@ -1,6 +1,6 @@
 # 设备 AppAudit V1 接入协议
 
-RER0RPC 支持设备在最终 WebSocket `result` 中上报内部执行 Step。审计数据只进入请求日志，
+R2RPC 支持设备在最终 WebSocket `result` 中上报内部执行 Step。审计数据只进入请求日志，
 不改变同步 invoke 响应。
 
 官方 Android/Kotlin 与 JavaScript/TypeScript SDK 已内置 Recorder，优先按

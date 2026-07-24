@@ -1,4 +1,4 @@
-# RER0RPC 文档索引
+# R2RPC 文档索引
 
 > 更新日期：2026-07-24。当前验证基线为后端 HTTP/WebSocket 黑盒 **172 passed**、
 > Jest **10 suites / 35 tests**、前端 Playwright **12 passed**、OpenAPI **39 个路径模板**；
@@ -17,7 +17,7 @@
 - `../sdk/javascript/README.md`：JavaScript SDK 安装、设备与调用方示例
 - `../CHANGELOG.md`：按交付阶段记录的变更历史
 - `项目总览-中文.md`：当前架构与范围
-- `RER0RPC-核心功能统计.md`：当前能力矩阵
+- `R2RPC-核心功能统计.md`：当前能力矩阵
 - `后端进度.md`：唯一进度真源
 - `下一步-后端待办.md`：发布就绪待办
 - `design-conventions.md`：工程规范
@@ -30,7 +30,7 @@
 - `superpowers/specs/2026-07-24-unified-configuration-compose-design.md`：统一配置与完整 Compose 设计
 - `superpowers/specs/2026-07-24-container-performance-suite-design.md`：容器性能测试与 4 核 4 GiB 预算
 - `superpowers/specs/2026-07-24-device-sdks-design.md`：Android 与 JavaScript SDK 设计
-- `RER0RPC-新版开工提示词.md`：新任务交接提示
+- `R2RPC-新版开工提示词.md`：新任务交接提示
 - `openapi.yaml`：HTTP OpenAPI
 
 当前实现以运行代码、`openapi.yaml`、上述 README 和 `后端进度.md` 为准。发生 API、配置、

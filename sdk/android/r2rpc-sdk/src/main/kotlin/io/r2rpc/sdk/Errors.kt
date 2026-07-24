@@ -1,21 +1,21 @@
-package io.rer0rpc.sdk
+package io.r2rpc.sdk
 
-open class Rer0RpcException(
+open class R2RpcException(
     message: String,
     cause: Throwable? = null,
 ) : RuntimeException(message, cause)
 
-class Rer0RpcHttpException(
+class R2RpcHttpException(
     message: String,
     val statusCode: Int,
     val responseBody: String,
-) : Rer0RpcException(message)
+) : R2RpcException(message)
 
-class Rer0RpcAuthenticationException(
+class R2RpcAuthenticationException(
     message: String = "设备令牌鉴权失败",
-) : Rer0RpcException(message)
+) : R2RpcException(message)
 
-class Rer0RpcDeviceIdentifierException(
+class R2RpcDeviceIdentifierException(
     message: String,
     cause: Throwable? = null,
-) : Rer0RpcException(message, cause)
+) : R2RpcException(message, cause)

@@ -32,7 +32,7 @@ async function bootstrap() {
   application.enableShutdownHooks();
 
   const swaggerConfiguration = new DocumentBuilder()
-    .setTitle('RER0RPC API')
+    .setTitle('R2RPC API')
     .setVersion('0.1')
     .addBearerAuth()
     .build();

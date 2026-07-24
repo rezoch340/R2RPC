@@ -1,11 +1,11 @@
-# RER0RPC 管理前端设计
+# R2RPC 管理前端设计
 
 > 日期：2026-07-24
 > 状态：已实现
 
 ## 1. 目标
 
-在不改变 RER0RPC 后端领域模型的前提下，使用 Next.js App Router、shadcn、TanStack Query 和数据驱动公共组件结构，提供完整管理控制台。
+在不改变 R2RPC 后端领域模型的前提下，使用 Next.js App Router、shadcn、TanStack Query 和数据驱动公共组件结构，提供完整管理控制台。
 
 ## 2. 硬边界
 

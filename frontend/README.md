@@ -1,6 +1,6 @@
-# RER0RPC Frontend
+# R2RPC Frontend
 
-RER0RPC 管理控制台，技术栈为 Next.js 16 App Router、React 19、Tailwind CSS 4、
+R2RPC 管理控制台，技术栈为 Next.js 16 App Router、React 19、Tailwind CSS 4、
 shadcn/base-nova 和 TanStack Query。
 
 ## 页面

@@ -1,7 +1,9 @@
+name: r2rpc
+
 x-backend-image: &backend-image
   build:
     context: ./backend
-  image: rer0rpc-backend:local
+  image: r2rpc-backend:local
 
 x-application-config: &application-config
   volumes:
@@ -58,15 +60,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: rer0rpc
-      POSTGRES_PASSWORD: rer0rpc
-      POSTGRES_DB: rer0rpc
+      POSTGRES_USER: r2rpc
+      POSTGRES_PASSWORD: r2rpc
+      POSTGRES_DB: r2rpc
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rer0rpc -d rer0rpc"]
+      test: ["CMD-SHELL", "pg_isready -U r2rpc -d r2rpc"]
       interval: 5s
       timeout: 3s
       retries: 12
@@ -164,7 +166,7 @@ services:
     <<: *frontend-resources
     build:
       context: ./frontend
-    image: rer0rpc-frontend:local
+    image: r2rpc-frontend:local
     restart: unless-stopped
     ports:
       - "3001:3001"

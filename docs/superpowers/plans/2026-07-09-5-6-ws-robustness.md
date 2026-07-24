@@ -90,8 +90,8 @@ export interface JobMessage {
 - [ ] **Step 5: build + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -3
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src && git commit -m "feat(6): WS maxPayload 4MiB frame limit + job deadlineAt drop guard"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -3
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src && git commit -m "feat(6): WS maxPayload 4MiB frame limit + job deadlineAt drop guard"
 ```
 
 ---
@@ -163,8 +163,8 @@ const READ_TIMEOUT_MS = 20000; // 无活动(message/pong)超此即判离线断�
 - [ ] **Step 4: build + lint + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/nest build 2>&1 | tail -3 && node_modules/.bin/eslint src/infrastructure/ws/ws.gateway.ts
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/infrastructure/ws/ws.gateway.ts && git commit -m "feat(5): server-side WS ping (5s) + read-timeout (20s) terminate on inactivity"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/nest build 2>&1 | tail -3 && node_modules/.bin/eslint src/infrastructure/ws/ws.gateway.ts
+cd /Users/lpitiless/Documents/R2RPC && git add backend/src/infrastructure/ws/ws.gateway.ts && git commit -m "feat(5): server-side WS ping (5s) + read-timeout (20s) terminate on inactivity"
 ```
 
 ---
@@ -188,7 +188,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/src/infrastructure/ws/w
 - [ ] **Step 2: build + 起 API + 跑 smoke**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend
+cd /Users/lpitiless/Documents/R2RPC/backend
 node_modules/.bin/nest build 2>&1 | tail -2
 pkill -f 'node dist/main.js' 2>/dev/null; sleep 1
 node dist/main.js > /tmp/api-56.log 2>&1 &
@@ -201,8 +201,8 @@ Expected:全 PASS + `SMOKE PASSED`,含"收到服务端主动 ping"。FAIL 别提
 - [ ] **Step 3: prettier + 提交**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC/backend && node_modules/.bin/prettier --write "test/**/*.js" >/dev/null
-cd /Users/lpitiless/Documents/RER0RPC && git add backend/test/smoke.e2e.js && git commit -m "test(5): assert server-side WS ping received"
+cd /Users/lpitiless/Documents/R2RPC/backend && node_modules/.bin/prettier --write "test/**/*.js" >/dev/null
+cd /Users/lpitiless/Documents/R2RPC && git add backend/test/smoke.e2e.js && git commit -m "test(5): assert server-side WS ping received"
 ```
 
 ---
@@ -228,7 +228,7 @@ cd /Users/lpitiless/Documents/RER0RPC && git add backend/test/smoke.e2e.js && gi
 - [ ] **Step 2: 提交 + 推 + PR**
 
 ```bash
-cd /Users/lpitiless/Documents/RER0RPC && git add docs/后端进度.md && git commit -m "docs(5+6): mark WS robustness done" && git push -u origin feat/5-6-ws-robustness && gh pr create --base main --title "feat(5+6): WS 健壮性(服务端 ping/读超时 + 帧上限/deadline)" --body "#5 服务端 ping(5s)+ 读超时(20s)判离线;#6 单帧 4MiB 上限 + job deadlineAt 丢弃。拒分片按 ws 限制延后。计划见 docs/superpowers/plans/2026-07-09-5-6-ws-robustness.md"
+cd /Users/lpitiless/Documents/R2RPC && git add docs/后端进度.md && git commit -m "docs(5+6): mark WS robustness done" && git push -u origin feat/5-6-ws-robustness && gh pr create --base main --title "feat(5+6): WS 健壮性(服务端 ping/读超时 + 帧上限/deadline)" --body "#5 服务端 ping(5s)+ 读超时(20s)判离线;#6 单帧 4MiB 上限 + job deadlineAt 丢弃。拒分片按 ws 限制延后。计划见 docs/superpowers/plans/2026-07-09-5-6-ws-robustness.md"
 ```
 
 - [ ] **Step 3:** 回填 PR 号,补一提交。

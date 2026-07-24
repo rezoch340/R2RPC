@@ -6,11 +6,11 @@ plugins {
     kotlin("plugin.serialization")
 }
 
-group = "io.rer0rpc"
+group = "io.r2rpc"
 version = "0.1.0"
 
 android {
-    namespace = "io.rer0rpc.sdk"
+    namespace = "io.r2rpc.sdk"
     compileSdk = 36
 
     defaultConfig {
@@ -52,14 +52,14 @@ tasks.withType<Test>().configureEach {
 publishing {
     publications {
         register<MavenPublication>("release") {
-            artifactId = "rer0rpc-android"
+            artifactId = "r2rpc-android"
             afterEvaluate {
                 from(components["release"])
             }
             pom {
-                name.set("RER0RPC Android SDK")
+                name.set("R2RPC Android SDK")
                 description.set(
-                    "RER0RPC Android/Kotlin device and caller SDK",
+                    "R2RPC Android/Kotlin device and caller SDK",
                 )
             }
         }
