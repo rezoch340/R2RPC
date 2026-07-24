@@ -29,8 +29,8 @@
 - 请求详情使用右侧抽屉，AppAudit Step 默认折叠，展开后才占用详情阅读空间。
 - 运行概览的近 7 天请求量使用带节点、悬停数值和面积渐变的折线趋势图。
 - JWT 存储在浏览器 `localStorage`；401 时清理并回到登录页。
-- API 地址支持容器运行时 YAML、构建期环境变量和当前主机端口回连。
-- 后端启用 CORS；生产使用 `CORS_ORIGIN` 限定允许来源。
+- API 地址由统一 `config.yaml` 的 `frontend.apiUrl/apiPort` 提供，并支持当前主机端口回连。
+- 后端启用 CORS；当前实现由统一 `config.yaml` 的 `app.corsOrigins` 限定允许来源。
 
 ## 4. 页面映射
 

@@ -4,7 +4,8 @@
 
 ## 1. 完成度
 
-后端既定 backlog #1–#15 与管理前端 #16、手动 RPC 调试 #17、后台授权缓存 #18 全部完成。代码包含 39 个 HTTP
+后端既定 backlog #1–#15 与管理前端 #16、手动 RPC 调试 #17、后台授权缓存 #18、统一配置与
+完整 Compose #19 全部完成。代码包含 39 个 HTTP
 路径模板、1 个设备 WebSocket 网关、API/Worker 双进程、15 张 PostgreSQL 表、9 个数据库
 迁移和 10 个管理页面。
 
@@ -30,6 +31,7 @@
 | 代码质量 | 完整变量名、复杂度/嵌套/函数长度门禁 | ✅ | `pnpm lint:check` |
 | 管理前端 | Next.js + shadcn，完整后台公开面 | ✅ | Playwright 12 项 + HTTP |
 | 前端质量 | 页面/组件/E2E 完整变量名门禁、ESLint、生产构建 | ✅ | `frontend/pnpm lint` |
+| 配置与部署 | 前后端统一 YAML、API/Worker/frontend 镜像、完整 Compose | ✅ | loader 单测 + Compose/build |
 
 ## 2. HTTP API
 
@@ -148,6 +150,17 @@ AppAudit Step，列表不携带大字段。运行概览使用近 7 天折线趋�
 不可用或被拒绝时自动回退。手动 RPC 页可选择功能组、历史 Action、在线设备和超时，格式化
 Payload，并排查看原始请求、响应、业务状态和耗时；重复调用等待期间保留上一份结果，操作
 按钮不改变文案、尺寸、位置和不透明度；页面入口由 `invoke/manual-rpc` 控制。
+
+### 统一配置与部署
+
+- 根目录 `config.example.yaml` 是宿主机模板；`deploy/config.example.yaml` 使用相同 schema，
+  仅把基础设施主机改为 Compose 服务名。
+- API、Worker、Drizzle、迁移、种子和前端只读取 `config.yaml`；`CONFIG_FILE` 仅选择文件。
+- CORS、前端 API、开发来源和种子管理员已从分散环境变量迁入
+  `app/frontend/bootstrap` 配置段。
+- 根目录 `compose.yaml` 编排 PostgreSQL、Redis、Manticore、migration、seed、API、
+  Worker 与 frontend，并使用健康检查和一次性任务完成条件控制启动顺序。
+- `backend/Dockerfile` 与 `frontend/Dockerfile` 均生成非 root 生产镜像；统一配置只读挂载。
 
 ## 3. WebSocket 协议
 
@@ -288,7 +301,8 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 ### 单元测试
 
-- Jest 9 suites / 31 tests。
+- Jest 10 suites / 35 tests。
+- 统一配置 loader 覆盖父目录查找、`CONFIG_FILE` 显式选择、schema 默认值和非法配置拒绝。
 - 公共 Redis cache-aside 覆盖命中、持久层 fallback 与回写、负缓存、契约异常失效、
   写后删除和写失败不删缓存。
 
@@ -319,8 +333,8 @@ HTTP API；覆盖全部管理页、手动 RPC 调试、字段筛选与分页、�
 数据库或 Redis。
 前端 `test/assert-readable-source.cjs` 覆盖页面、组件和 E2E。
 
-Jest 当前为 8 个 suite、24 个测试，包含系统审计推导、登录/读取/拒绝访问、
-摘要/白名单/失败结果/无请求体回归、管理员策略分支以及
+Jest 当前为 10 个 suite、35 个测试，包含统一配置加载、公共 Redis cache-aside、系统审计
+推导、登录/读取/拒绝访问、摘要/白名单/失败结果/无请求体回归、管理员策略分支以及
 RootGuard 的 root、非 root `manage/rbac` 和缺失身份分支。
 
 ### 内部集成

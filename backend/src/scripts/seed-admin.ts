@@ -12,7 +12,6 @@ import {
 import { hashPassword } from '../common/utils/password';
 
 // 种子管理员账号 + demo 分组/设备 + RBAC 基础数据(幂等,可重复执行)。用法: pnpm seed:admin
-// 可用环境变量覆盖: ADMIN_USER / ADMIN_PASSWORD
 const DEMO_PROJECTS = ['cn-nodes', 'us-nodes'];
 
 // 权限全集(action, subject, description)
@@ -80,8 +79,7 @@ async function main() {
   const connectionPool = new Pool(configuration.db);
   const database = drizzle(connectionPool);
 
-  const username = process.env.ADMIN_USER || 'admin';
-  const password = process.env.ADMIN_PASSWORD || 'admin123456';
+  const { username, password } = configuration.bootstrap.admin;
 
   await database
     .insert(users)

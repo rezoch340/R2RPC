@@ -26,47 +26,51 @@ pnpm install
 pnpm dev
 ```
 
-前端监听 `http://127.0.0.1:3001`。默认连接浏览器当前主机的 `3000` 端口；后端位于其他地址时：
+前端监听 `http://127.0.0.1:3001`。API、Worker、迁移、种子和前端共用根目录
+`config.yaml`：
 
 ```bash
-cp .env.local.example .env.local
-# 编辑 NEXT_PUBLIC_API_URL
+cd ..
+cp config.example.yaml config.yaml
+cd frontend
 pnpm dev
 ```
 
-后端必须允许前端 Origin。RER0RPC API 默认开启 CORS；生产可用后端环境变量
-`CORS_ORIGIN=https://console.example.com` 限制允许来源，多个来源用逗号分隔。
+`frontend.apiUrl: null` 时，浏览器连接“当前页面协议与主机 + `frontend.apiPort`”；后端位于
+独立域名时配置 `frontend.apiUrl`。后端 CORS 由同一文件的 `app.corsOrigins` 控制。
 
 开发服务器会自动把本机 IPv4 网卡地址加入 Next.js `allowedDevOrigins`，因此通过局域网 IP
-访问时 HMR WebSocket 仍可正常连接。反向代理或自定义开发域名可在 `.env.local` 增加：
+访问时 HMR WebSocket 仍可正常连接。反向代理或自定义开发域名写入：
 
-```bash
-NEXT_ALLOWED_DEV_ORIGINS=console.local,dev.example.test
+```yaml
+frontend:
+  allowedDevOrigins:
+    - console.local
+    - dev.example.test
 ```
 
 ## 运行时配置
 
-容器可挂载 `/app/frontend.yaml`，无需重建镜像即可切换 API：
+前端服务端只从统一文件提取浏览器需要的白名单：
 
 ```yaml
-apiUrl: https://api.example.com
-# apiUrl 留空时按当前主机回连：
-apiPort: 3000
+frontend:
+  apiUrl: https://api.example.com
+  apiPort: 3000
+  allowedDevOrigins: []
 ```
 
-解析优先级：
-
-1. `/app/frontend.yaml` 注入的 `apiUrl`
-2. `NEXT_PUBLIC_API_URL`
-3. 当前页面协议与主机 + `apiPort` / `NEXT_PUBLIC_API_PORT`
-4. 服务端渲染兜底 `http://127.0.0.1:3000`
+本地 `pnpm dev` 选择根目录 `config.yaml`；容器只读挂载为 `/app/config.yaml`。也可通过
+`CONFIG_FILE` 选择其他同 schema 文件。浏览器不会收到数据库、Redis、JWT 或管理员配置。
+旧 `.env.local`、`NEXT_PUBLIC_*`、`NEXT_ALLOWED_DEV_ORIGINS` 和独立 `frontend.yaml`
+已经删除。
 
 ## 验证
 
 ```bash
 pnpm lint
 pnpm build
-E2E_API_URL=http://127.0.0.1:3000 pnpm test:e2e
+pnpm test:e2e
 ```
 
 前端 E2E 使用浏览器登录并访问公开 HTTP API。`test/assert-blackbox-e2e.cjs`

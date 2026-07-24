@@ -7,7 +7,15 @@ export const configSchema = z.object({
     globalPrefix: z.string().default(''),
     // 手机端下发的 WebSocket 公网地址前缀;不填则用 ws://127.0.0.1:{port}
     publicWsUrl: z.string().optional(),
+    corsOrigins: z.array(z.string().min(1)).min(1).default(['*']),
   }),
+  frontend: z
+    .object({
+      apiUrl: z.string().url().nullable().default(null),
+      apiPort: z.number().int().positive().default(3000),
+      allowedDevOrigins: z.array(z.string().min(1)).default([]),
+    })
+    .prefault({}),
   db: z.object({
     host: z.string(),
     port: z.number().int().positive(),
@@ -29,6 +37,16 @@ export const configSchema = z.object({
   manticore: z.object({
     url: z.string().min(1),
   }),
+  bootstrap: z
+    .object({
+      admin: z
+        .object({
+          username: z.string().min(1).max(64).default('admin'),
+          password: z.string().min(8).max(128).default('admin123456'),
+        })
+        .prefault({}),
+    })
+    .prefault({}),
   // 日志保留(request_logs);非法值(≤0)直接校验失败终止,不静默兜底
   retention: z
     .object({

@@ -1,0 +1,7 @@
+node_modules
+dist
+coverage
+config.yaml
+test
+*.log
+.DS_Store

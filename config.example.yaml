@@ -1,0 +1,47 @@
+# 宿主机开发配置：复制为根目录 config.yaml 后使用。
+app:
+  port: 3000
+  globalPrefix: ''
+  # 设备侧看到的公网 WebSocket 地址。
+  publicWsUrl: ws://127.0.0.1:3000/api/client/ws
+  # '*' 允许任意 Origin；生产应改为明确的控制台地址列表。
+  corsOrigins:
+    - '*'
+
+frontend:
+  # null 表示浏览器使用“当前页面协议与主机 + apiPort”。
+  apiUrl: null
+  apiPort: 3000
+  # 仅用于 Next.js 开发资源来源校验；本机 IP 会自动加入。
+  allowedDevOrigins: []
+
+db:
+  host: 127.0.0.1
+  port: 5432
+  user: rer0rpc
+  password: rer0rpc
+  database: rer0rpc
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+  password: null
+  db: 0
+
+jwt:
+  secret: change-me-in-prod-please
+  expiresIn: 7d
+  authorizationCacheTtlSeconds: 60
+
+manticore:
+  url: http://127.0.0.1:9308
+
+bootstrap:
+  admin:
+    username: admin
+    password: admin123456
+
+retention:
+  rawRetentionDays: 3
+  keepLatestPerScope: 100
+  aggregateRetentionDays: 30

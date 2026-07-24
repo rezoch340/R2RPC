@@ -4,9 +4,9 @@
   "private": true,
   "packageManager": "pnpm@11.17.0",
   "scripts": {
-    "dev": "next dev -p 3001",
+    "dev": "CONFIG_FILE=../config.yaml next dev -p 3001",
     "build": "next build",
-    "start": "next start -p 3001",
+    "start": "CONFIG_FILE=../config.yaml next start -p 3001",
     "lint": "node test/assert-readable-source.cjs && eslint .",
     "lint:fix": "node test/assert-readable-source.cjs && eslint . --fix",
     "test:e2e": "node test/assert-blackbox-e2e.cjs && playwright test"

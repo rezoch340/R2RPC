@@ -3,18 +3,29 @@
 set -eu
 
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-BACKEND="$HERE/../backend"
+ROOT="$HERE/.."
+BACKEND="$ROOT/backend"
+COMPOSE_FILE="$ROOT/compose.yaml"
+
+if [ ! -f "$ROOT/config.yaml" ]; then
+  cp "$ROOT/config.example.yaml" "$ROOT/config.yaml"
+  echo "==> 已生成宿主机配置: config.yaml"
+fi
+if [ ! -f "$HERE/config.yaml" ]; then
+  cp "$HERE/config.example.yaml" "$HERE/config.yaml"
+  echo "==> 已生成 Compose 配置: deploy/config.yaml"
+fi
 
 echo "==> 启动基础设施 (postgres / redis / manticore)"
-docker compose -f "$HERE/docker-compose.yml" up -d postgres redis manticore
+docker compose -f "$COMPOSE_FILE" up -d postgres redis manticore
 
 echo "==> 等待 Postgres 就绪"
-until docker compose -f "$HERE/docker-compose.yml" exec -T postgres pg_isready -U rer0rpc -d rer0rpc >/dev/null 2>&1; do
+until docker compose -f "$COMPOSE_FILE" exec -T postgres pg_isready -U rer0rpc -d rer0rpc >/dev/null 2>&1; do
   sleep 1
 done
 
 echo "==> 等待 Redis 就绪"
-until docker compose -f "$HERE/docker-compose.yml" exec -T redis redis-cli ping >/dev/null 2>&1; do
+until docker compose -f "$COMPOSE_FILE" exec -T redis redis-cli ping >/dev/null 2>&1; do
   sleep 1
 done
 

@@ -21,25 +21,27 @@ sh deploy/dev-up.sh
 
 ## 配置
 
-默认读取当前目录的 `config.yaml`，可用 `CONFIG_FILE` 指向其他 YAML。
+API、Worker、迁移、种子和前端共用根目录统一配置。后端从当前目录向上查找最近的
+`config.yaml`，也可用 `CONFIG_FILE` 选择其他同 schema 文件。
 
 ```bash
+cd ..
 cp config.example.yaml config.yaml
 ```
 
 配置包含：
 
-- `app.port`、`app.globalPrefix`、`app.publicWsUrl`
+- `app.port`、`app.globalPrefix`、`app.publicWsUrl`、`app.corsOrigins`
+- `frontend.apiUrl`、`frontend.apiPort`、`frontend.allowedDevOrigins`
 - PostgreSQL
 - Redis
 - JWT（含 `authorizationCacheTtlSeconds`，用户授权缓存默认 60 秒，允许 60–300 秒）
 - Manticore
+- `bootstrap.admin` 种子管理员
 - 原始日志和日聚合保留策略
 
 配置由 zod 校验，非法值会让进程启动失败。
-
-API 默认允许浏览器跨域访问。生产环境可设置 `CORS_ORIGIN` 为允许的控制台 Origin，多个值用
-逗号分隔；例如 `CORS_ORIGIN=https://console.example.com`。
+`CONFIG_FILE` 只选择文件位置；CORS、管理员和其他业务配置值不再读取环境变量。
 
 ## 初始化
 
@@ -67,6 +69,17 @@ node dist/worker.js
 ```
 
 Swagger 位于 `/docs`，设备 WebSocket 位于 `/api/client/ws`。
+
+生产镜像与完整 Compose：
+
+```bash
+docker build -t rer0rpc-backend backend
+cp deploy/config.example.yaml deploy/config.yaml
+docker compose up -d --build
+```
+
+同一后端镜像通过不同命令运行 migration、seed、API 和 Worker，具体依赖顺序见
+`../compose.yaml` 与 `../deploy/README.md`。
 
 ## 后台账号写保护
 
@@ -168,8 +181,9 @@ Swagger 位于 `/docs`，设备 WebSocket 位于 `/api/client/ws`。
 pnpm test
 ```
 
-当前为 Jest **9 suites / 31 tests**，其中公共 Redis cache-aside 覆盖命中、PostgreSQL fallback
-回写、负缓存、脏数据失效、写后删除以及写失败不删缓存。
+当前为 Jest **10 suites / 35 tests**，覆盖统一配置文件查找/显式选择/schema 默认值/非法配置，
+以及公共 Redis cache-aside 的命中、PostgreSQL fallback 回写、负缓存、脏数据失效、写后删除
+和写失败不删缓存。
 
 ### 黑盒 E2E / 完整性冒烟
 

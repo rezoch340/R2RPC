@@ -16,16 +16,8 @@ function resolveApiBaseUrl(): string {
     return runtimeConfiguration.apiUrl.replace(/\/$/, '');
   }
 
-  const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (configuredApiUrl) {
-    return configuredApiUrl.replace(/\/$/, '');
-  }
-
   if (typeof window !== 'undefined') {
-    const apiPort =
-      runtimeConfiguration?.apiPort ??
-      process.env.NEXT_PUBLIC_API_PORT ??
-      '3000';
+    const apiPort = runtimeConfiguration?.apiPort ?? 3000;
     return `${window.location.protocol}//${window.location.hostname}:${apiPort}`;
   }
 

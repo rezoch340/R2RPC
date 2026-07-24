@@ -1,3 +1,0 @@
-# 浏览器默认按“访问前端的主机 + 此端口”连接后端。
-# 后端位于独立域名时改为 apiUrl: https://api.example.com
-apiPort: 3000

@@ -264,10 +264,12 @@ async fillAndSave(input: {
 - RBAC 前端显隐只改善体验，不能替代后端 Guard；不得因按钮隐藏而弱化服务端授权。
 - 手动 RPC 页面只调用后台 JWT 保护的 `/rpc/debug/*`，导航和页面都按
   `invoke/manual-rpc` 显隐；禁止让浏览器读取、选择或代填 Access Token。
-- 后端地址按运行时 YAML、`NEXT_PUBLIC_API_URL`、当前主机 + API 端口顺序解析；生产使用
-  `CORS_ORIGIN` 明确允许控制台来源。
+- API、Worker、迁移、种子和前端使用同一 `config.yaml` schema；`CONFIG_FILE` 仅选择文件
+  位置，禁止从分散环境变量读取 CORS、管理员、前端 API 地址或其他业务配置值。
+- 前端只向浏览器注入 `frontend.apiUrl/apiPort` 白名单；数据库、Redis、JWT 和
+  `bootstrap.admin` 不得进入浏览器 HTML。
 - Next.js 开发服务器自动允许本机 IPv4 网卡地址访问 HMR；反向代理或自定义开发域名通过
-  `NEXT_ALLOWED_DEV_ORIGINS` 显式补充，不允许用全开放通配符绕过开发资源来源检查。
+  `frontend.allowedDevOrigins` 显式补充，不允许用全开放通配符绕过开发资源来源检查。
 
 ### 数据驱动公共组件
 
@@ -338,5 +340,5 @@ async fillAndSave(input: {
 - 必须真实覆盖 WS，不用内存 sink 替代：鉴权、welcome、heartbeat、服务端 ping、读超时、异常帧、RPC job/result、AppAudit、来源身份和去重均走真实 socket。
 - 底层维护算法若没有公开控制面，可写 `*.integration.ts` 直接构造 PG/Redis 状态，但命令必须放在 `test:integration:*`，明确标注**非 E2E**。
 - 正确流程：启动隔离基础设施 → 迁移和种子 → 启动 API + Worker → 运行 `pnpm smoke`。
-- 前端完整流程：同一真实 API/Worker 运行时 → `E2E_API_URL=<api> pnpm test:e2e`；不允许
-  用数据库造数据后再冒充 E2E。
+- 前端完整流程：统一配置指向同一真实 API/Worker → `CONFIG_FILE=<config> pnpm test:e2e`；
+  不允许用数据库造数据后再冒充 E2E。
