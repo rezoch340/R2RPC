@@ -60,6 +60,37 @@ test('移动端导航可以打开并进入管理页面', async ({ page }) => {
   ).toBeVisible();
 });
 
+test('页面切换等待接口预取完成且不闪加载骨架', async ({ page }) => {
+  let releaseUsersRequest: (() => void) | undefined;
+  let markUsersRequestStarted: (() => void) | undefined;
+  const usersRequestStarted = new Promise<void>((resolve) => {
+    markUsersRequestStarted = resolve;
+  });
+  const usersRequestCanContinue = new Promise<void>((resolve) => {
+    releaseUsersRequest = resolve;
+  });
+
+  await page.route('**/users', async (route) => {
+    markUsersRequestStarted?.();
+    await usersRequestCanContinue;
+    await route.continue();
+  });
+
+  await page.getByRole('link', { name: '后台账号' }).click();
+  await usersRequestStarted;
+  await expect(
+    page.getByRole('heading', { name: '运行概览' }),
+  ).toBeVisible();
+  await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0);
+
+  releaseUsersRequest?.();
+  await expect(page).toHaveURL('/users');
+  await expect(
+    page.getByRole('heading', { name: '后台账号', exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0);
+});
+
 test('未登录访问受保护页面会跳转登录', async ({ browser }) => {
   const isolatedContext = await browser.newContext();
   const isolatedPage = await isolatedContext.newPage();

@@ -23,6 +23,7 @@ shadcn、TanStack Query 和数据驱动公共组件结构，提供完整管理�
 - Next.js 16 App Router、React 19、TypeScript strict。
 - Tailwind CSS 4 + shadcn base-nova 组件源码。
 - TanStack Query 管理服务端状态和 mutation 后精确失效。
+- 服务端分页切换时保留上一页数据；侧栏导航按当前权限预取目标页面的公开接口，接口完成后再提交路由，避免短暂骨架屏闪烁。
 - JWT 存储在浏览器 `localStorage`；401 时清理并回到登录页。
 - API 地址支持容器运行时 YAML、构建期环境变量和当前主机端口回连。
 - 后端启用 CORS；生产使用 `CORS_ORIGIN` 限定允许来源。
@@ -52,9 +53,10 @@ shadcn、TanStack Query 和数据驱动公共组件结构，提供完整管理�
 - `pnpm lint`：完整变量名门禁 + ESLint。
 - `pnpm build`：Next.js 生产构建和 TypeScript。
 - Playwright：从登录 UI 获取真实 JWT，逐页验证公开 HTTP API。
+- Playwright 延迟真实用户列表接口，验证预取期间保留当前页面且目标页不出现加载骨架。
 - `test/assert-blackbox-e2e.cjs`：静态拒绝后端内部导入、持久层客户端和 SQL。
 - 后端 143 项 HTTP/WebSocket 黑盒继续复跑，确认 CORS 与访问审计不影响设备 WS 和 Worker 冷路径。
 
 验证结果：前端变量名门禁与 ESLint 通过、Next.js 生产构建通过、Playwright
-**4 passed**；后端 Jest **8 suites / 24 tests passed**，HTTP/WebSocket 黑盒
+**5 passed**；后端 Jest **8 suites / 24 tests passed**，HTTP/WebSocket 黑盒
 **143 passed, 0 failed**。

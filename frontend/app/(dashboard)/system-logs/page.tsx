@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Eye, RotateCcw, Search } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { JsonBlock } from '@/components/json-block';
@@ -75,6 +75,7 @@ export default function SystemLogsPage() {
       requestApi<PaginatedResponse<SystemLogRecord>>(
         `/system-logs${queryString}`,
       ),
+    placeholderData: keepPreviousData,
   });
 
   function updateFilter(key: keyof SystemLogFilters, value: string) {

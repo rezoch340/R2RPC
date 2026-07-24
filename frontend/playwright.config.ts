@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 const apiUrl = process.env.E2E_API_URL ?? 'http://127.0.0.1:3000';
 const frontendPort = process.env.E2E_FRONTEND_PORT ?? '3001';
+const reuseExistingServer =
+  process.env.E2E_REUSE_EXISTING_SERVER === 'true';
 
 export default defineConfig({
   testDir: './e2e',
@@ -20,7 +22,7 @@ export default defineConfig({
   webServer: {
     command: `NEXT_PUBLIC_API_URL=${apiUrl} pnpm next dev -p ${frontendPort}`,
     url: `http://127.0.0.1:${frontendPort}/login`,
-    reuseExistingServer: false,
+    reuseExistingServer,
     timeout: 60_000,
   },
 });
