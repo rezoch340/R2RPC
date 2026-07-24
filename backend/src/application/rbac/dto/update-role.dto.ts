@@ -1,12 +1,13 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
-export class CreateRoleDto {
-  @ApiProperty({ minLength: 1, maxLength: 64 })
+export class UpdateRoleDto {
+  @ApiPropertyOptional({ minLength: 1, maxLength: 64 })
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(64)
-  name: string;
+  name?: string;
 
   @ApiPropertyOptional({ maxLength: 255 })
   @IsOptional()

@@ -12,3 +12,18 @@ export interface AuthenticatedUser {
   permissions: PermissionTuple[];
   isRoot: boolean;
 }
+
+export interface PermissionGroupPermission {
+  id: number;
+  action: string;
+  subject: string;
+  description: string | null;
+}
+
+export interface PermissionGroup {
+  id: number;
+  name: string;
+  description: string | null;
+  createdAt: Date;
+  permissions: PermissionGroupPermission[];
+}

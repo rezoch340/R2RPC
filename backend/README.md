@@ -77,6 +77,18 @@ Swagger 位于 `/docs`，设备 WebSocket 位于 `/api/client/ws`。
 完整设计见
 `../docs/superpowers/specs/2026-07-24-administrator-account-isolation-design.md`。
 
+## 权限组
+
+- 现有 `roles` 就是权限组，不另建用户组表；一个用户可分配多个权限组，最终权限取并集。
+- `GET /rbac/roles` 和 `GET /rbac/users/:userId/roles` 返回组内嵌套权限。
+- `PATCH /rbac/roles/:id` 可修改权限组名称和描述。
+- 权限挂载和用户分组同时支持请求体形式与原 URL 形式，旧客户端无需迁移。
+- RBAC 读接口要求 `read/rbac`；所有 RBAC 写接口再叠加 `RootGuard`，仅种子管理员可执行，
+  普通用户即使拥有 `manage/rbac` 也不能修改权限组、权限目录或用户分组。
+- 没有 schema 变化；部署后重跑 `pnpm seed:admin` 即可补齐 `read/rbac`。
+
+完整设计见 `../docs/superpowers/specs/2026-07-24-permission-groups-design.md`。
+
 ## 测试
 
 ### 单元测试
@@ -109,8 +121,9 @@ BASE_URL=http://127.0.0.1:3000 pnpm smoke
 - 覆盖 RPC 成功、失败、超时、身份匹配、去重和 maxInFlight
 - 覆盖设备通过真实 WS 上报 AppAudit 成功/失败 Step、非法审计隔离和 Monitor API 读取
 - 覆盖用户资料、改密和管理员资料/密码/启停/删除/RBAC 角色关系隔离
+- 覆盖权限组编辑、嵌套权限、用户分组查询和非 root 持 `manage/rbac` 仍被拒绝
 - 通过 monitor/metrics API 观察 Worker 冷路径
-- 当前为 131 项运行时检查
+- 当前为 136 项运行时检查
 
 `test/assert-blackbox-e2e.js` 会拒绝 E2E 导入持久层客户端或应用内部服务。
 

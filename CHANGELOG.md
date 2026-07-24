@@ -4,13 +4,22 @@
 
 ## [Unreleased]
 
+### FlowCore 风格权限组
+- 复用现有 `roles`、`permissions`、`role_permissions`、`user_roles`，明确 Role 即权限组；用户可分配多个权限组，授权继续取所有有效组权限的并集，无数据库迁移。
+- `GET /rbac/roles` 现返回嵌套权限；新增 `PATCH /rbac/roles/:id` 和 `GET /rbac/users/:userId/roles`。
+- 新增请求体形式的权限挂载与用户分组接口，同时保留原 URL 形式 POST 兼容入口。
+- 新增 `RootGuard` 并覆盖全部 RBAC 写接口；只有种子管理员可修改权限组、权限目录和用户分组，普通用户即使拥有 `manage/rbac` 仍返回 403。
+- RBAC 读接口统一使用新增的 `read/rbac`；种子权限增至 17 条，operator 的 `read/*` 权限增至 7 条，部署只需重跑 `pnpm seed:admin`。
+- 权限组权限采用固定批量查询组装，避免 N+1；新增 RootGuard 单元测试和纯 HTTP 黑盒权限组场景。
+- 当前验证为 Jest **6 suites / 14 tests**、OpenAPI **34 个路径模板**、完整黑盒 **136 passed、0 failed**，E2E 仍只访问 HTTP/WebSocket。
+
 ### 管理员账号隔离与改密
 - 参考 FlowCore 增加 `PATCH /users/:id` 资料修改和 `PATCH /users/:id/password` 改密接口；创建、列表、详情和写响应统一显式选择安全用户字段，不返回 `passwordHash`。
 - 新增共享 `AdministratorAccountPolicyService`：目标为 `isRoot` 管理员且请求者不是本人时返回 403；请求者编号只从 JWT 鉴权上下文读取。
 - 统一保护资料、密码、enabled、软删除以及 RBAC 用户角色绑定/解绑，避免通过其他写入口绕过管理员隔离；`users.role` 继续只作遗留展示，不参与授权或保护。
 - 密码、用户名和 description 输入补齐数据库对应的长度上限；密码修改后旧密码登录返回 401，新密码可登录。
-- 新增策略单元测试和纯 HTTP 黑盒隔离场景；完整套件现为 **131 passed、0 failed**，且继续由边界守卫禁止直连持久层。
-- 新增 SDD 规格与实现计划，重新导出 32 个路径模板的 OpenAPI，并同步全部当前项目文档。
+- 新增策略单元测试和纯 HTTP 黑盒隔离场景；该阶段基线为 **131 passed、0 failed**，且继续由边界守卫禁止直连持久层。
+- 新增 SDD 规格与实现计划，该阶段导出 32 个路径模板的 OpenAPI，并同步全部当前项目文档。
 
 ### 可读命名与控制流硬化
 - 全量审计 `backend/src` 与 `backend/test`：清除单字母、双字母和 `cfg/ctx/req/res/dto/tx/svc` 等含糊变量名，测试与内部集成脚本同样纳入。

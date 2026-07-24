@@ -29,13 +29,14 @@ const ALL_PERMISSIONS: Array<{ action: string; subject: string }> = [
   { action: 'read', subject: 'monitor' },
   { action: 'invoke', subject: 'rpc' },
   { action: 'read', subject: 'rpc' },
+  { action: 'read', subject: 'rbac' },
   { action: 'manage', subject: 'rbac' },
   { action: 'manage', subject: 'access-token' },
   { action: 'manage', subject: 'device-token' },
   { action: 'read', subject: 'device' },
 ];
 
-// operator 角色只挂 read/* 权限(只读,无 create/delete/invoke/manage)
+// operator 权限组只挂 read/* 权限(只读,无 create/delete/invoke/manage)
 const OPERATOR_PERMISSIONS = ALL_PERMISSIONS.filter(
   (permission) => permission.action === 'read',
 );
@@ -83,10 +84,10 @@ async function main() {
     ]),
   );
 
-  // operator 角色(幂等)
+  // operator 权限组(幂等)
   await database
     .insert(roles)
-    .values({ name: 'operator', description: '只读角色:仅拥有 read/* 权限' })
+    .values({ name: 'operator', description: '只读权限组:仅拥有 read/* 权限' })
     .onConflictDoNothing();
   const [operatorRole] = await database
     .select({ id: roles.id })
@@ -94,7 +95,7 @@ async function main() {
     .where(eq(roles.name, 'operator'))
     .limit(1);
 
-  // operator 挂 read/* 权限(幂等)
+  // operator 权限组挂 read/* 权限(幂等)
   for (const permission of OPERATOR_PERMISSIONS) {
     const permissionId = permissionIdByKey.get(
       `${permission.action}:${permission.subject}`,
@@ -109,7 +110,7 @@ async function main() {
   }
 
   console.log(
-    `RBAC 已就绪: 权限 ${permissionRecords.length} 条, operator 角色挂 read/* 共 ${OPERATOR_PERMISSIONS.length} 条`,
+    `RBAC 已就绪: 权限 ${permissionRecords.length} 条, operator 权限组挂 read/* 共 ${OPERATOR_PERMISSIONS.length} 条`,
   );
 
   await connectionPool.end();

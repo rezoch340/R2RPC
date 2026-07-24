@@ -90,6 +90,19 @@ nest g resource application/{module} --no-spec
 - `users.role` 是遗留展示字段，不参与 CASL 授权，也不作为受保护管理员判据。
 - 用户管理响应必须显式选择安全字段，禁止返回 `passwordHash`。
 
+### 权限组与 RBAC 写隔离
+
+- `roles` 是权限组，`user_roles` 允许用户属于多个权限组，用户最终权限是所有有效组权限的并集；
+  `users.role` 不得用于授权或分组。
+- 权限组读取使用 `read/rbac`，返回组内完整 `permissions`；列表查询必须固定次数批量组装，
+  禁止按权限组逐条查询。
+- 权限组、权限目录和用户分组的所有 RBAC 写入口除 `manage/rbac` 外必须叠加
+  `RootGuard`；只有 JWT 身份中的 `isRoot=true` 可写，普通用户不能通过被委派
+  `manage/rbac` 绕过身份闸。
+- 新增请求体形式的关联接口时保留现有 URL 形式兼容入口，两个入口必须调用同一 service 方法。
+- `isRoot` 用户修改其他受保护管理员的组关系时仍须经过
+  `AdministratorAccountPolicyService`，身份闸不能绕过账号隔离策略。
+
 ### 架构原则:分布式 + 冷热路径
 
 **可分布式部署**:app 实例**无状态**,可水平扩容;状态只放共享存储。
