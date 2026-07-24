@@ -27,6 +27,7 @@ const ALL_PERMISSIONS: Array<{ action: string; subject: string }> = [
   { action: 'update', subject: 'project' },
   { action: 'read', subject: 'metrics' },
   { action: 'read', subject: 'monitor' },
+  { action: 'read', subject: 'system-log' },
   { action: 'invoke', subject: 'rpc' },
   { action: 'read', subject: 'rpc' },
   { action: 'read', subject: 'rbac' },

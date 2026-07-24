@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import type { AuthedRequest } from '../../common/types/authed-request';
 import { CreateUserDto } from './dto/create-user.dto';
 import { SetEnabledDto } from './dto/set-enabled.dto';
@@ -40,6 +41,15 @@ export class UsersController {
 
   @Post()
   @RequirePermission('create', 'user')
+  @SystemAudit({
+    name: '创建用户',
+    action: 'create',
+    subject: 'user',
+    targetType: 'user',
+    targetNameField: 'username',
+    targetResponseField: 'id',
+    metadataBodyFields: ['role'],
+  })
   @ApiOperation({ summary: '创建用户' })
   create(@Body() input: CreateUserDto) {
     return this.usersService.create(input);
@@ -47,6 +57,14 @@ export class UsersController {
 
   @Patch(':id')
   @RequirePermission('update', 'user')
+  @SystemAudit({
+    name: '修改用户资料',
+    action: 'update',
+    subject: 'user',
+    targetType: 'user',
+    targetParameter: 'id',
+    targetNameField: 'username',
+  })
   @ApiOperation({ summary: '修改用户资料(管理员账号只能由本人修改)' })
   update(
     @Param('id', ParseIntPipe) userId: number,
@@ -62,6 +80,14 @@ export class UsersController {
 
   @Patch(':id/password')
   @RequirePermission('update', 'user')
+  @SystemAudit({
+    name: '修改用户密码',
+    action: 'update-password',
+    subject: 'user',
+    targetType: 'user',
+    targetParameter: 'id',
+    targetNameField: 'username',
+  })
   @ApiOperation({ summary: '修改用户密码(管理员账号只能由本人修改)' })
   setPassword(
     @Param('id', ParseIntPipe) userId: number,
@@ -77,6 +103,13 @@ export class UsersController {
 
   @Delete(':id')
   @RequirePermission('delete', 'user')
+  @SystemAudit({
+    name: '删除用户',
+    action: 'delete',
+    subject: 'user',
+    targetType: 'user',
+    targetParameter: 'id',
+  })
   @ApiOperation({ summary: '删除用户(管理员账号只能由本人修改)' })
   remove(
     @Param('id', ParseIntPipe) userId: number,
@@ -87,6 +120,15 @@ export class UsersController {
 
   @Post(':id/enabled')
   @RequirePermission('update', 'user')
+  @SystemAudit({
+    name: '设置用户启用状态',
+    action: 'set-enabled',
+    subject: 'user',
+    targetType: 'user',
+    targetParameter: 'id',
+    targetNameField: 'username',
+    metadataBodyFields: ['enabled'],
+  })
   @ApiOperation({ summary: '启用/停用用户(停用后禁止登录且立即吊销现有会话)' })
   setEnabled(
     @Param('id', ParseIntPipe) userId: number,

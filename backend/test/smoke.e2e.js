@@ -399,7 +399,10 @@ async function main() {
       const response = await httpRequest(
         'POST',
         '/projects',
-        { name },
+        {
+          name,
+          description: key === 'main' ? 'primary black-box project' : undefined,
+        },
         administratorAccessToken,
       );
       requireValue(
@@ -429,6 +432,11 @@ async function main() {
       projectList.status === 200 &&
         Object.values(projectNames).every((name) =>
           projectList.json.some((row) => row.name === name),
+        ) &&
+        projectList.json.some(
+          (row) =>
+            row.name === projectNames.main &&
+            row.description === 'primary black-box project',
         ),
       'GET /projects 返回本轮创建的全部 project',
     );
@@ -564,6 +572,39 @@ async function main() {
     assert(loginWithPreviousPassword.status === 401, '改密后旧密码不能再登录');
     password = changedPassword;
 
+    section('系统操作审计日志');
+    const administratorUserLogs = await httpRequest(
+      'GET',
+      '/system-logs?actorUsername=admin&subject=user&pageSize=200',
+      undefined,
+      administratorAccessToken,
+    );
+    const createUserSystemLog = administratorUserLogs.json.rows.find(
+      (systemLog) =>
+        systemLog.name === '创建用户' &&
+        systemLog.targetId === String(userId) &&
+        systemLog.targetName === username,
+    );
+    const updatePasswordSystemLog = administratorUserLogs.json.rows.find(
+      (systemLog) =>
+        systemLog.name === '修改用户密码' &&
+        systemLog.targetId === String(userId),
+    );
+    assert(
+      administratorUserLogs.status === 200 &&
+        administratorUserLogs.json.total >= 3 &&
+        !!createUserSystemLog &&
+        createUserSystemLog.description.includes(
+          `admin 创建用户 ${username}`,
+        ) &&
+        !!updatePasswordSystemLog,
+      'GET /system-logs 返回谁在何时做了什么',
+    );
+    assert(
+      !JSON.stringify(administratorUserLogs.json).includes(changedPassword),
+      '系统操作审计不记录密码',
+    );
+
     const roleName = `${TEST_RESOURCE_PREFIX}-role`;
     const createRole = await httpRequest(
       'POST',
@@ -639,12 +680,16 @@ async function main() {
         (permission) =>
           permission.action === 'read' && permission.subject === 'rbac',
       ),
+      permissionsList.json.find(
+        (permission) =>
+          permission.action === 'read' && permission.subject === 'system-log',
+      ),
     ];
     requireValue(
       permissionsList.status === 200 &&
         !!readUserPermission &&
         delegatedManagementPermissions.every(Boolean),
-      'GET /rbac/permissions 含权限组与管理员隔离测试所需的种子权限',
+      'GET /rbac/permissions 含权限组、系统日志与管理员隔离所需的种子权限',
       readUserPermission,
     );
 
@@ -692,7 +737,7 @@ async function main() {
       delegatedPermissionAttachmentResponses.every(
         (response) => response.status < 300,
       ),
-      '权限组绑定 read/rbac、update/user、delete/user 与 manage/rbac 权限',
+      '权限组绑定系统日志读取及委派管理权限',
     );
 
     const assignRole = await httpRequest(
@@ -795,6 +840,20 @@ async function main() {
           (permissionGroup) => permissionGroup.id === roleId,
         ),
       'GET /rbac/users/:userId/roles 返回用户已分配权限组',
+    );
+    const readableSystemLogs = await httpRequest(
+      'GET',
+      `/system-logs?actorUsername=admin&action=create&subject=user&pageSize=200`,
+      undefined,
+      userAuthenticationToken,
+    );
+    assert(
+      readableSystemLogs.status === 200 &&
+        readableSystemLogs.json.rows.some(
+          (systemLog) =>
+            systemLog.name === '创建用户' && systemLog.targetName === username,
+        ),
+      '具有 read/system-log 的普通用户可筛选系统操作日志',
     );
     const forbiddenPermissionGroupCreation = await httpRequest(
       'POST',

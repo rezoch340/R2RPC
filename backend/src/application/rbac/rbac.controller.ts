@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
+import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import { RootGuard } from '../../common/guards/root.guard';
 import type { AuthedRequest } from '../../common/types/authed-request';
 import { AssignRoleDto } from './dto/assign-role.dto';
@@ -32,6 +33,14 @@ export class RbacController {
   @Post('roles')
   @UseGuards(RootGuard)
   @RequirePermission('manage', 'rbac')
+  @SystemAudit({
+    name: '创建权限组',
+    action: 'create',
+    subject: 'rbac-role',
+    targetType: 'permission-group',
+    targetNameField: 'name',
+    targetResponseField: 'id',
+  })
   @ApiOperation({ summary: '创建权限组(仅种子管理员)' })
   createRole(@Body() input: CreateRoleDto) {
     return this.rbacService.createRole(input.name, input.description);
@@ -40,6 +49,14 @@ export class RbacController {
   @Patch('roles/:id')
   @UseGuards(RootGuard)
   @RequirePermission('manage', 'rbac')
+  @SystemAudit({
+    name: '编辑权限组',
+    action: 'update',
+    subject: 'rbac-role',
+    targetType: 'permission-group',
+    targetParameter: 'id',
+    targetNameField: 'name',
+  })
   @ApiOperation({ summary: '编辑权限组(仅种子管理员)' })
   updateRole(
     @Param('id', ParseIntPipe) roleId: number,
@@ -58,6 +75,13 @@ export class RbacController {
   @Delete('roles/:id')
   @UseGuards(RootGuard)
   @RequirePermission('manage', 'rbac')
+  @SystemAudit({
+    name: '删除权限组',
+    action: 'delete',
+    subject: 'rbac-role',
+    targetType: 'permission-group',
+    targetParameter: 'id',
+  })
   @ApiOperation({ summary: '删除权限组(仅种子管理员)' })
   deleteRole(@Param('id', ParseIntPipe) roleId: number) {
     return this.rbacService.deleteRole(roleId);
@@ -68,6 +92,14 @@ export class RbacController {
   @Post('permissions')
   @UseGuards(RootGuard)
   @RequirePermission('manage', 'rbac')
+  @SystemAudit({
+    name: '创建权限',
+    action: 'create',
+    subject: 'rbac-permission',
+    targetType: 'permission',
+    targetResponseField: 'id',
+    metadataBodyFields: ['action', 'subject'],
+  })
   @ApiOperation({ summary: '创建权限(仅种子管理员)' })
   createPermission(@Body() input: CreatePermissionDto) {
     return this.rbacService.createPermission(
@@ -87,6 +119,13 @@ export class RbacController {
   @Delete('permissions/:id')
   @UseGuards(RootGuard)
   @RequirePermission('manage', 'rbac')
+  @SystemAudit({
+    name: '删除权限',
+    action: 'delete',
+    subject: 'rbac-permission',
+    targetType: 'permission',
+    targetParameter: 'id',
+  })
   @ApiOperation({ summary: '删除权限(仅种子管理员)' })
   deletePermission(@Param('id', ParseIntPipe) permissionId: number) {
     return this.rbacService.deletePermission(permissionId);
@@ -97,6 +136,14 @@ export class RbacController {
   @Post('roles/:roleId/permissions')
   @UseGuards(RootGuard)
   @RequirePermission('manage', 'rbac')
+  @SystemAudit({
+    name: '配置权限组权限',
+    action: 'attach-permission',
+    subject: 'rbac-role',
+    targetType: 'permission-group',
+    targetParameter: 'roleId',
+    metadataBodyFields: ['permissionId'],
+  })
   @ApiOperation({ summary: '权限组配置权限(请求体形式,仅种子管理员)' })
   attachPermissionFromBody(
     @Param('roleId', ParseIntPipe) roleId: number,
@@ -108,6 +155,14 @@ export class RbacController {
   @Post('roles/:roleId/permissions/:permissionId')
   @UseGuards(RootGuard)
   @RequirePermission('manage', 'rbac')
+  @SystemAudit({
+    name: '配置权限组权限',
+    action: 'attach-permission',
+    subject: 'rbac-role',
+    targetType: 'permission-group',
+    targetParameter: 'roleId',
+    metadataParameters: ['permissionId'],
+  })
   @ApiOperation({ summary: '权限组配置权限(兼容 URL 形式,仅种子管理员)' })
   attachPermission(
     @Param('roleId', ParseIntPipe) roleId: number,
@@ -119,6 +174,14 @@ export class RbacController {
   @Delete('roles/:roleId/permissions/:permissionId')
   @UseGuards(RootGuard)
   @RequirePermission('manage', 'rbac')
+  @SystemAudit({
+    name: '移除权限组权限',
+    action: 'detach-permission',
+    subject: 'rbac-role',
+    targetType: 'permission-group',
+    targetParameter: 'roleId',
+    metadataParameters: ['permissionId'],
+  })
   @ApiOperation({ summary: '权限组移除权限(仅种子管理员)' })
   detachPermission(
     @Param('roleId', ParseIntPipe) roleId: number,
@@ -139,6 +202,14 @@ export class RbacController {
   @Post('users/:userId/roles')
   @UseGuards(RootGuard)
   @RequirePermission('manage', 'rbac')
+  @SystemAudit({
+    name: '分配用户权限组',
+    action: 'assign-role',
+    subject: 'rbac-user-role',
+    targetType: 'user',
+    targetParameter: 'userId',
+    metadataBodyFields: ['roleId'],
+  })
   @ApiOperation({ summary: '用户分配权限组(请求体形式,仅种子管理员)' })
   assignRoleFromBody(
     @Param('userId', ParseIntPipe) userId: number,
@@ -151,6 +222,14 @@ export class RbacController {
   @Post('users/:userId/roles/:roleId')
   @UseGuards(RootGuard)
   @RequirePermission('manage', 'rbac')
+  @SystemAudit({
+    name: '分配用户权限组',
+    action: 'assign-role',
+    subject: 'rbac-user-role',
+    targetType: 'user',
+    targetParameter: 'userId',
+    metadataParameters: ['roleId'],
+  })
   @ApiOperation({ summary: '用户分配权限组(兼容 URL 形式,仅种子管理员)' })
   assignRole(
     @Param('userId', ParseIntPipe) userId: number,
@@ -163,6 +242,14 @@ export class RbacController {
   @Delete('users/:userId/roles/:roleId')
   @UseGuards(RootGuard)
   @RequirePermission('manage', 'rbac')
+  @SystemAudit({
+    name: '移除用户权限组',
+    action: 'unassign-role',
+    subject: 'rbac-user-role',
+    targetType: 'user',
+    targetParameter: 'userId',
+    metadataParameters: ['roleId'],
+  })
   @ApiOperation({ summary: '用户移除权限组(仅种子管理员)' })
   unassignRole(
     @Param('userId', ParseIntPipe) userId: number,

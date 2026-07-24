@@ -27,7 +27,7 @@ pnpm start:worker          # Worker 进程(独立!--entryFile worker)
 pnpm db:generate           # drizzle-kit 从 src/**/*.schema.ts 生成迁移(见坑)
 pnpm db:migrate            # 应用迁移(独立步骤,绝不在 app 启动时跑)
 pnpm seed:admin            # 种子 admin + demo projects + RBAC 权限(幂等,可重跑)
-pnpm smoke                 # 136 项纯 HTTP/WS 黑盒完整性冒烟，需 API+Worker 在跑
+pnpm smoke                 # 139 项纯 HTTP/WS 黑盒完整性冒烟，需 API+Worker 在跑
 pnpm test:e2e              # 与 smoke 相同；先执行黑盒边界守卫
 pnpm test:integration:retention | test:integration:device-stale
 pnpm test:integration:metrics | test:integration:max-inflight # 内部直连检查，明确不是 E2E
@@ -64,6 +64,8 @@ project→id → `PresenceService.pickOnlineAcquire` 从 Redis `project:clients:
 - **Drizzle**:表定义 `{module}.schema.ts`(`pgTable`);`drizzle.config.ts` 用 glob(`src/**/*.schema.ts`)收集。schema 改了 → `db:generate` + `db:migrate`。
 - **实体表铁律**:非日志表必须有 `description` + 软删(`deleted_at` + `alive()`/`softDelete()`,来自 `src/common/db/soft-delete.ts`),token/name 唯一走 **partial unique**(`WHERE deleted_at IS NULL`);读一律过 `alive()`。
 - **日志/派生表豁免**(硬清理、可从别处重建):`request_logs`、`*_daily_metrics` —— 不加 description/deleted_at。
+- **系统审计例外**:`system_logs` 是不可变追加日志，但为了直接展示“谁做了什么”明确保留
+  `name + description`；不加 `deleted_at`，也不提供修改/删除 API。
 - **设备 AppAudit**：只认 WS `result.appAudit` 保留字段，V1 契约/限制见 `docs/device-app-audit.md`；非法审计整体丢弃但不影响 RPC。
 - **缓存 cache-aside + 写即删**:写库(权威)后**删**对应 Redis key(不是更新),下次请求懒回填;撤销/软删/stale 等被动变更同步删缓存。presence(WS 上线/心跳/断开)是主动写。
 - 迁移**独立步骤**跑,绝不在 app 启动时改库。
@@ -82,6 +84,11 @@ CASL;权限是 DB `permissions` 行,`(action, subject)` **free-form**(新 subjec
 RBAC 角色绑定/解绑都必须先调用 `AdministratorAccountPolicyService`，请求者编号只取
 `request.user.id`。`users.role` 是遗留展示字段，不参与授权或管理员保护。设计见
 `docs/superpowers/specs/2026-07-24-administrator-account-isolation-design.md`。
+
+后台业务写端点必须显式增加 `@SystemAudit(...)`。只把安全 path/body 字段列入 metadata 白名单，
+禁止复制完整请求体或记录密码/token 明文。系统操作日志通过 `GET /system-logs`
+(`read/system-log`) 查询；它与 RPC `request_logs`、设备 AppAudit 是三类不同日志。设计见
+`docs/superpowers/specs/2026-07-24-system-audit-logs-design.md`。
 
 ## 协作铁律
 
