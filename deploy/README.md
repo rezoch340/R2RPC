@@ -125,11 +125,11 @@ docker compose run --rm seed
 app:
   port: 3000
   globalPrefix: ''
-  publicWsUrl: wss://rpc.example.com/api/client/ws
+  publicWsUrl: wss://rpc.your-domain.com/api/client/ws
   openApiEnabled: false
   trustedProxyHops: 1
   corsOrigins:
-    - https://console.example.com
+    - https://console.your-domain.com
 ```
 
 修改统一配置后重启 API：
@@ -149,9 +149,9 @@ Compose 的 API 健康检查使用容器内 TCP 连接，不依赖 `/docs`，因
 
 推荐使用两个 Cloudflare 代理域名：
 
-- `console.example.com` → 宿主机 Nginx/OpenResty → `127.0.0.1:3001`
-- `rpc.example.com` → 宿主机 Nginx/OpenResty → `127.0.0.1:3000`
-- `wss://rpc.example.com/api/client/ws` 与 API 共用 443
+- `console.your-domain.com` → 宿主机 Nginx/OpenResty → `127.0.0.1:3001`
+- `rpc.your-domain.com` → 宿主机 Nginx/OpenResty → `127.0.0.1:3000`
+- `wss://rpc.your-domain.com/api/client/ws` 与 API 共用 443
 
 ```mermaid
 flowchart LR
@@ -170,13 +170,43 @@ flowchart LR
 cp deploy/config.production.example.yaml deploy/config.yaml
 ```
 
-至少替换两个域名、`jwt.secret`、管理员初始密码和数据库密码。样例已设置：
+先确定两个公网域名。以下用 `console.your-domain.com` 和 `rpc.your-domain.com` 表示实际域名：
 
-- `app.publicWsUrl: wss://rpc.example.com/api/client/ws`
-- `app.openApiEnabled: false`
-- `app.trustedProxyHops: 1`
-- `app.corsOrigins: [https://console.example.com]`
-- `frontend.apiUrl: https://rpc.example.com`
+- `console.your-domain.com`：只承载管理前端。
+- `rpc.your-domain.com`：同时承载 HTTP API 和设备 WebSocket。
+
+在 `deploy/config.yaml` 中按下面的对照填写，域名末尾不要添加 `/`：
+
+```yaml
+app:
+  port: 3000
+  globalPrefix: ''
+  publicWsUrl: wss://rpc.your-domain.com/api/client/ws
+  openApiEnabled: false
+  trustedProxyHops: 1
+  corsOrigins:
+    - https://console.your-domain.com
+
+frontend:
+  apiUrl: https://rpc.your-domain.com
+  apiPort: 443
+  allowedDevOrigins: []
+```
+
+| 配置项 | 应填写的地址 | 用途 |
+|---|---|---|
+| `app.publicWsUrl` | `wss://rpc.your-domain.com/api/client/ws` | SDK 设备连接地址；必须保留 `/api/client/ws` |
+| `app.corsOrigins` | `https://console.your-domain.com` | 允许管理前端跨域访问 API；必须是精确 Origin |
+| `frontend.apiUrl` | `https://rpc.your-domain.com` | 浏览器访问的公网 API 根地址 |
+| `frontend.apiPort` | `443` | 公网 HTTPS 端口 |
+
+不要把公网域名写入 `db.host`、`redis.host`、`manticore.url` 或
+`performance.baseUrl`。这些是 Compose 容器之间的内部地址，应继续使用 `postgres`、
+`redis`、`http://manticore:9308` 和 `http://api:3000`。`app.port` 也继续保持容器内部端口
+`3000`。
+
+除域名外，还必须替换 `jwt.secret`、管理员初始密码和数据库密码。修改数据库密码时必须同步
+PostgreSQL 初始化参数，或使用已按相同凭据创建的外部数据库。
 
 替换完成后执行生产配置门禁：
 
@@ -185,8 +215,7 @@ cp deploy/config.production.example.yaml deploy/config.yaml
 ```
 
 门禁会拒绝 example 域名、非 HTTPS/WSS 地址、开放 Swagger、错误代理跳数、通配 CORS，以及
-未替换或过短的 JWT、管理员和数据库密码。修改数据库密码时必须同步 PostgreSQL 初始化参数
-或使用已按相同凭据创建的外部数据库。
+未替换或过短的 JWT、管理员和数据库密码。
 
 `trustedProxyHops: 1` 表示 API 只信任紧邻的 Nginx/OpenResty。必须同时保持 Compose API
 端口只绑定 `127.0.0.1`，并由反向代理覆盖 `X-Forwarded-For`，不得把该值改成无条件信任
@@ -194,14 +223,33 @@ cp deploy/config.production.example.yaml deploy/config.yaml
 
 ### 2. 安装反向代理配置与 Origin 证书
 
-复制并替换样例中的域名：
+复制样例后，将反向代理配置中的全部 `console.example.com` 替换为管理前端域名，将全部
+`rpc.example.com` 替换为 API/WS 域名。HTTP 跳转块需要同时包含两个域名，两个 HTTPS
+`server` 块分别只保留自己的域名：
 
 ```bash
 sudo mkdir -p /etc/nginx/tls
 sudo cp deploy/reverse-proxy/r2rpc.conf.example /etc/nginx/conf.d/r2rpc.conf
+sudo sed -i \
+  -e 's/console\.example\.com/console.your-domain.com/g' \
+  -e 's/rpc\.example\.com/rpc.your-domain.com/g' \
+  /etc/nginx/conf.d/r2rpc.conf
 sudo cp /secure/path/r2rpc-origin.pem /etc/nginx/tls/r2rpc-origin.pem
 sudo cp /secure/path/r2rpc-origin.key /etc/nginx/tls/r2rpc-origin.key
 sudo chmod 600 /etc/nginx/tls/r2rpc-origin.key
+```
+
+macOS/BSD `sed` 需要把上面的 `sed -i` 改成 `sed -i ''`。替换后关键配置应为：
+
+```nginx
+# HTTP → HTTPS
+server_name console.your-domain.com rpc.your-domain.com;
+
+# API + WebSocket
+server_name rpc.your-domain.com;
+
+# 管理前端
+server_name console.your-domain.com;
 ```
 
 该配置只记录 `$uri`，不记录 query string，避免设备 WebSocket URL 中的 `dk_` Token 进入
@@ -222,11 +270,19 @@ Cloudflare IP 段更新后应重新运行生成脚本并 reload。
 
 ### 3. 配置 Cloudflare
 
-1. 为 `console` 和 `rpc` 创建指向源站的 A/AAAA/CNAME，代理状态设为 **Proxied**。
+1. 在同一个 Zone 中创建两条 DNS 记录，均指向运行 Nginx/OpenResty 的源站公网地址：
+
+   | 类型 | 名称 | 内容 | 代理状态 |
+   |---|---|---|---|
+   | `A`/`AAAA`/`CNAME` | `console` | 源站 IP 或主机名 | **Proxied（橙色云）** |
+   | `A`/`AAAA`/`CNAME` | `rpc` | 同一源站 IP 或主机名 | **Proxied（橙色云）** |
+
+   如果使用的不是 `console`/`rpc` 这两个子域名，以实际完整域名为准，并同步修改统一配置、
+   反向代理 `server_name` 和证书 SAN；四处必须完全一致。
 2. SSL/TLS 模式设为 **Full (strict)**；源站证书使用匹配两个域名的 Cloudflare Origin CA
    或公开可信证书。
 3. Edge Certificates → **Always Use HTTPS** 设为 On；Network → WebSockets 设为 **On**。
-4. 为 `rpc.example.com/*` 配置 Cache Rule：**Bypass cache**；API 和鉴权响应不得缓存。
+4. 为 `rpc.your-domain.com/*` 配置 Cache Rule：**Bypass cache**；API 和鉴权响应不得缓存。
 5. 源站防火墙的 80/443 只允许 [Cloudflare 官方 IP 段](https://www.cloudflare.com/ips/)
    和明确的运维来源，阻止绕过 Cloudflare 直连源站。
 6. 不要为承载 WSS 的 `rpc` 域名启用 Argo；WAF/限速规则会检查初始 Upgrade 请求，发布验收
@@ -253,8 +309,8 @@ docker compose up -d --build
 docker compose ps
 sudo nginx -t
 deploy/reverse-proxy/check-production.sh \
-  https://console.example.com \
-  https://rpc.example.com
+  https://console.your-domain.com \
+  https://rpc.your-domain.com
 ```
 
 验收脚本检查控制台、API 未授权响应、`/docs` 的 `404`，以及经过 Cloudflare 和反向代理的
