@@ -9,6 +9,7 @@ export const configSchema = z.object({
     publicWsUrl: z.string().optional(),
     corsOrigins: z.array(z.string().min(1)).min(1).default(['*']),
     openApiEnabled: z.boolean().default(true),
+    trustedProxyHops: z.number().int().min(0).max(16).default(0),
   }),
   frontend: z
     .object({

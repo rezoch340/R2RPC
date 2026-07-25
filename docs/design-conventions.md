@@ -276,6 +276,13 @@ async fillAndSave(input: {
   位置，禁止从分散环境变量读取 CORS、管理员、前端 API 地址或其他业务配置值。
 - 运行时 OpenAPI 只能由统一配置 `app.openApiEnabled` 控制；默认开启、生产关闭。该开关不得
   影响静态 `docs/openapi.yaml` 生成，服务健康检查也不得依赖 `/docs`。
+- `app.trustedProxyHops` 默认 `0`；只有 API 端口限制为 loopback/内网且紧邻可信反向代理时
+  才能设为明确跳数。禁止使用无条件信任全部代理，代理必须覆盖客户端伪造的
+  `X-Forwarded-For`。
+- 生产公网链路采用 Cloudflare → Nginx/OpenResty → loopback 容器端口；数据库、Redis、
+  Manticore、API 和 Frontend 的 Compose 宿主机端口不得直接监听公网地址。
+- WebSocket 代理必须显式传递 Upgrade/Connection、延长空闲超时且保留 SDK 自动重连。
+  Access log 禁止记录包含 `dk_` Token 的 query string，API/CDN 缓存必须禁用。
 - 性能测试也读取同一 schema 的 `performance` 段；场景、速率、超时和阈值不得改用散落的
   环境变量。
 - 前端只向浏览器注入 `frontend.apiUrl/apiPort` 白名单；数据库、Redis、JWT 和

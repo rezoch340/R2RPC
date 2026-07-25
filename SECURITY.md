@@ -27,6 +27,12 @@ Pull Request 或修改后的第三方镜像提供回溯支持。
 
 - 生产环境必须替换 `config.yaml` 中的 JWT 密钥、引导管理员密码和数据库密码。
 - 管理端 HTTP 与设备 WebSocket 应部署在 TLS/WSS 后，并限制 CORS 与网络入口。
+- Compose 宿主机端口只绑定 loopback；Cloudflare 场景下源站 80/443 仅允许官方 IP 段，
+  SSL/TLS 使用 Full (strict)，API 设置缓存绕过。
+- `app.trustedProxyHops` 只能填写实际可信跳数，Nginx/OpenResty 必须覆盖
+  `X-Forwarded-For`；禁止信任任意代理或向公网直接暴露 API 容器端口。
 - `rk_` Access Token、`dk_` Device Token、后台 JWT 和请求载荷不得写入 Issue、CI 日志或截图。
+- 设备 WebSocket 使用 query 参数传递 `dk_` Token，反向代理 access log 必须排除 query
+  string；Cloudflare 日志和诊断导出也不得向非授权人员暴露完整 URL。
 - E2E、性能测试和问题复现必须走公开 HTTP/WebSocket 接口，不得将生产数据库复制到测试环境。
 - 安全边界变更必须同时更新测试、OpenAPI、`CHANGELOG.md` 和相关协议文档。

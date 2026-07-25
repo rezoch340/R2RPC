@@ -55,6 +55,7 @@ R2RPC 解决“服务端需要调用位于 NAT、移动网络或客户现场中�
 | 管理控制台 | Next.js + shadcn 响应式后台，全部实体表支持筛选与分页 |
 | 官方 SDK | Android/Kotlin、JavaScript/TypeScript 设备端与调用方 SDK，内置重连、超时和 AppAudit Recorder |
 | 部署运维 | 统一 YAML、独立迁移/种子、健康检查、非 root 应用容器、持久化卷 |
+| 公网入口 | loopback 容器端口、Nginx/OpenResty 双域名反代、Cloudflare Full (strict) 与 WSS |
 | 性能验收 | 4 台虚拟在线设备、真实 WS Hello、自动轮询/随机指定设备、质量阈值和 JSON 报告 |
 | 本地质量门禁 | 一条命令覆盖后端/前端 lint、格式、构建、单测和契约漂移，可选完整黑盒 |
 | 镜像发布 | `v*` 标签自动发布 backend/frontend 的版本标签与 `latest` 到 GHCR |
@@ -527,10 +528,15 @@ R2RPC/
 
 ## 生产部署提示
 
-部署前应在 `deploy/config.yaml` 中设置 `app.openApiEnabled: false`、替换 JWT 和管理员
-初始密码、收紧 CORS、配置 TLS/WSS，并按真实入口修改 `app.publicWsUrl`。数据库账号同时受
-PostgreSQL 镜像首次引导参数约束；使用外部托管数据库时可移除 Compose 中的本地 PostgreSQL
-服务。
+推荐链路为 **容器 → 宿主机 Nginx/OpenResty → Cloudflare**，控制台和 API/WSS 使用独立
+域名。Compose 的全部宿主机端口只绑定 `127.0.0.1`；生产模板、反向代理配置、Cloudflare
+真实来源 IP 更新脚本和端到端入口检查位于
+[`deploy/`](deploy/README.md#nginx--openresty--cloudflare-生产入口)。
+
+部署前应从 `deploy/config.production.example.yaml` 生成 `deploy/config.yaml`，关闭运行时
+OpenAPI、设置信任 1 跳反向代理、替换 JWT 和管理员初始密码、收紧 CORS，并按真实入口修改
+`app.publicWsUrl` 与 `frontend.apiUrl`。Cloudflare 使用 Full (strict)、启用 WebSockets、
+绕过 API 缓存，源站 80/443 只允许 Cloudflare 官方 IP 段。
 
 ## 许可与发布
 

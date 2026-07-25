@@ -101,15 +101,20 @@ describe('统一配置加载器', () => {
 
     expect(loadedConfiguration.app.corsOrigins).toEqual(['*']);
     expect(loadedConfiguration.app.openApiEnabled).toBe(true);
+    expect(loadedConfiguration.app.trustedProxyHops).toBe(0);
     expect(
       configSchema.parse({
         ...loadedConfiguration,
         app: {
           ...loadedConfiguration.app,
           openApiEnabled: false,
+          trustedProxyHops: 1,
         },
-      }).app.openApiEnabled,
-    ).toBe(false);
+      }).app,
+    ).toMatchObject({
+      openApiEnabled: false,
+      trustedProxyHops: 1,
+    });
     expect(loadedConfiguration.frontend).toEqual({
       apiUrl: null,
       apiPort: 3000,

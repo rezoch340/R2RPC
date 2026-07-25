@@ -64,7 +64,7 @@ services:
       POSTGRES_PASSWORD: r2rpc
       POSTGRES_DB: r2rpc
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -79,7 +79,7 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -93,8 +93,8 @@ services:
     image: manticoresearch/manticore:latest
     restart: unless-stopped
     ports:
-      - "9308:9308"
-      - "9306:9306"
+      - "127.0.0.1:9308:9308"
+      - "127.0.0.1:9306:9306"
     ulimits:
       nproc: 65535
       nofile:
@@ -129,7 +129,7 @@ services:
     command: ["node", "dist/main.js"]
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       seed:
         condition: service_completed_successfully
@@ -169,7 +169,7 @@ services:
     image: r2rpc-frontend:local
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     volumes:
       - ${CONFIG_FILE:-./deploy/config.yaml}:/app/config.yaml:ro
     depends_on:

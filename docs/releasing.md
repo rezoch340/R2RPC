@@ -22,10 +22,13 @@ R2RPC 当前处于 `0.x` 阶段，服务端、管理前端、JavaScript SDK 和 
 3. 同步 SDK 版本、README 安装示例、OpenAPI `info.version` 和兼容性说明。
 4. 确认没有 `.env`、`config.yaml`、Token、密码、内部地址、IDE 文件或构建产物进入制品。
    生产配置必须设置 `app.openApiEnabled: false`，但静态 `docs/openapi.yaml` 仍需随版本发布。
+   Cloudflare → Nginx/OpenResty 部署还必须设置 `app.trustedProxyHops: 1`、精确 CORS、
+   `wss://` 公网地址和独立 `frontend.apiUrl`。
 5. 执行：
 
 ```bash
 ./scripts/local-ci.sh --full
+(cd backend && CONFIG_FILE=../deploy/config.yaml pnpm config:check:production)
 (cd sdk/javascript && corepack pnpm check && npm pack --dry-run)
 (cd sdk/android && ./gradlew :r2rpc-sdk:testDebugUnitTest :r2rpc-sdk:assembleRelease)
 docker compose build api frontend
@@ -34,6 +37,16 @@ docker compose build api frontend
 6. 发布服务端镜像时还应执行 Compose 性能测试。
 7. 对生成的 `docs/openapi.yaml` 执行差异审查，确保每个操作都有说明、成功响应 schema、
    鉴权方案和 4xx 响应。
+8. 在正式域名执行：
+
+```bash
+deploy/reverse-proxy/check-production.sh \
+  https://console.example.com \
+  https://rpc.example.com
+```
+
+确认 Cloudflare 为 Full (strict)、WebSockets 已启用、API 缓存已绕过、源站 80/443 仅允许
+Cloudflare IP 段，随后使用真实 Device Token 完成自动路由与指定设备 Hello。
 
 Pull Request 与 `main` 推送不运行 GitHub Actions。后端、前端、SDK 和完整黑盒均在本地
 验收，结果记录到 Pull Request；GitHub Actions 只在合法 `v*` 标签上构建并发布后端/前端

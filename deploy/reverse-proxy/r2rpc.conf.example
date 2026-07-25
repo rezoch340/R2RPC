@@ -1,0 +1,119 @@
+# Nginx 与 OpenResty 共用的宿主机反向代理样例。
+# 使用前替换 console.example.com / rpc.example.com，并安装证书文件。
+
+map $http_upgrade $r2rpc_connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+log_format r2rpc_access
+    '$remote_addr - $host [$time_local] '
+    '"$request_method $uri $server_protocol" $status $body_bytes_sent '
+    'request_time=$request_time upstream_time=$upstream_response_time '
+    'cloudflare_ray=$http_cf_ray';
+
+upstream r2rpc_api_upstream {
+    server 127.0.0.1:3000;
+    keepalive 32;
+}
+
+upstream r2rpc_frontend_upstream {
+    server 127.0.0.1:3001;
+    keepalive 16;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name console.example.com rpc.example.com;
+    access_log /dev/stdout r2rpc_access;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name rpc.example.com;
+
+    ssl_certificate /etc/nginx/tls/r2rpc-origin.pem;
+    ssl_certificate_key /etc/nginx/tls/r2rpc-origin.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:R2RPC_TLS:10m;
+    ssl_session_timeout 1d;
+
+    access_log /dev/stdout r2rpc_access;
+    error_log /dev/stderr warn;
+    server_tokens off;
+    client_max_body_size 5m;
+
+    add_header Cache-Control "no-store" always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+
+    location = /api/client/ws {
+        proxy_pass http://r2rpc_api_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $r2rpc_connection_upgrade;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 1h;
+        proxy_read_timeout 1h;
+    }
+
+    location / {
+        proxy_pass http://r2rpc_api_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name console.example.com;
+
+    ssl_certificate /etc/nginx/tls/r2rpc-origin.pem;
+    ssl_certificate_key /etc/nginx/tls/r2rpc-origin.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:R2RPC_TLS:10m;
+    ssl_session_timeout 1d;
+
+    access_log /dev/stdout r2rpc_access;
+    error_log /dev/stderr warn;
+    server_tokens off;
+    client_max_body_size 5m;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    location / {
+        proxy_pass http://r2rpc_frontend_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}

@@ -87,6 +87,9 @@ cd ../android
   zod 校验失败即启动失败。
 - **运行时 OpenAPI**:`app.openApiEnabled` 默认 `true`；生产必须设为 `false`。该开关只控制
   API 是否注册 `/docs`，不得因此跳过 `pnpm openapi:gen` 或删除 `docs/openapi.yaml`。
+- **生产入口**:容器端口只绑定 loopback，推荐 Cloudflare → 宿主机 Nginx/OpenResty →
+  API/Frontend。此时 `app.trustedProxyHops` 只能设为 `1`，反向代理必须覆盖
+  `X-Forwarded-For`，WebSocket access log 禁止记录 query string。
 - **容器性能验收**:`docker compose --profile performance run --rm performance`。执行器通过
   公开 API 创建临时令牌，默认挂 4 台 WS 设备并覆盖自动轮询/随机指定设备 Hello；报告写入
   `performance-results/latest.json`。Compose 全部服务 CPU 上限合计 4.00 核、内存

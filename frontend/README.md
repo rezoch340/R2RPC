@@ -57,15 +57,15 @@ frontend:
 
 ```yaml
 frontend:
-  apiUrl: https://api.example.com
-  apiPort: 3000
+  apiUrl: https://rpc.example.com
+  apiPort: 443
   allowedDevOrigins: []
 ```
 
 本地 `pnpm dev` 选择根目录 `config.yaml`；容器只读挂载为 `/app/config.yaml`。也可通过
 `CONFIG_FILE` 选择其他同 schema 文件。浏览器不会收到数据库、Redis、JWT 或管理员配置。
 旧 `.env.local`、`NEXT_PUBLIC_*`、`NEXT_ALLOWED_DEV_ORIGINS` 和独立 `frontend.yaml`
-已经删除。
+已经删除。Nginx/OpenResty + Cloudflare 双域名生产样例见 `../deploy/README.md`。
 
 ## 验证
 
