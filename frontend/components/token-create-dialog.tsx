@@ -15,6 +15,7 @@ export interface CreateTokenValues {
   name: string;
   description?: string;
   expiresAt?: string;
+  maximumUsageCount?: number;
   projects: string[];
 }
 
@@ -22,12 +23,16 @@ export function TokenCreateDialog({
   title,
   description,
   projects,
+  allowsExpiration,
+  allowsUsageLimit,
   isSubmitting,
   onCreate,
 }: {
   title: string;
   description: string;
   projects: ProjectRecord[];
+  allowsExpiration: boolean;
+  allowsUsageLimit: boolean;
   isSubmitting: boolean;
   onCreate: (values: CreateTokenValues) => Promise<void>;
 }) {
@@ -35,6 +40,7 @@ export function TokenCreateDialog({
   const [name, setName] = useState('');
   const [tokenDescription, setTokenDescription] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
+  const [maximumUsageCount, setMaximumUsageCount] = useState('');
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
 
   function toggleProject(projectName: string) {
@@ -57,17 +63,32 @@ export function TokenCreateDialog({
       toast.error('至少选择一个功能组');
       return;
     }
+    const parsedMaximumUsageCount = maximumUsageCount
+      ? Number(maximumUsageCount)
+      : undefined;
+    if (
+      parsedMaximumUsageCount !== undefined &&
+      (!Number.isInteger(parsedMaximumUsageCount) ||
+        parsedMaximumUsageCount < 1)
+    ) {
+      toast.error('最大调用次数必须是大于 0 的整数');
+      return;
+    }
     await onCreate({
       name: name.trim(),
       description: tokenDescription.trim() || undefined,
-      expiresAt: expiresAt
-        ? new Date(expiresAt).toISOString()
-        : undefined,
+      ...(allowsExpiration && expiresAt
+        ? { expiresAt: new Date(expiresAt).toISOString() }
+        : {}),
+      ...(allowsUsageLimit && parsedMaximumUsageCount
+        ? { maximumUsageCount: parsedMaximumUsageCount }
+        : {}),
       projects: selectedProjects,
     });
     setName('');
     setTokenDescription('');
     setExpiresAt('');
+    setMaximumUsageCount('');
     setSelectedProjects([]);
     setIsOpen(false);
   }
@@ -88,7 +109,11 @@ export function TokenCreateDialog({
         onSubmit={submitToken}
         contentClassName="sm:max-w-xl"
       >
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div
+          className={
+            allowsExpiration ? 'grid gap-4 sm:grid-cols-2' : 'grid gap-4'
+          }
+        >
           <div className="space-y-2">
             <Label htmlFor="token-name">名称</Label>
             <Input
@@ -99,15 +124,35 @@ export function TokenCreateDialog({
               onChange={(changeEvent) => setName(changeEvent.target.value)}
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="token-expiration">过期时间</Label>
-            <Input
-              id="token-expiration"
-              type="datetime-local"
-              value={expiresAt}
-              onChange={(changeEvent) => setExpiresAt(changeEvent.target.value)}
-            />
-          </div>
+          {allowsExpiration ? (
+            <div className="space-y-2">
+              <Label htmlFor="token-expiration">过期时间</Label>
+              <Input
+                id="token-expiration"
+                type="datetime-local"
+                value={expiresAt}
+                onChange={(changeEvent) =>
+                  setExpiresAt(changeEvent.target.value)
+                }
+              />
+            </div>
+          ) : null}
+          {allowsUsageLimit ? (
+            <div className="space-y-2">
+              <Label htmlFor="token-maximum-usage-count">最大调用次数</Label>
+              <Input
+                id="token-maximum-usage-count"
+                type="number"
+                min={1}
+                max={2147483647}
+                value={maximumUsageCount}
+                placeholder="留空表示不限次数"
+                onChange={(changeEvent) =>
+                  setMaximumUsageCount(changeEvent.target.value)
+                }
+              />
+            </div>
+          ) : null}
         </div>
         <div className="space-y-2">
           <Label htmlFor="token-description">说明</Label>

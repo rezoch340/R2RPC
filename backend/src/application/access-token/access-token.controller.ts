@@ -15,6 +15,7 @@ import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import type { AuthedRequest } from '../../common/types/authed-request';
 import { AccessTokenService } from './access-token.service';
 import { CreateAccessTokenDto } from './dto/create-access-token.dto';
+import { UpdateAccessTokenDto } from './dto/update-access-token.dto';
 import { UpdateAccessTokenProjectsDto } from './dto/update-access-token-projects.dto';
 
 @ApiTags('access-token')
@@ -33,7 +34,7 @@ export class AccessTokenController {
     targetType: 'access-token',
     targetNameField: 'name',
     targetResponseField: 'id',
-    metadataBodyFields: ['projects', 'expiresAt'],
+    metadataBodyFields: ['projects', 'expiresAt', 'maximumUsageCount'],
   })
   @ApiOperation({ summary: '生成 access token(返回明文)' })
   create(@Body() input: CreateAccessTokenDto, @Req() request: AuthedRequest) {
@@ -42,6 +43,7 @@ export class AccessTokenController {
       projects: input.projects,
       description: input.description,
       expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
+      maximumUsageCount: input.maximumUsageCount,
       createdBy: request.user?.id,
     });
   }
@@ -52,6 +54,33 @@ export class AccessTokenController {
   @ApiOperation({ summary: '列表:所有 access token(含明文、project 名)' })
   list() {
     return this.tokens.list();
+  }
+
+  @Patch(':id')
+  @RequirePermission('manage', 'access-token')
+  @SystemAudit({
+    name: '修改 Access Token',
+    action: 'update',
+    subject: 'access-token',
+    targetType: 'access-token',
+    targetParameter: 'id',
+    metadataBodyFields: ['projects', 'expiresAt', 'maximumUsageCount'],
+  })
+  @ApiOperation({ summary: '修改 access token 的功能组与过期策略' })
+  update(
+    @Param('id', ParseIntPipe) accessTokenId: number,
+    @Body() input: UpdateAccessTokenDto,
+  ) {
+    return this.tokens.update(accessTokenId, {
+      projects: input.projects,
+      expiresAt:
+        input.expiresAt === undefined
+          ? undefined
+          : input.expiresAt === null
+            ? null
+            : new Date(input.expiresAt),
+      maximumUsageCount: input.maximumUsageCount,
+    });
   }
 
   @Patch(':id/projects')

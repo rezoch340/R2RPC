@@ -1301,6 +1301,75 @@ paths:
       tags:
         - access-token
       description: 列表:所有 access token(含明文、project 名)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+  /access-tokens/{id}:
+    patch:
+      operationId: AccessTokenController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAccessTokenDto'
+      responses:
+        '200':
+          description: 修改 access token 的功能组与过期策略成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessTokenRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - adminJwt: []
+      summary: 修改 access token 的功能组与过期策略
+      tags:
+        - access-token
+      description: 修改 access token 的功能组与过期策略。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+    delete:
+      operationId: AccessTokenController_delete
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: 删除 access token(软删,与撤销正交)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - adminJwt: []
+      summary: 删除 access token(软删,与撤销正交)
+      tags:
+        - access-token
+      description: 删除 access token(软删,与撤销正交)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /access-tokens/{id}/projects:
     patch:
       operationId: AccessTokenController_updateProjects
@@ -1371,38 +1440,6 @@ paths:
       tags:
         - access-token
       description: 撤销 access token。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
-  /access-tokens/{id}:
-    delete:
-      operationId: AccessTokenController_delete
-      parameters:
-        - name: id
-          required: true
-          in: path
-          schema:
-            type: number
-      responses:
-        '200':
-          description: 删除 access token(软删,与撤销正交)成功。
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DeletedResult'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-      security:
-        - adminJwt: []
-      summary: 删除 access token(软删,与撤销正交)
-      tags:
-        - access-token
-      description: 删除 access token(软删,与撤销正交)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rpc/debug/options:
     get:
       operationId: RpcController_debugOptions
@@ -1520,6 +1557,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
       security:
@@ -1868,8 +1907,6 @@ components:
           type: array
           items:
             type: string
-        expiresAt:
-          type: string
         description:
           type: string
       required:
@@ -2021,11 +2058,34 @@ components:
             type: string
         expiresAt:
           type: string
+        maximumUsageCount:
+          type: number
+          minimum: 1
+          maximum: 2147483647
+          description: 可选最大 RPC 调用次数；达到后令牌失效。
         description:
           type: string
       required:
         - name
         - projects
+    UpdateAccessTokenDto:
+      type: object
+      properties:
+        projects:
+          description: 更新后的完整功能组名称列表。
+          type: array
+          items:
+            type: string
+        expiresAt:
+          type: object
+          nullable: true
+          description: 新的绝对过期时间；null 表示取消时间限制。
+        maximumUsageCount:
+          type: object
+          nullable: true
+          minimum: 1
+          maximum: 2147483647
+          description: 新的最大 RPC 调用次数；null 表示取消次数限制。
     UpdateAccessTokenProjectsDto:
       type: object
       properties:
@@ -2283,6 +2343,9 @@ components:
         - name
         - token
         - status
+        - expiresAt
+        - maximumUsageCount
+        - usageCount
         - createdAt
         - projects
       properties:
@@ -2300,10 +2363,6 @@ components:
           enum:
             - active
             - revoked
-        expiresAt:
-          type: string
-          format: date-time
-          nullable: true
         description:
           type: string
           nullable: true
@@ -2321,6 +2380,19 @@ components:
           type: array
           items:
             type: string
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        maximumUsageCount:
+          type: integer
+          nullable: true
+          minimum: 1
+          description: 最大 RPC 调用次数；null 表示不限制。
+        usageCount:
+          type: integer
+          minimum: 0
+          description: 已消耗的 RPC 调用次数。
     DeviceTokenRecord:
       type: object
       required:
@@ -2345,10 +2417,6 @@ components:
           enum:
             - active
             - revoked
-        expiresAt:
-          type: string
-          format: date-time
-          nullable: true
         description:
           type: string
           nullable: true
@@ -3135,6 +3203,12 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     Conflict:
       description: 资源名称或关联关系与现有数据冲突。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    TooManyRequests:
+      description: Access Token 的 RPC 调用次数已经用尽。
       content:
         application/json:
           schema:

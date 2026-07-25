@@ -20,6 +20,7 @@ import { RequirePermission } from '../../common/decorators/require-permission.de
 import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import { AccessTokenGuard } from '../../common/guards/access-token.guard';
 import type { AuthedRequest } from '../../common/types/authed-request';
+import { AccessTokenService } from '../access-token/access-token.service';
 import { ProjectsService } from '../projects/projects.service';
 import { RequestLogsService } from '../request-logs/request-logs.service';
 import { PresenceService } from '../../infrastructure/ws/presence.service';
@@ -35,6 +36,7 @@ export class RpcController {
     private readonly presenceService: PresenceService,
     private readonly projectsService: ProjectsService,
     private readonly requestLogsService: RequestLogsService,
+    private readonly accessTokenService: AccessTokenService,
   ) {}
 
   @Get('rpc/debug/options')
@@ -126,20 +128,24 @@ export class RpcController {
   @ApiOperation({
     summary: '调用 project 内在线设备执行 action(可选 ?clientId 指定设备)',
   })
-  invoke(
+  async invoke(
     @Param('project') project: string,
     @Param('action') action: string,
     @Body() input: InvokeDto,
     @Query('clientId') clientId: string | undefined,
-    @Req() request: { accessToken?: { id: number } },
+    @Req() request: AuthedRequest,
   ) {
+    const accessToken = request.accessToken!;
+    if (accessToken.maximumUsageCount !== null) {
+      await this.accessTokenService.consumeInvocation(accessToken.id);
+    }
     return this.rpcService.invoke({
       project,
       action,
       payload: input.payload,
       timeoutSeconds: input.timeoutSeconds,
       clientId,
-      accessTokenId: request.accessToken?.id,
+      accessTokenId: accessToken.id,
     });
   }
 

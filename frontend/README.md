@@ -8,7 +8,9 @@ shadcn/base-nova 和 TanStack Query。
 - 运行概览：累计请求、在线设备、功能组、延迟和近 7 天折线趋势
 - 功能组：创建、启停、删除、派生运行态、字段筛选和分页
 - 设备：在线态、平台、IP、并发上限、扩展信息、字段筛选和分页
-- Access Token / Device Token：创建、复制、二次编辑功能组、撤销、删除、字段筛选和分页
+- Access Token / Device Token：创建、复制、二次编辑功能组、撤销、删除、字段筛选和分页；
+  Access Token 可按绝对时间或 RPC 调用次数过期，管理页显示已用/上限并允许二次编辑且不
+  清零累计次数；Device Token 长期有效直至撤销或删除
 - 请求日志：HTTP 服务端筛选分页、Manticore payload 懒加载和 AppAudit Step
 - 手动 RPC 调试：选择功能组、历史 Action、在线设备和超时，编辑/格式化 Payload，并展示
   原始请求、响应、状态与耗时
@@ -76,7 +78,7 @@ pnpm test:e2e
 前端 E2E 使用浏览器登录并访问公开 HTTP API。`test/assert-blackbox-e2e.cjs`
 会拒绝测试导入后端内部模块、数据库或 Redis 客户端；测试不直接连接任何持久层。
 当前 Playwright 基线为 **12 passed**，覆盖全部管理页、手动 RPC 调试、字段筛选分页、两类
-令牌功能组二次编辑、非安全上下文复制回退、请求详情抽屉、系统日志长描述列宽隔离、账号改密
+令牌功能组二次编辑、Access Token 时间/次数策略编辑、非安全上下文复制回退、请求详情抽屉、系统日志长描述列宽隔离、账号改密
 入口、移动导航、导航预取和登录保护。
 
 `pnpm lint` 会先执行命名门禁：组件、页面、E2E 和工具代码都禁止单/双字母变量及

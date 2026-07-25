@@ -2,6 +2,8 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -17,6 +19,8 @@ type CachedToken = {
   name: string;
   status: string;
   expiresAt: Date | string | null;
+  maximumUsageCount: number | null;
+  usageCount: number;
   projectIds: number[];
 };
 
@@ -28,6 +32,8 @@ const cachedAccessTokenSchema = z
     name: z.string(),
     status: z.string(),
     expiresAt: z.union([z.date(), z.string()]).nullable(),
+    maximumUsageCount: z.number().int().positive().nullable(),
+    usageCount: z.number().int().nonnegative(),
     projectIds: z.array(z.number().int()),
   })
   .nullable();
@@ -74,6 +80,7 @@ export class AccessTokenGuard implements CanActivate {
       id: cachedToken.id,
       name: cachedToken.name,
       projectIds: cachedToken.projectIds,
+      maximumUsageCount: cachedToken.maximumUsageCount,
     };
     return true;
   }
@@ -96,6 +103,15 @@ export class AccessTokenGuard implements CanActivate {
     }
     if (cachedToken.status !== 'active') {
       throw new ForbiddenException('token 已停用/撤销');
+    }
+    if (
+      cachedToken.maximumUsageCount !== null &&
+      cachedToken.usageCount >= cachedToken.maximumUsageCount
+    ) {
+      throw new HttpException(
+        'token 调用次数已用尽',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
   }
 }

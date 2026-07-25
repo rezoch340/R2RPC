@@ -4,9 +4,29 @@
 
 ## [Unreleased]
 
+### Access Token 按调用次数过期
+- Access Token 新增可选 `maximumUsageCount` 和只读 `usageCount`；留空表示不限次数，达到上限后
+  令牌失效并返回 HTTP `429`。
+- 只有通过鉴权与参数校验的 `POST /rpc/invoke/:project/:action` 消耗次数；
+  `GET /rpc/clientQueue` 不消耗。无设备、设备错误或超时仍算一次已受理调用。
+- 有次数上限的令牌通过 PostgreSQL 条件更新原子扣减，避免并发超发；不限次数令牌继续使用
+  Redis cache-aside 热路径。每次扣减和后台编辑成功后都立即删除鉴权缓存。
+- 新增 `PATCH /access-tokens/:id`，可在同一次事务中二次编辑功能组、绝对过期时间和次数上限；
+  取消或调整上限不会重置累计使用次数。
+- 新增 `0010_lazy_plazm` 迁移、管理页创建/编辑表单与调用次数列；后端黑盒覆盖并发原子计数、
+  429、次数恢复、取消限制和不重置语义。
+
+### Device Token 生命周期简化
+- Device Token 改为无过期时间的设备长期凭证，生命周期只由撤销或软删除控制；Access Token
+  继续保留可选过期时间。
+- 删除 Device Token 创建参数、响应字段、WebSocket 过期校验和管理页面过期时间列，并新增
+  `0009_breezy_pixie` 迁移移除 `device_tokens.expires_at`。
+- 黑盒覆盖旧调用方多传 `expiresAt` 时字段被忽略且设备仍可正常连接，前端浏览器测试确认只有
+  Access Token 展示过期时间列。
+
 ### OpenAPI、发布治理与 AppAudit 契约补全
 - OpenAPI 生成链路改为运行时 Swagger 与静态 YAML 共用同一配置和完整性补全器；39 个路径、
-  51 个操作全部提供详细说明、成功响应 schema、标准 4xx/500 响应和相对部署 Server。
+  52 个操作全部提供详细说明、成功响应 schema、标准 4xx/500 响应和相对部署 Server。
 - 鉴权方案拆分为后台 `adminJwt` 与调用方 `accessToken`，修正公开/手动 RPC 的可选
   `clientId` 以及指标 `project` 可选参数，避免 Swagger 将其错误标为必填。
 - 新增用户、令牌、功能组、设备、RBAC、RPC、监控、指标、系统日志和 AppAudit 的完整响应

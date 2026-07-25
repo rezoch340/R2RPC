@@ -1,12 +1,12 @@
 # R2RPC 当前核心功能统计
 
-> 更新日期：2026-07-24。本文统计当前 NestJS/PostgreSQL 实现。旧 Go 系统语义基线见 `docs/archive/旧版-Go-核心功能统计.md`。
+> 更新日期：2026-07-25。本文统计当前 NestJS/PostgreSQL 实现。旧 Go 系统语义基线见 `docs/archive/旧版-Go-核心功能统计.md`。
 
 ## 1. 完成度
 
 后端既定 backlog #1–#15 与管理前端 #16、手动 RPC 调试 #17、后台授权缓存 #18、统一配置与
 完整 Compose #19、容器性能测试 #20、Android 与 JavaScript SDK #21 全部完成。代码包含 39 个 HTTP
-路径模板、1 个设备 WebSocket 网关、API/Worker 双进程、15 张 PostgreSQL 表、9 个数据库
+路径模板、1 个设备 WebSocket 网关、API/Worker 双进程、15 张 PostgreSQL 表、11 个数据库
 迁移和 10 个管理页面。
 
 | 领域 | 能力 | 状态 | 黑盒覆盖 |
@@ -16,8 +16,8 @@
 | 用户 | CRUD、资料、改密、enabled、管理员隔离、旧 JWT 吊销 | ✅ | ✅ |
 | 系统审计 | 谁在何时做了什么、安全 metadata、筛选分页 | ✅ | ✅ |
 | Project | CRUD、enabled、GroupInfo | ✅ | ✅ |
-| Access token | `rk_`、project 作用域二次编辑、过期/撤销/软删、缓存失效 | ✅ | ✅ |
-| Device token | `dk_`、project 作用域二次编辑、旧连接断开、过期/撤销/软删 | ✅ | ✅ |
+| Access token | `rk_`、project/时间/次数二次编辑、原子计数、过期/撤销/软删、缓存失效 | ✅ | ✅ |
+| Device token | `dk_`、无过期时间、project 作用域二次编辑、旧连接断开、撤销/软删 | ✅ | ✅ |
 | 设备 | WS 自注册、持久态、列表/详情、stale | ✅ | 公开面 ✅ |
 | RPC | 公开调用、后台手动调试、轮询、指定设备、成功/失败/超时/无设备/离线 | ✅ | ✅ |
 | 限流 | `[256,1024]` maxInFlight、跳过满设备、rejected | ✅ | ✅ |
@@ -27,7 +27,7 @@
 | 日志保留 | 按天清理、每 scope 留最新 N 条 | ✅ | 内部集成 |
 | 指标 | 日聚合、重建、清理、overview/weekly/trend | ✅ | 公开读面 ✅ |
 | 分布式 | Redis session/waiter/pub-sub/结果去重 | ✅ | 单实例闭环 ✅ |
-| OpenAPI | 39 路径 / 51 操作、双鉴权、成功与错误响应契约 | ✅ | 生成期完整性断言 |
+| OpenAPI | 39 路径 / 52 操作、双鉴权、成功与错误响应契约 | ✅ | 生成期完整性断言 |
 | 代码质量 | 完整变量名、复杂度/嵌套/函数长度门禁 | ✅ | `pnpm lint:check` |
 | 管理前端 | Next.js + shadcn，完整后台公开面 | ✅ | Playwright 12 项 + HTTP |
 | 前端质量 | 页面/组件/E2E 完整变量名门禁、ESLint、生产构建 | ✅ | `frontend/pnpm lint` |
@@ -94,6 +94,7 @@ metadata 只包含安全白名单字段，不保存密码或 token 明文。RPC/
 ### Tokens
 
 - `GET|POST /access-tokens`
+- `PATCH /access-tokens/:id`
 - `PATCH /access-tokens/:id/projects`
 - `POST /access-tokens/:id/revoke`
 - `DELETE /access-tokens/:id`
@@ -101,6 +102,12 @@ metadata 只包含安全白名单字段，不保存密码或 token 明文。RPC/
 - `PATCH /device-tokens/:id/projects`
 - `POST /device-tokens/:id/revoke`
 - `DELETE /device-tokens/:id`
+
+Access Token 的新建与完整编辑接口支持可选 `expiresAt` 和 `maximumUsageCount`；`null` 表示
+取消对应限制，修改不会重置 `usageCount`。只有通过鉴权与参数校验的公开 RPC invoke 消耗
+一次次数，clientQueue 不消耗；进入业务层后无论最终成功、无设备、设备错误或超时都计数。
+次数受限令牌使用 PostgreSQL 条件更新原子占用额度，达到上限返回 `429`；不限次数令牌不写
+累计值。
 
 ### Devices / RPC
 
@@ -137,7 +144,7 @@ metadata 只包含安全白名单字段，不保存密码或 token 明文。RPC/
 | `/` | `/metrics/overview`、`/metrics/trend`、`/projects/info`、`/devices` |
 | `/projects` | `/projects`、`/projects/info`、启停与删除 |
 | `/devices` | `/devices` |
-| `/access-tokens` | `/access-tokens`、`PATCH /access-tokens/:id/projects`、`/projects` |
+| `/access-tokens` | `/access-tokens`、`PATCH /access-tokens/:id`、`/projects` |
 | `/device-tokens` | `/device-tokens`、`PATCH /device-tokens/:id/projects`、`/projects` |
 | `/request-logs` | `/monitor/requests`、`/monitor/request-options`、`/monitor/requests/:requestId` |
 | `/rpc-debugger` | `/rpc/debug/options`、`/rpc/debug/invoke/:project/:action` |
@@ -234,7 +241,7 @@ GET /api/client/ws?token=<dk_...>&clientId=<device-id>&platform=<optional>&extra
 
 ### 约束
 
-- device token 无效、过期、撤销或软删：close `4001`
+- device token 无效、撤销或软删：close `4001`；凭证本身不设置过期时间
 - device token project 作用域更新：现有连接 close `4002`，重连后继承新作用域
 - 单帧大于 4 MiB：close `1009`
 - 数据分片 `FIN=0`：close `1009`
@@ -314,13 +321,14 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 `pnpm smoke` 与 `pnpm test:e2e` 执行同一套完整性测试：
 
-- 172 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
+- 180 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
 - 覆盖全部 HTTP controller 方法。
 - 覆盖系统操作日志、筛选、普通用户权限委派和密码不泄露。
 - 覆盖权限组编辑、嵌套权限、用户已分配组、新旧关联入口和 root-only 写隔离。
 - 覆盖缓存命中后的权限挂载/移除、权限删除、用户分组/移组、启停和软删除实时生效。
 - 覆盖资料修改、改密新旧密码登录，以及管理员资料/密码/启停/删除/RBAC 关系隔离。
-- 覆盖两类令牌二次编辑功能组、Access Token 缓存失效和 Device Token 旧作用域连接断开重连。
+- 覆盖两类令牌二次编辑功能组、Access Token 时间/次数策略、并发原子计数、额度用尽 `429`、
+  缓存失效和 Device Token 旧作用域连接断开重连。
 - 覆盖全部内置权限说明、手动 RPC 权限拒绝/放行、上下文、真实 WS 往返、系统审计和后台
   发起人溯源。
 - 覆盖 WS 鉴权、心跳、ping、读超时、分片/超大帧拒绝。
@@ -332,8 +340,9 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 `test/assert-blackbox-e2e.js` 会静态拒绝 E2E 或性能执行器导入持久层客户端或应用内部服务。
 
 前端 `test/assert-blackbox-e2e.cjs` 使用同一口径，Playwright 当前 12 项，只操作浏览器和公开
-HTTP API；覆盖全部管理页、手动 RPC 调试、字段筛选与分页、两类令牌作用域编辑、非安全上下文
-复制回退、日志详情抽屉、账号改密入口、移动导航、导航预取和未登录跳转。测试不会导入后端、
+HTTP API；覆盖全部管理页、手动 RPC 调试、字段筛选与分页、两类令牌作用域编辑、Access
+Token 时间/次数策略编辑、非安全上下文复制回退、日志详情抽屉、账号改密入口、移动导航、
+导航预取和未登录跳转。测试不会导入后端、
 数据库或 Redis。
 前端 `test/assert-readable-source.cjs` 覆盖页面、组件和 E2E。
 

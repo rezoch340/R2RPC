@@ -11,7 +11,8 @@ import { sql } from 'drizzle-orm';
 import { users } from '../users/users.schema';
 import { projects } from '../projects/projects.schema';
 
-// Device Token 表——设备自注册上线凭证(明文进 SDK 配置)。镜像 access_tokens 结构。
+// Device Token 表——设备自注册上线凭证(明文进 SDK 配置)。
+// 设备凭证长期有效，生命周期只由 active/revoked 与软删除控制。
 export const deviceTokens = pgTable(
   'device_tokens',
   {
@@ -19,7 +20,6 @@ export const deviceTokens = pgTable(
     name: varchar('name', { length: 128 }).notNull(),
     token: varchar('token', { length: 128 }).notNull(), // 明文可回看
     status: varchar('status', { length: 16 }).notNull().default('active'),
-    expiresAt: timestamp('expires_at', { withTimezone: true }),
     description: varchar('description', { length: 255 }),
     createdBy: integer('created_by').references(() => users.id),
     createdAt: timestamp('created_at', { withTimezone: true })

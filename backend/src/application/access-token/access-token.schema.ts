@@ -1,4 +1,5 @@
 import {
+  check,
   integer,
   pgTable,
   primaryKey,
@@ -20,6 +21,8 @@ export const accessTokens = pgTable(
     token: varchar('token', { length: 128 }).notNull(), // 明文可回看
     status: varchar('status', { length: 16 }).notNull().default('active'),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
+    maximumUsageCount: integer('maximum_usage_count'),
+    usageCount: integer('usage_count').notNull().default(0),
     description: varchar('description', { length: 255 }),
     createdBy: integer('created_by').references(() => users.id),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -31,6 +34,11 @@ export const accessTokens = pgTable(
     uniqueIndex('access_tokens_token_uq')
       .on(table.token)
       .where(sql`${table.deletedAt} IS NULL`),
+    check(
+      'access_tokens_maximum_usage_count_ck',
+      sql`${table.maximumUsageCount} IS NULL OR ${table.maximumUsageCount} > 0`,
+    ),
+    check('access_tokens_usage_count_ck', sql`${table.usageCount} >= 0`),
   ],
 );
 

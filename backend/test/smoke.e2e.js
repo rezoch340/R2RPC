@@ -1501,6 +1501,158 @@ async function main() {
     );
     assert(expiredInvoke.status === 401, '过期 access token 返回 401');
 
+    const usageLimitedAccessToken = await httpRequest(
+      'POST',
+      '/access-tokens',
+      {
+        name: `${TEST_RESOURCE_PREFIX}-usage-limited-access`,
+        projects: [projectNames.main],
+        maximumUsageCount: 2,
+      },
+      administratorAccessToken,
+    );
+    cleanup.accessTokenIds.push(usageLimitedAccessToken.json.id);
+    assert(
+      usageLimitedAccessToken.status < 300 &&
+        usageLimitedAccessToken.json.maximumUsageCount === 2 &&
+        usageLimitedAccessToken.json.usageCount === 0,
+      'access token 可设置最大 RPC 调用次数',
+    );
+    const usageLimitedQueueRead = await httpRequest(
+      'GET',
+      `/rpc/clientQueue?project=${encodeURIComponent(projectNames.main)}`,
+      undefined,
+      usageLimitedAccessToken.json.token,
+    );
+    const accessTokensAfterQueueRead = await httpRequest(
+      'GET',
+      '/access-tokens',
+      undefined,
+      administratorAccessToken,
+    );
+    const usageLimitedAfterQueueRead = accessTokensAfterQueueRead.json.find(
+      (token) => token.id === usageLimitedAccessToken.json.id,
+    );
+    assert(
+      usageLimitedQueueRead.status === 200 &&
+        usageLimitedAfterQueueRead.usageCount === 0,
+      '读取在线设备不消耗 access token RPC 调用次数',
+    );
+    const concurrentUsageLimitedInvocations = await Promise.all([
+      httpRequest(
+        'POST',
+        `/rpc/invoke/${projectNames.main}/usage-limited`,
+        { payload: { sequence: 1 } },
+        usageLimitedAccessToken.json.token,
+      ),
+      httpRequest(
+        'POST',
+        `/rpc/invoke/${projectNames.main}/usage-limited`,
+        { payload: { sequence: 2 } },
+        usageLimitedAccessToken.json.token,
+      ),
+      httpRequest(
+        'POST',
+        `/rpc/invoke/${projectNames.main}/usage-limited`,
+        { payload: { sequence: 3 } },
+        usageLimitedAccessToken.json.token,
+      ),
+    ]);
+    const acceptedUsageLimitedInvocations =
+      concurrentUsageLimitedInvocations.filter(
+        (invocationResponse) => invocationResponse.status < 300,
+      );
+    const rejectedUsageLimitedInvocations =
+      concurrentUsageLimitedInvocations.filter(
+        (invocationResponse) => invocationResponse.status === 429,
+      );
+    assert(
+      acceptedUsageLimitedInvocations.length === 2 &&
+        acceptedUsageLimitedInvocations.every(
+          (invocationResponse) =>
+            invocationResponse.json.status === 'no_device',
+        ),
+      '并发 RPC 调用原子消耗次数且无论业务结果均计数',
+    );
+    assert(
+      rejectedUsageLimitedInvocations.length === 1,
+      'access token 并发达到最大调用次数后返回 429',
+    );
+    const expandedUsageLimit = await httpRequest(
+      'PATCH',
+      `/access-tokens/${usageLimitedAccessToken.json.id}`,
+      {
+        expiresAt: null,
+        maximumUsageCount: 4,
+      },
+      administratorAccessToken,
+    );
+    assert(
+      expandedUsageLimit.status === 200 &&
+        expandedUsageLimit.json.maximumUsageCount === 4 &&
+        expandedUsageLimit.json.usageCount === 2 &&
+        expandedUsageLimit.json.projects.includes(projectNames.main),
+      'access token 可二次编辑时间与次数策略且不重置已用次数',
+    );
+    const resumedUsageLimitedInvoke = await httpRequest(
+      'POST',
+      `/rpc/invoke/${projectNames.main}/usage-limited`,
+      { payload: { sequence: 4 } },
+      usageLimitedAccessToken.json.token,
+    );
+    const unlimitedAccessToken = await httpRequest(
+      'PATCH',
+      `/access-tokens/${usageLimitedAccessToken.json.id}`,
+      { maximumUsageCount: null },
+      administratorAccessToken,
+    );
+    assert(
+      resumedUsageLimitedInvoke.status < 300 &&
+        unlimitedAccessToken.status === 200 &&
+        unlimitedAccessToken.json.maximumUsageCount === null &&
+        unlimitedAccessToken.json.usageCount === 3,
+      'access token 提高上限后恢复调用并可改回不限次数',
+    );
+    const unlimitedInvocations = await Promise.all([
+      httpRequest(
+        'POST',
+        `/rpc/invoke/${projectNames.main}/usage-unlimited`,
+        { payload: { sequence: 5 } },
+        usageLimitedAccessToken.json.token,
+      ),
+      httpRequest(
+        'POST',
+        `/rpc/invoke/${projectNames.main}/usage-unlimited`,
+        { payload: { sequence: 6 } },
+        usageLimitedAccessToken.json.token,
+      ),
+    ]);
+    const accessTokensAfterUnlimitedInvocations = await httpRequest(
+      'GET',
+      '/access-tokens',
+      undefined,
+      administratorAccessToken,
+    );
+    const unlimitedTokenAfterInvocations =
+      accessTokensAfterUnlimitedInvocations.json.find(
+        (token) => token.id === usageLimitedAccessToken.json.id,
+      );
+    assert(
+      unlimitedInvocations.every((response) => response.status < 300) &&
+        unlimitedTokenAfterInvocations.usageCount === 3,
+      '不限次数时 RPC 调用不再累计次数',
+    );
+    const invalidUsageLimit = await httpRequest(
+      'PATCH',
+      `/access-tokens/${usageLimitedAccessToken.json.id}`,
+      { maximumUsageCount: 0 },
+      administratorAccessToken,
+    );
+    assert(
+      invalidUsageLimit.status === 400,
+      'access token 次数上限拒绝非正整数',
+    );
+
     const revokeAccess = await httpRequest(
       'POST',
       '/access-tokens',
@@ -1713,25 +1865,34 @@ async function main() {
       'WS 伪造 token 被鉴权拒绝',
     );
 
-    const expiredDeviceToken = await httpRequest(
+    const nonExpiringDeviceToken = await httpRequest(
       'POST',
       '/device-tokens',
       {
-        name: `${TEST_RESOURCE_PREFIX}-expired-device`,
+        name: `${TEST_RESOURCE_PREFIX}-non-expiring-device`,
         projects: [projectNames.main],
+        // 兼容旧调用方多传该字段：全局 whitelist 会忽略它，设备令牌仍长期有效。
         expiresAt: '2000-01-01T00:00:00.000Z',
       },
       administratorAccessToken,
     );
-    cleanup.deviceTokenIds.push(expiredDeviceToken.json.id);
-    await expectWebSocketClose(
-      {
-        token: expiredDeviceToken.json.token,
-        clientId: `${TEST_RESOURCE_PREFIX}-expired-device`,
-      },
-      4001,
-      '过期 device token 被 WS 鉴权拒绝',
+    cleanup.deviceTokenIds.push(nonExpiringDeviceToken.json.id);
+    const nonExpiringDeviceConnection = connectDevice({
+      token: nonExpiringDeviceToken.json.token,
+      clientId: `${TEST_RESOURCE_PREFIX}-non-expiring-device`,
+    });
+    const nonExpiringDeviceWelcome =
+      await nonExpiringDeviceConnection.waitMessage(
+        (message) => message.type === 'welcome',
+      );
+    assert(
+      nonExpiringDeviceToken.status < 300 &&
+        !Object.hasOwn(nonExpiringDeviceToken.json, 'expiresAt') &&
+        Array.isArray(nonExpiringDeviceWelcome.projects) &&
+        nonExpiringDeviceWelcome.projects.length === 1,
+      'device token 无过期字段且仅由撤销或删除控制生命周期',
     );
+    await closeDevice(nonExpiringDeviceConnection);
 
     const revokeDeviceToken = await httpRequest(
       'POST',

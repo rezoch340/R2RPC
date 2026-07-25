@@ -1,9 +1,13 @@
 import {
   BadRequestException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
@@ -12,6 +16,12 @@ import { RedisCacheAsideService } from '../../infrastructure/redis/redis-cache-a
 import { projects } from '../projects/projects.schema';
 import { ProjectsService } from '../projects/projects.service';
 import { accessTokenProjects, accessTokens } from './access-token.schema';
+
+interface AccessTokenUpdateInput {
+  projects?: string[];
+  expiresAt?: Date | null;
+  maximumUsageCount?: number | null;
+}
 
 @Injectable()
 export class AccessTokenService {
@@ -36,6 +46,7 @@ export class AccessTokenService {
     name: string;
     projects: string[];
     expiresAt?: Date;
+    maximumUsageCount?: number;
     description?: string;
     createdBy?: number;
   }) {
@@ -55,6 +66,7 @@ export class AccessTokenService {
           name: input.name,
           token,
           expiresAt: input.expiresAt,
+          maximumUsageCount: input.maximumUsageCount,
           description: input.description,
           createdBy: input.createdBy,
         })
@@ -80,36 +92,56 @@ export class AccessTokenService {
     };
   }
 
-  async updateProjects(accessTokenId: number, projectsInput: string[]) {
-    const { projectNames, projectIds } =
-      await this.resolveProjectSelection(projectsInput);
+  async update(accessTokenId: number, input: AccessTokenUpdateInput) {
+    const projectSelection = input.projects
+      ? await this.resolveProjectSelection(input.projects)
+      : undefined;
+    const updatesPolicy =
+      input.expiresAt !== undefined || input.maximumUsageCount !== undefined;
+    if (!projectSelection && !updatesPolicy) {
+      throw new BadRequestException('至少提供一个可修改字段');
+    }
+
     const accessTokenRecord =
       await this.redisCacheAsideService.writeAndInvalidate(
         () =>
           this.database.transaction(async (transaction) => {
-            const [tokenRecord] = await transaction
+            const [existingTokenRecord] = await transaction
               .select()
               .from(accessTokens)
               .where(alive(accessTokens, eq(accessTokens.id, accessTokenId)))
               .limit(1);
-            if (!tokenRecord) {
+            if (!existingTokenRecord) {
               throw new NotFoundException('Token 不存在');
             }
 
-            await transaction
-              .delete(accessTokenProjects)
-              .where(eq(accessTokenProjects.tokenId, accessTokenId));
-            await transaction.insert(accessTokenProjects).values(
-              projectIds.map((projectId) => ({
-                tokenId: accessTokenId,
-                projectId,
-              })),
-            );
-            return tokenRecord;
+            const updatedTokenRecord = updatesPolicy
+              ? await this.updatePolicyInTransaction(
+                  transaction,
+                  accessTokenId,
+                  input,
+                )
+              : existingTokenRecord;
+            if (projectSelection) {
+              await this.replaceProjectsInTransaction(
+                transaction,
+                accessTokenId,
+                projectSelection.projectIds,
+              );
+            }
+            return updatedTokenRecord;
           }),
         (tokenRecord) => accessTokenCacheKey(tokenRecord.token),
       );
+
+    const projectNames =
+      projectSelection?.projectNames ??
+      (await this.projectNamesOf(accessTokenId));
     return { ...accessTokenRecord, projects: projectNames };
+  }
+
+  async updateProjects(accessTokenId: number, projectsInput: string[]) {
+    return this.update(accessTokenId, { projects: projectsInput });
   }
 
   /**
@@ -191,8 +223,40 @@ export class AccessTokenService {
       name: accessTokenRecord.name,
       status: accessTokenRecord.status,
       expiresAt: accessTokenRecord.expiresAt,
+      maximumUsageCount: accessTokenRecord.maximumUsageCount,
+      usageCount: accessTokenRecord.usageCount,
       projectIds: projectRows.map((projectRecord) => projectRecord.projectId),
     };
+  }
+
+  async consumeInvocation(accessTokenId: number): Promise<number | null> {
+    const accessTokenRecord =
+      await this.redisCacheAsideService.writeAndInvalidate(
+        async () => {
+          const [consumedTokenRecord] = await this.database
+            .update(accessTokens)
+            .set({ usageCount: sql`${accessTokens.usageCount} + 1` })
+            .where(
+              alive(
+                accessTokens,
+                eq(accessTokens.id, accessTokenId),
+                eq(accessTokens.status, 'active'),
+                sql`${accessTokens.maximumUsageCount} IS NOT NULL`,
+                sql`${accessTokens.usageCount} < ${accessTokens.maximumUsageCount}`,
+                sql`(${accessTokens.expiresAt} IS NULL OR ${accessTokens.expiresAt} > NOW())`,
+              ),
+            )
+            .returning();
+          if (consumedTokenRecord) {
+            return consumedTokenRecord;
+          }
+          return this.resolveUnconsumedToken(accessTokenId);
+        },
+        (tokenRecord) => accessTokenCacheKey(tokenRecord.token),
+      );
+    return accessTokenRecord.maximumUsageCount === null
+      ? null
+      : accessTokenRecord.usageCount;
   }
 
   /**
@@ -233,5 +297,82 @@ export class AccessTokenService {
       projectIds.push(projectId);
     }
     return { projectNames, projectIds };
+  }
+
+  private async projectNamesOf(accessTokenId: number): Promise<string[]> {
+    const projectRecords = await this.database
+      .select({ name: projects.name })
+      .from(accessTokenProjects)
+      .innerJoin(
+        projects,
+        alive(projects, eq(accessTokenProjects.projectId, projects.id)),
+      )
+      .where(eq(accessTokenProjects.tokenId, accessTokenId));
+    return projectRecords.map((projectRecord) => projectRecord.name);
+  }
+
+  private async updatePolicyInTransaction(
+    transaction: Parameters<Parameters<typeof this.database.transaction>[0]>[0],
+    accessTokenId: number,
+    input: AccessTokenUpdateInput,
+  ) {
+    const [updatedTokenRecord] = await transaction
+      .update(accessTokens)
+      .set({
+        expiresAt: input.expiresAt,
+        maximumUsageCount: input.maximumUsageCount,
+      })
+      .where(alive(accessTokens, eq(accessTokens.id, accessTokenId)))
+      .returning();
+    if (!updatedTokenRecord) {
+      throw new NotFoundException('Token 不存在');
+    }
+    return updatedTokenRecord;
+  }
+
+  private async replaceProjectsInTransaction(
+    transaction: Parameters<Parameters<typeof this.database.transaction>[0]>[0],
+    accessTokenId: number,
+    projectIds: number[],
+  ): Promise<void> {
+    await transaction
+      .delete(accessTokenProjects)
+      .where(eq(accessTokenProjects.tokenId, accessTokenId));
+    await transaction.insert(accessTokenProjects).values(
+      projectIds.map((projectId) => ({
+        tokenId: accessTokenId,
+        projectId,
+      })),
+    );
+  }
+
+  private async resolveUnconsumedToken(accessTokenId: number) {
+    const [accessTokenRecord] = await this.database
+      .select()
+      .from(accessTokens)
+      .where(alive(accessTokens, eq(accessTokens.id, accessTokenId)))
+      .limit(1);
+    if (!accessTokenRecord) {
+      throw new UnauthorizedException('无效 token');
+    }
+    if (accessTokenRecord.status !== 'active') {
+      throw new ForbiddenException('token 已停用/撤销');
+    }
+    if (
+      accessTokenRecord.expiresAt &&
+      accessTokenRecord.expiresAt < new Date()
+    ) {
+      throw new UnauthorizedException('token 已过期');
+    }
+    if (
+      accessTokenRecord.maximumUsageCount !== null &&
+      accessTokenRecord.usageCount >= accessTokenRecord.maximumUsageCount
+    ) {
+      throw new HttpException(
+        'token 调用次数已用尽',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    return accessTokenRecord;
   }
 }

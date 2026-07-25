@@ -107,10 +107,18 @@ nest g resource application/{module} --no-spec
 - `isRoot` 用户修改其他受保护管理员的组关系时仍须经过
   `AdministratorAccountPolicyService`，身份闸不能绕过账号隔离策略。
 
-### 令牌作用域更新
+### 令牌作用域与过期策略
 
+- Device Token 是设备长期凭证，不设置过期时间，生命周期只由撤销或软删除控制；Access
+  Token 可设置绝对过期时间与最大 RPC 调用次数。
 - 两类令牌的 project 作用域更新都使用完整集合替换，必须在事务内校验 project、删除旧关联并
   写入新关联；禁止逐项写入导致半更新。
+- Access Token 的作用域、绝对过期时间和次数上限必须支持同一入口二次编辑；取消或修改限制
+  不得隐式重置累计使用次数。
+- 只有通过鉴权和 DTO 校验的公开 RPC invoke 消耗一次额度；在线设备查询不消耗。进入业务层后
+  无论最终为成功、无设备、设备错误或超时，都视为一次调用。
+- 次数受限令牌必须以 PostgreSQL 条件更新原子占用额度，禁止 Redis `GET` 后再 `INCR` 或
+  进程内计数；不限次数令牌不得为每次 invoke 额外写 PostgreSQL。
 - Access Token 更新成功后立即删除 Guard 缓存；Device Token 更新成功后删除 WS 鉴权缓存，
   再发布 `ws:device-token-scope-changed` 集群事件。
 - 每个 API 实例都必须订阅 Device Token 作用域事件，并以 close `4002` 断开该 token 的本地
