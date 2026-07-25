@@ -194,3 +194,14 @@ docker compose down -v
 生产环境必须更换 JWT 和管理员密码、收紧 `app.corsOrigins`、配置 TLS/WSS，并按实际入口修改
 `app.publicWsUrl`。官方 PostgreSQL 镜像的首次建库账号由 Compose 引导参数创建；若修改
 `deploy/config.yaml` 的数据库账号，必须同步 Compose 引导参数，或改用外部托管数据库。
+
+## GitHub Actions 与 GHCR
+
+- `.github/workflows/ci.yml` 在 Pull Request 和 `main` 推送时构建后端与前端，并使用完整
+  Compose 执行后端 HTTP/WebSocket 黑盒和前端 Playwright 黑盒。
+- `.github/workflows/publish-ghcr.yml` 在推送合法 `v*` 标签时发布：
+  - `ghcr.io/rezoch340/r2rpc-backend:<tag>` 与 `latest`
+  - `ghcr.io/rezoch340/r2rpc-frontend:<tag>` 与 `latest`
+- backend 镜像同时承载 API、Worker、migration、seed 和 performance 入口；部署时通过命令
+  区分职责，不重复发布 Worker 镜像。
+- 发布矩阵不构建或发布 Android/JavaScript SDK；每个服务镜像必须小于等于 500 MiB。

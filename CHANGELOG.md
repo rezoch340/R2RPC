@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### GitHub Actions 与 GHCR 发布
+- 新增持续集成工作流，在 Pull Request 和 `main` 推送时分别执行后端、前端质量门禁，并在
+  完整 Compose 环境运行 180 项 HTTP/WebSocket 黑盒和 12 项 Playwright 浏览器黑盒。
+- 后端门禁覆盖完整变量名/ESLint、Prettier、构建、Jest、OpenAPI 与 Drizzle 迁移漂移；
+  前端门禁覆盖完整变量名/ESLint 和生产构建。
+- 参考 FlowCore 的标签发布流程，`v*` 标签使用固定提交版本的 GitHub Actions，只构建并发布
+  `ghcr.io/rezoch340/r2rpc-backend` 与 `ghcr.io/rezoch340/r2rpc-frontend`，同时写入版本标签
+  和 `latest`，单镜像上限 500 MiB。
+- Android 与 JavaScript SDK 明确不进入本次 GitHub Actions 构建或发布矩阵。
+
 ### Access Token 按调用次数过期
 - Access Token 新增可选 `maximumUsageCount` 和只读 `usageCount`；留空表示不限次数，达到上限后
   令牌失效并返回 HTTP `429`。

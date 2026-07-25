@@ -1,6 +1,7 @@
 # R2RPC
 
 [![wakatime](https://wakatime.com/badge/user/bd5036d3-6da5-4386-8a6b-2acdaf448df5/project/4d0173df-ceea-4da6-b039-6f406b360801.svg)](https://wakatime.com/badge/user/bd5036d3-6da5-4386-8a6b-2acdaf448df5/project/4d0173df-ceea-4da6-b039-6f406b360801)
+[![持续集成](https://github.com/rezoch340/R2RPC/actions/workflows/ci.yml/badge.svg)](https://github.com/rezoch340/R2RPC/actions/workflows/ci.yml)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white)
 ![NestJS](https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
@@ -55,6 +56,8 @@ R2RPC 解决“服务端需要调用位于 NAT、移动网络或客户现场中�
 | 官方 SDK | Android/Kotlin、JavaScript/TypeScript 设备端与调用方 SDK，内置重连、超时和 AppAudit Recorder |
 | 部署运维 | 统一 YAML、独立迁移/种子、健康检查、非 root 应用容器、持久化卷 |
 | 性能验收 | 4 台虚拟在线设备、真实 WS Hello、自动轮询/随机指定设备、质量阈值和 JSON 报告 |
+| 持续集成 | 后端/前端 lint、格式、构建、单测、契约漂移、Compose 黑盒与浏览器 E2E |
+| 镜像发布 | `v*` 标签自动发布 backend/frontend 的版本标签与 `latest` 到 GHCR |
 
 ## 管理面板样例
 
@@ -491,6 +494,8 @@ R2RPC/
 - 设备 RPC、后台控制面、权限、审计、管理前端、完整 Compose 和容器性能验收已形成闭环。
 - Android/Kotlin 与 JavaScript/TypeScript SDK 已纳入仓库，设备与调用方可直接复用
   [SDK 接入说明](sdk/README.md)。
+- GitHub Actions 已自动执行后端与前端质量门禁、完整 Compose 黑盒验收；推送 `v*` 标签时
+  发布 `r2rpc-backend` 和 `r2rpc-frontend` GHCR 镜像。SDK 不进入该自动构建。
 - 发布阶段待办以[`docs/下一步-后端待办.md`](docs/下一步-后端待办.md)为准。
 
 ## 项目文档

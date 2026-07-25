@@ -36,9 +36,14 @@ docker compose build api frontend
 7. 对生成的 `docs/openapi.yaml` 执行差异审查，确保每个操作都有说明、成功响应 schema、
    鉴权方案和 4xx 响应。
 
+Pull Request 与 `main` 推送由 `.github/workflows/ci.yml` 自动执行后端/前端构建及完整黑盒。
+GitHub Actions 不构建 SDK，SDK 检查仍按变更范围在发布前本地执行。
+
 ## 发布与回滚
 
-- 创建签名标签和 GitHub Release，附 Changelog、镜像摘要、兼容性和迁移说明。
+- 创建签名 `v*` 标签会触发 `.github/workflows/publish-ghcr.yml`，自动构建并发布
+  `ghcr.io/rezoch340/r2rpc-backend` 和 `ghcr.io/rezoch340/r2rpc-frontend` 的版本标签与
+  `latest`；GitHub Release 应附 Changelog、镜像摘要、兼容性和迁移说明。
 - SDK 先在本地或私有 Registry 验证安装，再按批准的目标 Registry 发布。
 - 数据库变更必须提供向前修复方案；不得假设可以安全回滚已经被新版本写入的数据。
 - 回滚应用前确认旧版本仍能读取当前 schema、Redis 键和 WebSocket 消息。
