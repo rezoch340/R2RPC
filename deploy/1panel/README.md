@@ -111,6 +111,17 @@ chown 1000:1000 deploy/config.yaml
 chmod 600 deploy/config.yaml deploy/compose.production.yaml
 ```
 
+1Panel 的“路径选择”只接受一个 Compose 文件，不能把两个路径用逗号拼接。生成已经合并生产
+覆盖的单文件：
+
+```bash
+./deploy/1panel/generate-compose-file.sh
+```
+
+生成结果为 `/opt/r2rpc/compose.1panel.yaml`，包含生产数据库密码，因此已被 Git 忽略并设置
+为 `600` 权限。每次修改 `compose.yaml` 或 `deploy/compose.production.yaml` 后都必须重新
+生成。
+
 ## 3. 校验并启动容器
 
 先用将要发布的后端镜像执行生产配置门禁：
@@ -126,13 +137,11 @@ docker run --rm \
 
 ```bash
 docker compose \
-  -f compose.yaml \
-  -f deploy/compose.production.yaml \
+  -f compose.1panel.yaml \
   pull
 
 docker compose \
-  -f compose.yaml \
-  -f deploy/compose.production.yaml \
+  -f compose.1panel.yaml \
   up -d --no-build
 ```
 
@@ -140,8 +149,7 @@ docker compose \
 
 ```bash
 docker compose \
-  -f compose.yaml \
-  -f deploy/compose.production.yaml \
+  -f compose.1panel.yaml \
   ps
 
 docker inspect \
@@ -161,8 +169,14 @@ Migration 与 Seed 的退出码均为 `0`。宿主机仅监听：
 127.0.0.1:9306/9308 Manticore
 ```
 
-通过终端创建的 Compose 会在 1Panel 容器页面显示为 Local，可查看容器、日志和统计信息；
-生命周期命令仍使用上面的双 `-f` 命令，避免遗漏生产覆盖文件。1Panel 官方也区分 Apps、
+需要在面板中启停时，进入“容器 → 编排 → 创建编排 → 路径选择”，只选择：
+
+```text
+/opt/r2rpc/compose.1panel.yaml
+```
+
+不要填写 `/opt/r2rpc/compose.yaml,/opt/r2rpc/deploy/compose.production.yaml`；1Panel 会把
+整段内容当成一个文件名并返回 `stat ... no such file or directory`。1Panel 官方区分 Apps、
 1Panel 和 Local 三类 Compose，只有由面板创建的 Compose 才提供完整启停控制。
 
 ## 4. 创建两个 1Panel 反向代理网站
@@ -334,14 +348,14 @@ deploy/reverse-proxy/check-production.sh \
 ```bash
 cd /opt/r2rpc
 docker compose \
-  -f compose.yaml \
-  -f deploy/compose.production.yaml \
+  -f compose.1panel.yaml \
   logs --tail=200 api worker frontend
 ```
 
 更新版本时先备份 PostgreSQL 和三个命名卷，再检出目标标签，更新
-`deploy/compose.production.yaml` 中所有 R2RPC 镜像标签，然后重新执行 `pull` 与
-`up -d --no-build`。不能只更新 API，Migration、Seed、Worker 和 Frontend 必须使用同一版本。
+`deploy/compose.production.yaml` 中所有 R2RPC 镜像标签，重新运行
+`./deploy/1panel/generate-compose-file.sh`，然后执行 `pull` 与 `up -d --no-build`。不能只
+更新 API，Migration、Seed、Worker 和 Frontend 必须使用同一版本。
 
 回滚时恢复数据库备份并把全部 R2RPC 镜像标签恢复为上一版本。数据库迁移不保证向后兼容，
 不能只回退镜像而保留不兼容的新 schema。

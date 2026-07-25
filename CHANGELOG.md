@@ -5,6 +5,8 @@
 ## [Unreleased]
 
 ### Cloudflare 与反向代理发布基线
+- 修正 1Panel 编排路径：新增生产 Compose 单文件生成脚本，避免面板将逗号分隔的两个路径
+  误判为一个不存在的文件。
 - 新增可直接照做的 1Panel 生产部署文档与 OpenResty 片段，覆盖 GHCR Release 镜像、
   双反向代理网站、证书 SAN 核对、WebSocket 专用 location、Cloudflare 真实 IP 定时刷新、
   1Panel 容器观测及生产验收。
