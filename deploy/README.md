@@ -224,10 +224,13 @@ docker compose down -v
 镜像的首次建库账号由 Compose 引导参数创建；若修改 `deploy/config.yaml` 的数据库账号，
 必须同步 Compose 引导参数，或改用外部托管数据库。
 
-## GitHub Actions 与 GHCR
+## 本地质量门禁与 GHCR
 
-- `.github/workflows/ci.yml` 在 Pull Request 和 `main` 推送时构建后端与前端，并使用完整
-  Compose 执行后端 HTTP/WebSocket 黑盒和前端 Playwright 黑盒。
+- `./scripts/local-ci.sh` 在本地执行后端与前端 lint、格式、构建、单测、OpenAPI/Drizzle
+  漂移和 Compose 配置校验。
+- `./scripts/local-ci.sh --full` 额外使用独立 Compose 项目执行后端 HTTP/WebSocket 黑盒和
+  前端 Playwright 黑盒，测试固定读取 `deploy/config.example.yaml`；Pull Request 与 `main`
+  推送不运行云端质量门禁。
 - `.github/workflows/publish-ghcr.yml` 在推送合法 `v*` 标签时发布：
   - `ghcr.io/rezoch340/r2rpc-backend:<tag>` 与 `latest`
   - `ghcr.io/rezoch340/r2rpc-frontend:<tag>` 与 `latest`

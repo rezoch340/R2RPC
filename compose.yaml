@@ -7,7 +7,7 @@ x-backend-image: &backend-image
 
 x-application-config: &application-config
   volumes:
-    - ./deploy/config.yaml:/app/config.yaml:ro
+    - ${CONFIG_FILE:-./deploy/config.yaml}:/app/config.yaml:ro
 
 x-postgres-resources: &postgres-resources
   cpus: "0.65"
@@ -171,7 +171,7 @@ services:
     ports:
       - "3001:3001"
     volumes:
-      - ./deploy/config.yaml:/app/config.yaml:ro
+      - ${CONFIG_FILE:-./deploy/config.yaml}:/app/config.yaml:ro
     depends_on:
       api:
         condition: service_healthy
@@ -195,7 +195,7 @@ services:
     command: ["node", "dist/scripts/performance.js"]
     restart: "no"
     volumes:
-      - ./deploy/config.yaml:/app/config.yaml:ro
+      - ${CONFIG_FILE:-./deploy/config.yaml}:/app/config.yaml:ro
       - ./performance-results:/app/performance-results
     depends_on:
       api:
