@@ -11,6 +11,7 @@ import {
   loadApplicationConfiguration,
   resolveConfigurationFile,
 } from './config.loader';
+import { configSchema } from './config.schema';
 
 const originalConfiguredFile = process.env.CONFIG_FILE;
 const temporaryDirectories: string[] = [];
@@ -99,6 +100,16 @@ describe('统一配置加载器', () => {
       loadApplicationConfiguration(temporaryDirectory).configuration;
 
     expect(loadedConfiguration.app.corsOrigins).toEqual(['*']);
+    expect(loadedConfiguration.app.openApiEnabled).toBe(true);
+    expect(
+      configSchema.parse({
+        ...loadedConfiguration,
+        app: {
+          ...loadedConfiguration.app,
+          openApiEnabled: false,
+        },
+      }).app.openApiEnabled,
+    ).toBe(false);
     expect(loadedConfiguration.frontend).toEqual({
       apiUrl: null,
       apiPort: 3000,

@@ -2,7 +2,7 @@
 
 NestJS 11 后端，采用 API/Worker 双进程：
 
-- API：HTTP、Swagger、设备 WebSocket、RPC 热路径
+- API：HTTP、可选 Swagger、设备 WebSocket、RPC 热路径
 - Worker：BullMQ 日志消费、Manticore payload/AppAudit、日指标、定时维护
 
 ## 依赖
@@ -69,7 +69,8 @@ node dist/main.js
 node dist/worker.js
 ```
 
-Swagger 位于 `/docs`，设备 WebSocket 位于 `/api/client/ws`。
+`app.openApiEnabled: true` 时 Swagger 位于 `/docs`；生产可设为 `false` 完全不注册运行时
+文档路由。设备 WebSocket 位于 `/api/client/ws`。
 
 生产镜像与完整 Compose：
 
@@ -300,6 +301,10 @@ pnpm openapi:gen
 - 参数/鉴权/权限/资源冲突等标准 4xx，以及统一错误响应 schema。
 
 设备 WebSocket 协议不属于 HTTP OpenAPI，单独位于 `/api/client/ws`。
+
+`app.openApiEnabled` 只控制 API 进程是否注册 `/docs`；默认值为 `true`，生产建议设为
+`false`。静态生成脚本不读取该开关，因此关闭运行时文档后仍必须维护和提交
+`../docs/openapi.yaml`。Compose API 健康检查使用 TCP，不依赖 Swagger。
 
 ## 关键目录
 

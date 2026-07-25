@@ -8,6 +8,7 @@ export const configSchema = z.object({
     // 手机端下发的 WebSocket 公网地址前缀;不填则用 ws://127.0.0.1:{port}
     publicWsUrl: z.string().optional(),
     corsOrigins: z.array(z.string().min(1)).min(1).default(['*']),
+    openApiEnabled: z.boolean().default(true),
   }),
   frontend: z
     .object({

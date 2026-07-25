@@ -7,7 +7,7 @@ import { buildOpenApiConfiguration } from './common/openapi/openapi.configuratio
 import { completeOpenApiDocument } from './common/openapi/openapi.document';
 import { ConfigService } from './infrastructure/config/config.service';
 
-// API 进程入口:HTTP API + WebSocket Gateway + Swagger
+// API 进程入口:HTTP API + WebSocket Gateway + 可选 Swagger
 async function bootstrap() {
   // 全局兜底:WS 网关等处若仍有漏网的悬空 Promise(如 redis 抖动),不能让进程直接崩掉
   process.on('unhandledRejection', (reason) => {
@@ -33,11 +33,13 @@ async function bootstrap() {
   });
   application.enableShutdownHooks();
 
-  const swaggerConfiguration = buildOpenApiConfiguration();
-  const openApiDocument = completeOpenApiDocument(
-    SwaggerModule.createDocument(application, swaggerConfiguration),
-  );
-  SwaggerModule.setup('docs', application, openApiDocument);
+  if (configuration.app.openApiEnabled) {
+    const swaggerConfiguration = buildOpenApiConfiguration();
+    const openApiDocument = completeOpenApiDocument(
+      SwaggerModule.createDocument(application, swaggerConfiguration),
+    );
+    SwaggerModule.setup('docs', application, openApiDocument);
+  }
 
   await application.listen(configuration.app.port);
 }

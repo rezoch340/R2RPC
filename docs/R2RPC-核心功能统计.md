@@ -33,6 +33,7 @@
 | 管理前端 | Next.js + shadcn，完整后台公开面 | ✅ | Playwright 12 项 + HTTP |
 | 前端质量 | 页面/组件/E2E 完整变量名门禁、ESLint、生产构建 | ✅ | `frontend/pnpm lint` |
 | 配置与部署 | 前后端统一 YAML、API/Worker/frontend 镜像、完整 Compose | ✅ | loader 单测 + Compose/build |
+| 部署安全 | 运行时 OpenAPI 开关、Swagger 无关 TCP 健康检查、生产配置基线 | ✅ | config + Compose |
 | 性能验收 | 4 台在线虚拟设备、真实 WS Hello、自动/随机路由、质量阈值、JSON 报告 | ✅ | 受限 Compose 实测 |
 | 官方 SDK | Android/Kotlin 与 JavaScript/TypeScript 设备端、调用方、AppAudit Recorder | ✅ | 18 项 SDK 测试 |
 | CI 与镜像发布 | 后端/前端质量门禁、Compose 黑盒、`v*` 标签发布 GHCR | ✅ | GitHub Actions |

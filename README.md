@@ -225,7 +225,7 @@ flowchart TB
 
 | 进程 | 职责 |
 |---|---|
-| API | HTTP、Swagger、设备 WebSocket、鉴权、路由和 RPC 热路径 |
+| API | HTTP、可配置 Swagger、设备 WebSocket、鉴权、路由和 RPC 热路径 |
 | Worker | BullMQ 日志消费、Manticore 索引、日指标、保留策略和定时维护 |
 | Frontend | 后台控制面与运行观测，不直接访问 PostgreSQL、Redis 或 Manticore |
 | Migration | 独立、幂等的 Drizzle 数据库迁移任务 |
@@ -273,7 +273,7 @@ API healthy ──────────────────────�
 |---|---|
 | 管理控制台 | `http://127.0.0.1:3001` |
 | HTTP API | `http://127.0.0.1:3000` |
-| Swagger | `http://127.0.0.1:3000/docs` |
+| Swagger | `http://127.0.0.1:3000/docs`（`app.openApiEnabled: true` 时） |
 | 默认管理员 | `admin / admin123456` |
 
 查看启动日志：
@@ -393,7 +393,7 @@ Redis、JWT 或管理员配置。
 
 当前 OpenAPI 包含 **39 个 HTTP 路径模板**，完整契约见：
 
-- 在线 Swagger：`http://127.0.0.1:3000/docs`
+- 在线 Swagger：`http://127.0.0.1:3000/docs`（可通过 `app.openApiEnabled: false` 关闭）
 - 仓库定义：[`docs/openapi.yaml`](docs/openapi.yaml)
 
 主要入口：
@@ -533,9 +533,10 @@ R2RPC/
 
 ## 生产部署提示
 
-部署前应在 `deploy/config.yaml` 中替换 JWT 和管理员初始密码，收紧 CORS，配置 TLS/WSS，
-并按真实入口修改 `app.publicWsUrl`。数据库账号同时受 PostgreSQL 镜像首次引导参数约束；
-使用外部托管数据库时可移除 Compose 中的本地 PostgreSQL 服务。
+部署前应在 `deploy/config.yaml` 中设置 `app.openApiEnabled: false`、替换 JWT 和管理员
+初始密码、收紧 CORS、配置 TLS/WSS，并按真实入口修改 `app.publicWsUrl`。数据库账号同时受
+PostgreSQL 镜像首次引导参数约束；使用外部托管数据库时可移除 Compose 中的本地 PostgreSQL
+服务。
 
 ## 许可与发布
 

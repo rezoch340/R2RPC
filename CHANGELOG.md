@@ -4,11 +4,22 @@
 
 ## [Unreleased]
 
+### 部署安全基线与 OpenAPI 开关
+- 统一配置新增 `app.openApiEnabled`，默认开启以兼容开发和黑盒验收；设置为 `false` 时 API
+  不注册运行时 `/docs`，业务 HTTP、WebSocket 与静态 OpenAPI 生成保持不变。
+- Compose API 健康检查从 `/docs` 改为容器内 TCP 探测，关闭 Swagger 后仍可正确启动
+  Frontend 和其他依赖服务，也不会周期性制造鉴权审计日志。
+- 宿主机与 Compose 配置模板、根 README、后端说明和部署文档补齐生产关闭示例、重启步骤、
+  `404` 预期与静态 `docs/openapi.yaml` 的独立维护边界。
+
 ### GitHub Actions 与 GHCR 发布
 - 新增持续集成工作流，在 Pull Request 和 `main` 推送时分别执行后端、前端质量门禁，并在
   完整 Compose 环境运行 180 项 HTTP/WebSocket 黑盒和 12 项 Playwright 浏览器黑盒。
 - 后端门禁覆盖完整变量名/ESLint、Prettier、构建、Jest、OpenAPI 与 Drizzle 迁移漂移；
   前端门禁覆盖完整变量名/ESLint 和生产构建。
+- CI 统一使用 Node.js 24 自带 Corepack 激活仓库锁定的 pnpm，移除仍以 Node.js 20 运行的
+  `pnpm/action-setup`；生成校验显式读取 `config.example.yaml`，避免干净 Runner 缺少
+  `config.yaml` 时误报失败。
 - 参考 FlowCore 的标签发布流程，`v*` 标签使用固定提交版本的 GitHub Actions，只构建并发布
   `ghcr.io/rezoch340/r2rpc-backend` 与 `ghcr.io/rezoch340/r2rpc-frontend`，同时写入版本标签
   和 `latest`，单镜像上限 500 MiB。
