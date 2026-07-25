@@ -6,6 +6,8 @@ app:
   publicWsUrl: ws://127.0.0.1:3000/api/client/ws
   # false 时不注册运行时 /docs；静态 docs/openapi.yaml 仍可生成。
   openApiEnabled: true
+  # 直连开发保持 0；只在 API 端口限制为本机且前置可信反向代理时设置代理跳数。
+  trustedProxyHops: 0
   # '*' 允许任意 Origin；生产应改为明确的控制台地址列表。
   corsOrigins:
     - '*'

@@ -36,6 +36,8 @@
   提供 PostgreSQL、Redis、Manticore 和全部应用服务编排。
 - 运行时 Swagger 由 `app.openApiEnabled` 控制，默认开启、生产关闭；静态
   `docs/openapi.yaml` 始终生成和提交。
+- 生产公网入口采用 Cloudflare → 宿主机 Nginx/OpenResty → loopback 容器端口；双域名、
+  Origin TLS、WSS、可信单跳代理与正式域名检查见 `deploy/README.md`。
 - Compose 全部服务都有限制，CPU 声明上限合计 4.00 核、内存 3840 MiB；可选
   `performance` profile 默认挂 4 台虚拟 WS 设备，压测自动/随机设备 Hello 并生成 JSON 报告。
 - 全部列表默认 10 条/页、最大 100 条/页；运行概览使用折线趋势图，请求详情使用宽版右侧

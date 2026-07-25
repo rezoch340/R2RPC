@@ -17,13 +17,15 @@ cp config.example.yaml config.yaml
 cp deploy/config.example.yaml deploy/config.yaml
 ```
 
-两份 example 的字段完全相同；宿主机模板使用 `127.0.0.1`，Compose 模板使用
-`postgres`、`redis`、`manticore` 服务名。Compose 项目名固定为 `r2rpc`，确保容器网络与
-命名卷不受本地仓库目录名影响。真实 `config.yaml` 已被 Git 忽略。
+开发用的两份 example 字段完全相同；宿主机模板使用 `127.0.0.1`，Compose 模板使用
+`postgres`、`redis`、`manticore` 服务名。`config.production.example.yaml` 是
+Nginx/OpenResty + Cloudflare 双域名生产样例。Compose 项目名固定为 `r2rpc`，确保容器网络
+与命名卷不受本地仓库目录名影响。真实 `config.yaml` 已被 Git 忽略。
 
 配置段：
 
-- `app`：API 端口、全局前缀、公开 WebSocket 地址、CORS Origin、运行时 OpenAPI 开关。
+- `app`：API 端口、全局前缀、公开 WebSocket 地址、CORS Origin、运行时 OpenAPI 开关和
+  可信反向代理跳数。
 - `frontend`：浏览器 API 地址/端口、开发资源允许来源。
 - `db`、`redis`、`manticore`：基础设施连接。
 - `jwt`：签名、有效期、授权缓存 TTL。
@@ -39,14 +41,14 @@ cp deploy/config.example.yaml deploy/config.yaml
 
 | 服务 | 镜像/构建 | 端口 | 角色 |
 |---|---|---|---|
-| `postgres` | postgres:16-alpine | 5432 | 权威业务库和请求日志脊柱 |
-| `redis` | redis:7-alpine | 6379 | 在线状态、缓存、BullMQ、分布式协调 |
-| `manticore` | manticoresearch/manticore | 9308/9306 | payload、AppAudit 与全文索引 |
+| `postgres` | postgres:16-alpine | 127.0.0.1:5432 | 权威业务库和请求日志脊柱 |
+| `redis` | redis:7-alpine | 127.0.0.1:6379 | 在线状态、缓存、BullMQ、分布式协调 |
+| `manticore` | manticoresearch/manticore | 127.0.0.1:9308/9306 | payload、AppAudit 与全文索引 |
 | `migration` | `backend/Dockerfile` | — | 一次性幂等 Drizzle 迁移 |
 | `seed` | `backend/Dockerfile` | — | 一次性幂等管理员、权限和演示数据种子 |
-| `api` | `backend/Dockerfile` | 3000 | HTTP、可选 Swagger、WebSocket、RPC 热路径 |
+| `api` | `backend/Dockerfile` | 127.0.0.1:3000 | HTTP、可选 Swagger、WebSocket、RPC 热路径 |
 | `worker` | `backend/Dockerfile` | — | BullMQ 冷路径和定时维护 |
-| `frontend` | `frontend/Dockerfile` | 3001 | Next.js 管理控制台 |
+| `frontend` | `frontend/Dockerfile` | 127.0.0.1:3001 | Next.js 管理控制台 |
 | `performance` | `backend/Dockerfile` | — | `performance` profile 下的一次性公开 API 混合压测 |
 
 启动顺序由健康检查和完成条件保证：
@@ -60,7 +62,8 @@ API healthy + Worker started ─────────────────
 ```
 
 应用容器以非 root 用户运行，统一配置只读挂载，持久数据进入 `r2rpc` project 的命名卷；
-不固定 `container_name`。
+不固定 `container_name`。全部宿主机端口只绑定 `127.0.0.1`，公网入口必须经过宿主机反向
+代理，PostgreSQL、Redis 和 Manticore 不直接暴露到外网。
 
 ## 4 核 4 GiB 硬预算
 
@@ -124,6 +127,7 @@ app:
   globalPrefix: ''
   publicWsUrl: wss://rpc.example.com/api/client/ws
   openApiEnabled: false
+  trustedProxyHops: 1
   corsOrigins:
     - https://console.example.com
 ```
@@ -140,6 +144,122 @@ docker compose up -d --force-recreate api
 
 Compose 的 API 健康检查使用容器内 TCP 连接，不依赖 `/docs`，因此关闭运行时 OpenAPI 不会
 导致 API、Frontend 或其他依赖服务被误判为不健康。
+
+## Nginx / OpenResty → Cloudflare 生产入口
+
+推荐使用两个 Cloudflare 代理域名：
+
+- `console.example.com` → 宿主机 Nginx/OpenResty → `127.0.0.1:3001`
+- `rpc.example.com` → 宿主机 Nginx/OpenResty → `127.0.0.1:3000`
+- `wss://rpc.example.com/api/client/ws` 与 API 共用 443
+
+```mermaid
+flowchart LR
+  Browser["管理员浏览器"] --> Cloudflare["Cloudflare HTTPS/WSS"]
+  Device["设备 SDK"] --> Cloudflare
+  Caller["调用方 SDK"] --> Cloudflare
+  Cloudflare --> Proxy["Nginx / OpenResty :443"]
+  Proxy --> Frontend["Frontend 容器<br/>127.0.0.1:3001"]
+  Proxy --> API["API 容器<br/>127.0.0.1:3000"]
+  API --> Worker["Worker / Redis / PostgreSQL / Manticore"]
+```
+
+### 1. 准备统一生产配置
+
+```bash
+cp deploy/config.production.example.yaml deploy/config.yaml
+```
+
+至少替换两个域名、`jwt.secret`、管理员初始密码和数据库密码。样例已设置：
+
+- `app.publicWsUrl: wss://rpc.example.com/api/client/ws`
+- `app.openApiEnabled: false`
+- `app.trustedProxyHops: 1`
+- `app.corsOrigins: [https://console.example.com]`
+- `frontend.apiUrl: https://rpc.example.com`
+
+替换完成后执行生产配置门禁：
+
+```bash
+(cd backend && CONFIG_FILE=../deploy/config.yaml pnpm config:check:production)
+```
+
+门禁会拒绝 example 域名、非 HTTPS/WSS 地址、开放 Swagger、错误代理跳数、通配 CORS，以及
+未替换或过短的 JWT、管理员和数据库密码。修改数据库密码时必须同步 PostgreSQL 初始化参数
+或使用已按相同凭据创建的外部数据库。
+
+`trustedProxyHops: 1` 表示 API 只信任紧邻的 Nginx/OpenResty。必须同时保持 Compose API
+端口只绑定 `127.0.0.1`，并由反向代理覆盖 `X-Forwarded-For`，不得把该值改成无条件信任
+所有代理。
+
+### 2. 安装反向代理配置与 Origin 证书
+
+复制并替换样例中的域名：
+
+```bash
+sudo mkdir -p /etc/nginx/tls
+sudo cp deploy/reverse-proxy/r2rpc.conf.example /etc/nginx/conf.d/r2rpc.conf
+sudo cp /secure/path/r2rpc-origin.pem /etc/nginx/tls/r2rpc-origin.pem
+sudo cp /secure/path/r2rpc-origin.key /etc/nginx/tls/r2rpc-origin.key
+sudo chmod 600 /etc/nginx/tls/r2rpc-origin.key
+```
+
+该配置只记录 `$uri`，不记录 query string，避免设备 WebSocket URL 中的 `dk_` Token 进入
+Nginx/OpenResty access log；同时独立处理 WebSocket Upgrade、1 小时代理读写超时、原始
+Host/协议、禁止 API 缓存和安全响应头。
+
+从 Cloudflare 官方端点生成可信来源地址配置，禁止手工复制一份长期不更新的 IP 清单：
+
+```bash
+sudo deploy/reverse-proxy/update-cloudflare-real-ip.sh \
+  /etc/nginx/conf.d/cloudflare-real-ip.conf
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+OpenResty 使用相同配置语法，把测试和 reload 命令替换为 `openresty -t` 与实际服务管理命令。
+Cloudflare IP 段更新后应重新运行生成脚本并 reload。
+
+### 3. 配置 Cloudflare
+
+1. 为 `console` 和 `rpc` 创建指向源站的 A/AAAA/CNAME，代理状态设为 **Proxied**。
+2. SSL/TLS 模式设为 **Full (strict)**；源站证书使用匹配两个域名的 Cloudflare Origin CA
+   或公开可信证书。
+3. Edge Certificates → **Always Use HTTPS** 设为 On；Network → WebSockets 设为 **On**。
+4. 为 `rpc.example.com/*` 配置 Cache Rule：**Bypass cache**；API 和鉴权响应不得缓存。
+5. 源站防火墙的 80/443 只允许 [Cloudflare 官方 IP 段](https://www.cloudflare.com/ips/)
+   和明确的运维来源，阻止绕过 Cloudflare 直连源站。
+6. 不要为承载 WSS 的 `rpc` 域名启用 Argo；WAF/限速规则会检查初始 Upgrade 请求，发布验收
+   必须覆盖 `/api/client/ws`。
+
+Cloudflare 当前默认代理 HTTP 读超时为 125 秒，因此样例把 Nginx API
+`proxy_read_timeout` 设为 120 秒。普通 RPC 应保持短超时；超过边缘限制的长任务应改为异步
+提交与状态轮询，而不是持续占用一个 HTTP 请求。WebSocket 由应用每 5 秒 ping、SDK 每
+10 秒 heartbeat 保活；Cloudflare 网络维护仍可能断开连接，SDK 必须保留自动重连。
+
+官方依据：
+
+- [Cloudflare WebSockets](https://developers.cloudflare.com/network/websockets/)
+- [Cloudflare Full (strict)](https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/full-strict/)
+- [Cloudflare Origin CA](https://developers.cloudflare.com/ssl/origin-configuration/origin-ca/)
+- [Cloudflare IP 地址与源站限制](https://developers.cloudflare.com/fundamentals/concepts/cloudflare-ip-addresses/)
+- [Cloudflare 连接限制](https://developers.cloudflare.com/fundamentals/reference/connection-limits/)
+- [Nginx WebSocket/反向代理配置](https://nginx.org/en/docs/http/websocket.html)
+
+### 4. 启动与验收
+
+```bash
+docker compose up -d --build
+docker compose ps
+sudo nginx -t
+deploy/reverse-proxy/check-production.sh \
+  https://console.example.com \
+  https://rpc.example.com
+```
+
+验收脚本检查控制台、API 未授权响应、`/docs` 的 `404`，以及经过 Cloudflare 和反向代理的
+WebSocket Upgrade/`4001` 未授权关闭码。随后再用真实 Device Token 挂载一台 SDK 设备，执行
+自动路由和指定设备 Hello，确认 WSS、RPC 与日志闭环。
 
 ## 容器内性能测试
 
@@ -219,10 +339,11 @@ docker compose down
 docker compose down -v
 ```
 
-生产环境必须设置 `app.openApiEnabled: false`、更换 JWT 和管理员密码、收紧
-`app.corsOrigins`、配置 TLS/WSS，并按实际入口修改 `app.publicWsUrl`。官方 PostgreSQL
-镜像的首次建库账号由 Compose 引导参数创建；若修改 `deploy/config.yaml` 的数据库账号，
-必须同步 Compose 引导参数，或改用外部托管数据库。
+生产环境必须设置 `app.openApiEnabled: false`、`app.trustedProxyHops: 1`，更换 JWT 和
+管理员密码、收紧 `app.corsOrigins`、配置 TLS/WSS，并按实际入口修改
+`app.publicWsUrl`/`frontend.apiUrl`。官方 PostgreSQL 镜像的首次建库账号由 Compose 引导
+参数创建；若修改 `deploy/config.yaml` 的数据库账号，必须同步 Compose 引导参数，或改用
+外部托管数据库。
 
 ## 本地质量门禁与 GHCR
 

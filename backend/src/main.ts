@@ -1,5 +1,6 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { WsAdapter } from '@nestjs/platform-ws';
 import { SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
@@ -16,9 +17,13 @@ async function bootstrap() {
     );
   });
 
-  const application = await NestFactory.create(AppModule);
+  const application =
+    await NestFactory.create<NestExpressApplication>(AppModule);
   const configuration = application.get(ConfigService);
 
+  if (configuration.app.trustedProxyHops > 0) {
+    application.set('trust proxy', configuration.app.trustedProxyHops);
+  }
   if (configuration.app.globalPrefix) {
     application.setGlobalPrefix(configuration.app.globalPrefix);
   }

@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+### Cloudflare 与反向代理发布基线
+- 新增 `deploy/config.production.example.yaml`，覆盖控制台/API 双域名、WSS、精确 CORS、
+  关闭运行时 OpenAPI 和可信单跳反向代理。
+- 新增 Nginx/OpenResty 生产配置，区分 Frontend、API 与设备 WebSocket，规范
+  Upgrade/Connection、超时、转发头、安全响应头和禁止 API 缓存；access log 不记录 query
+  string，避免设备 Token 进入源站日志。
+- 新增 Cloudflare 官方 IP 段配置生成器与正式域名检查脚本，覆盖控制台、API 鉴权、
+  `/docs` 关闭和 WebSocket Upgrade/关闭码。
+- 新增生产统一配置门禁，拒绝样例域名、非 HTTPS/WSS、开放 Swagger、错误代理跳数、通配
+  CORS 和未替换的 JWT/管理员/数据库密码。
+- Compose 的 PostgreSQL、Redis、Manticore、API 与 Frontend 宿主机端口统一只绑定
+  `127.0.0.1`，生产公网必须经过反向代理。
+- 统一配置新增 `app.trustedProxyHops`，默认 `0`；宿主机 Nginx/OpenResty 为唯一 API
+  上游时设为 `1`，HTTP 审计可安全读取代理规范化后的访问者地址。
+
 ### 部署安全基线与 OpenAPI 开关
 - 统一配置新增 `app.openApiEnabled`，默认开启以兼容开发和黑盒验收；设置为 `false` 时 API
   不注册运行时 `/docs`，业务 HTTP、WebSocket 与静态 OpenAPI 生成保持不变。

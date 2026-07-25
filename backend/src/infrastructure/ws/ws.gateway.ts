@@ -8,6 +8,7 @@ import type { IncomingMessage } from 'node:http';
 import type { RawData, WebSocket } from 'ws';
 import { DeviceTokenService } from '../../application/device-token/device-token.service';
 import { DevicesService } from '../../application/devices/devices.service';
+import { ConfigService } from '../config/config.service';
 import { ConnectionRegistry } from './connection.registry';
 import { PresenceService } from './presence.service';
 
@@ -59,6 +60,7 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly devicesService: DevicesService,
     private readonly presenceService: PresenceService,
     private readonly connectionRegistry: ConnectionRegistry,
+    private readonly configService: ConfigService,
   ) {}
 
   async handleConnection(socket: ClientSocket, request: IncomingMessage) {
@@ -124,6 +126,9 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   private clientIp(request: IncomingMessage): string | null {
+    if (this.configService.app.trustedProxyHops === 0) {
+      return request.socket.remoteAddress || null;
+    }
     const forwardedFor = request.headers['x-forwarded-for'];
     const forwardedAddress = Array.isArray(forwardedFor)
       ? forwardedFor[0]

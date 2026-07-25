@@ -36,6 +36,7 @@
     "test:integration:device-stale": "ts-node -r tsconfig-paths/register src/scripts/device-stale.integration.ts",
     "test:integration:metrics": "ts-node -r tsconfig-paths/register src/scripts/metrics.integration.ts",
     "test:integration:max-inflight": "ts-node -r tsconfig-paths/register src/scripts/max-inflight.integration.ts",
+    "config:check:production": "ts-node -r tsconfig-paths/register src/scripts/check-production-config.ts",
     "openapi:gen": "ts-node -r tsconfig-paths/register src/scripts/gen-openapi.ts"
   },
   "dependencies": {

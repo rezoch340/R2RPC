@@ -70,7 +70,8 @@ node dist/worker.js
 ```
 
 `app.openApiEnabled: true` 时 Swagger 位于 `/docs`；生产可设为 `false` 完全不注册运行时
-文档路由。设备 WebSocket 位于 `/api/client/ws`。
+文档路由。设备 WebSocket 位于 `/api/client/ws`。宿主机 Nginx/OpenResty 是唯一入口时设置
+`app.trustedProxyHops: 1`，让 HTTP 审计使用代理规范化后的访问者地址；直连开发保持 `0`。
 
 生产镜像与完整 Compose：
 
@@ -305,6 +306,16 @@ pnpm openapi:gen
 `app.openApiEnabled` 只控制 API 进程是否注册 `/docs`；默认值为 `true`，生产建议设为
 `false`。静态生成脚本不读取该开关，因此关闭运行时文档后仍必须维护和提交
 `../docs/openapi.yaml`。Compose API 健康检查使用 TCP，不依赖 Swagger。
+
+`app.trustedProxyHops` 默认 `0`，仅在 API 端口不对公网开放且紧邻可信 Nginx/OpenResty 时
+设置为 `1`。反向代理必须覆盖而不是透传客户端提供的 `X-Forwarded-For`。Cloudflare +
+宿主机反向代理的完整生产样例见 `../deploy/README.md`。
+
+生产发布前使用统一 schema 和额外安全规则检查真实配置：
+
+```bash
+CONFIG_FILE=../deploy/config.yaml pnpm config:check:production
+```
 
 ## 关键目录
 
