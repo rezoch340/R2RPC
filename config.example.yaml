@@ -4,6 +4,8 @@ app:
   globalPrefix: ''
   # 设备侧看到的公网 WebSocket 地址。
   publicWsUrl: ws://127.0.0.1:3000/api/client/ws
+  # false 时不注册运行时 /docs；静态 docs/openapi.yaml 仍可生成。
+  openApiEnabled: true
   # '*' 允许任意 Origin；生产应改为明确的控制台地址列表。
   corsOrigins:
     - '*'

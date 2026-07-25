@@ -21,6 +21,7 @@ R2RPC 当前处于 `0.x` 阶段，服务端、管理前端、JavaScript SDK 和 
 2. 将 `CHANGELOG.md` 的 `[Unreleased]` 内容整理到带日期的版本标题。
 3. 同步 SDK 版本、README 安装示例、OpenAPI `info.version` 和兼容性说明。
 4. 确认没有 `.env`、`config.yaml`、Token、密码、内部地址、IDE 文件或构建产物进入制品。
+   生产配置必须设置 `app.openApiEnabled: false`，但静态 `docs/openapi.yaml` 仍需随版本发布。
 5. 执行：
 
 ```bash

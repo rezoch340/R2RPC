@@ -3,6 +3,8 @@ app:
   port: 3000
   globalPrefix: ''
   publicWsUrl: ws://127.0.0.1:3000/api/client/ws
+  # 生产环境建议设为 false，关闭运行时 /docs。
+  openApiEnabled: true
   corsOrigins:
     - http://127.0.0.1:3001
     - http://localhost:3001

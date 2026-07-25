@@ -143,7 +143,7 @@ services:
           "CMD",
           "node",
           "-e",
-          "fetch('http://127.0.0.1:3000/docs').then(response=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))",
+          "const network=require('node:net');const connectionSocket=network.connect(3000,'127.0.0.1');const timeoutTimer=setTimeout(()=>{connectionSocket.destroy();process.exit(1)},3000);connectionSocket.once('connect',()=>{clearTimeout(timeoutTimer);connectionSocket.end();process.exit(0)});connectionSocket.once('error',()=>{clearTimeout(timeoutTimer);process.exit(1)})",
         ]
       interval: 10s
       timeout: 5s

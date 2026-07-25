@@ -23,7 +23,7 @@ cp deploy/config.example.yaml deploy/config.yaml
 
 配置段：
 
-- `app`：API 端口、全局前缀、公开 WebSocket 地址、CORS Origin。
+- `app`：API 端口、全局前缀、公开 WebSocket 地址、CORS Origin、运行时 OpenAPI 开关。
 - `frontend`：浏览器 API 地址/端口、开发资源允许来源。
 - `db`、`redis`、`manticore`：基础设施连接。
 - `jwt`：签名、有效期、授权缓存 TTL。
@@ -44,7 +44,7 @@ cp deploy/config.example.yaml deploy/config.yaml
 | `manticore` | manticoresearch/manticore | 9308/9306 | payload、AppAudit 与全文索引 |
 | `migration` | `backend/Dockerfile` | — | 一次性幂等 Drizzle 迁移 |
 | `seed` | `backend/Dockerfile` | — | 一次性幂等管理员、权限和演示数据种子 |
-| `api` | `backend/Dockerfile` | 3000 | HTTP、Swagger、WebSocket、RPC 热路径 |
+| `api` | `backend/Dockerfile` | 3000 | HTTP、可选 Swagger、WebSocket、RPC 热路径 |
 | `worker` | `backend/Dockerfile` | — | BullMQ 冷路径和定时维护 |
 | `frontend` | `frontend/Dockerfile` | 3001 | Next.js 管理控制台 |
 | `performance` | `backend/Dockerfile` | — | `performance` profile 下的一次性公开 API 混合压测 |
@@ -55,7 +55,7 @@ cp deploy/config.example.yaml deploy/config.yaml
 PostgreSQL healthy → migration completed → seed completed → API / Worker
 Redis healthy ───────────────────────────────────────────→ API / Worker
 Manticore healthy ───────────────────────────────────────→ API / Worker
-API healthy ─────────────────────────────────────────────→ Frontend
+API TCP healthy ─────────────────────────────────────────→ Frontend
 API healthy + Worker started ─────────────────────────────→ Performance
 ```
 
@@ -96,7 +96,7 @@ docker compose ps
 访问：
 
 - API：`http://127.0.0.1:3000`
-- Swagger：`http://127.0.0.1:3000/docs`
+- Swagger：`http://127.0.0.1:3000/docs`（仅 `app.openApiEnabled: true`）
 - 管理前端：`http://127.0.0.1:3001`
 - 默认管理员：读取 `deploy/config.yaml` 的 `bootstrap.admin`
 
@@ -112,6 +112,34 @@ docker compose logs migration seed
 docker compose run --rm migration
 docker compose run --rm seed
 ```
+
+## 生产配置与关闭 OpenAPI
+
+运行时 Swagger 默认开启，便于本地开发和黑盒验收。生产部署建议在
+`deploy/config.yaml` 中关闭：
+
+```yaml
+app:
+  port: 3000
+  globalPrefix: ''
+  publicWsUrl: wss://rpc.example.com/api/client/ws
+  openApiEnabled: false
+  corsOrigins:
+    - https://console.example.com
+```
+
+修改统一配置后重启 API：
+
+```bash
+docker compose up -d --force-recreate api
+```
+
+`openApiEnabled: false` 只是不注册运行时 `/docs` 和 Swagger JSON 路由，不影响业务 HTTP、
+设备 WebSocket、管理前端，也不影响仓库中的 `docs/openapi.yaml` 或
+`pnpm openapi:gen`。配置关闭后 `/docs` 返回 `404`。
+
+Compose 的 API 健康检查使用容器内 TCP 连接，不依赖 `/docs`，因此关闭运行时 OpenAPI 不会
+导致 API、Frontend 或其他依赖服务被误判为不健康。
 
 ## 容器内性能测试
 
@@ -191,9 +219,10 @@ docker compose down
 docker compose down -v
 ```
 
-生产环境必须更换 JWT 和管理员密码、收紧 `app.corsOrigins`、配置 TLS/WSS，并按实际入口修改
-`app.publicWsUrl`。官方 PostgreSQL 镜像的首次建库账号由 Compose 引导参数创建；若修改
-`deploy/config.yaml` 的数据库账号，必须同步 Compose 引导参数，或改用外部托管数据库。
+生产环境必须设置 `app.openApiEnabled: false`、更换 JWT 和管理员密码、收紧
+`app.corsOrigins`、配置 TLS/WSS，并按实际入口修改 `app.publicWsUrl`。官方 PostgreSQL
+镜像的首次建库账号由 Compose 引导参数创建；若修改 `deploy/config.yaml` 的数据库账号，
+必须同步 Compose 引导参数，或改用外部托管数据库。
 
 ## GitHub Actions 与 GHCR
 

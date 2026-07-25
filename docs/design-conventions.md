@@ -274,6 +274,8 @@ async fillAndSave(input: {
   `invoke/manual-rpc` 显隐；禁止让浏览器读取、选择或代填 Access Token。
 - API、Worker、迁移、种子和前端使用同一 `config.yaml` schema；`CONFIG_FILE` 仅选择文件
   位置，禁止从分散环境变量读取 CORS、管理员、前端 API 地址或其他业务配置值。
+- 运行时 OpenAPI 只能由统一配置 `app.openApiEnabled` 控制；默认开启、生产关闭。该开关不得
+  影响静态 `docs/openapi.yaml` 生成，服务健康检查也不得依赖 `/docs`。
 - 性能测试也读取同一 schema 的 `performance` 段；场景、速率、超时和阈值不得改用散落的
   环境变量。
 - 前端只向浏览器注入 `frontend.apiUrl/apiPort` 白名单；数据库、Redis、JWT 和
