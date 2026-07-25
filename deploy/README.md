@@ -22,6 +22,10 @@ cp deploy/config.example.yaml deploy/config.yaml
 Nginx/OpenResty + Cloudflare 双域名生产样例。Compose 项目名固定为 `r2rpc`，确保容器网络
 与命名卷不受本地仓库目录名影响。真实 `config.yaml` 已被 Git 忽略。
 
+使用 1Panel 管理宿主机 OpenResty 时，不要直接套用系统 Nginx 文件；完整的站点表单、
+Release 镜像、证书、WebSocket、Cloudflare 真实 IP、计划任务和验收步骤见
+[`deploy/1panel/README.md`](1panel/README.md)。
+
 配置段：
 
 - `app`：API 端口、全局前缀、公开 WebSocket 地址、CORS Origin、运行时 OpenAPI 开关和
@@ -163,6 +167,10 @@ flowchart LR
   Proxy --> API["API 容器<br/>127.0.0.1:3000"]
   API --> Worker["Worker / Redis / PostgreSQL / Manticore"]
 ```
+
+如果宿主机使用 1Panel，请转到[1Panel 专用部署文档](1panel/README.md)。该文档使用 1Panel
+管理的站点和 OpenResty 路径，并通过 `deploy/compose.production.example.yaml` 部署 GHCR
+Release 镜像；不要同时安装本节的系统 Nginx 配置，否则会争用 80/443。
 
 ### 1. 准备统一生产配置
 

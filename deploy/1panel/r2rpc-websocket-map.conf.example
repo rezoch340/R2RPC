@@ -1,0 +1,4 @@
+map $http_upgrade $r2rpc_connection_upgrade {
+    default upgrade;
+    ''      close;
+}

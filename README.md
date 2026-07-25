@@ -505,6 +505,7 @@ R2RPC/
 - [前端开发说明](frontend/README.md)
 - [Android 与 JavaScript SDK](sdk/README.md)
 - [部署与 Docker Compose](deploy/README.md)
+- [1Panel + OpenResty + Cloudflare 生产部署](deploy/1panel/README.md)
 - [工程规范](docs/design-conventions.md)
 - [OpenAPI](docs/openapi.yaml)
 - [Changelog](CHANGELOG.md)
@@ -532,6 +533,9 @@ R2RPC/
 域名。Compose 的全部宿主机端口只绑定 `127.0.0.1`；生产模板、反向代理配置、Cloudflare
 真实来源 IP 更新脚本和端到端入口检查位于
 [`deploy/`](deploy/README.md#nginx--openresty--cloudflare-生产入口)。
+使用 1Panel 管理 OpenResty 时，按
+[`deploy/1panel/README.md`](deploy/1panel/README.md) 创建双反向代理网站、绑定正确证书并
+安装 1Panel 专用 WebSocket/真实 IP 配置，不要再启动第二套系统 Nginx。
 
 部署前应从 `deploy/config.production.example.yaml` 生成 `deploy/config.yaml`，关闭运行时
 OpenAPI、设置信任 1 跳反向代理、替换 JWT 和管理员初始密码、收紧 CORS，并按真实入口修改

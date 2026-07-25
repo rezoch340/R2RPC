@@ -1,0 +1,25 @@
+# 生产环境使用 GHCR 已发布镜像，避免在服务器重复构建。
+# 使用前复制为 deploy/compose.production.yaml，并把数据库密码替换为
+# deploy/config.yaml 中 db.password 的相同值。
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: REPLACE_WITH_SAME_DATABASE_PASSWORD_AS_CONFIG
+
+  migration:
+    image: ghcr.io/rezoch340/r2rpc-backend:v0.1.0
+
+  seed:
+    image: ghcr.io/rezoch340/r2rpc-backend:v0.1.0
+
+  api:
+    image: ghcr.io/rezoch340/r2rpc-backend:v0.1.0
+
+  worker:
+    image: ghcr.io/rezoch340/r2rpc-backend:v0.1.0
+
+  frontend:
+    image: ghcr.io/rezoch340/r2rpc-frontend:v0.1.0
+
+  performance:
+    image: ghcr.io/rezoch340/r2rpc-backend:v0.1.0

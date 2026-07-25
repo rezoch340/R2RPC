@@ -5,6 +5,11 @@
 ## [Unreleased]
 
 ### Cloudflare 与反向代理发布基线
+- 新增可直接照做的 1Panel 生产部署文档与 OpenResty 片段，覆盖 GHCR Release 镜像、
+  双反向代理网站、证书 SAN 核对、WebSocket 专用 location、Cloudflare 真实 IP 定时刷新、
+  1Panel 容器观测及生产验收。
+- 新增 `deploy/compose.production.example.yaml`，让生产服务器用同一版本的 Backend、
+  Migration、Seed、Worker 与 Frontend 镜像启动，并显式同步 PostgreSQL 首次初始化密码。
 - 新增 `deploy/config.production.example.yaml`，覆盖控制台/API 双域名、WSS、精确 CORS、
   关闭运行时 OpenAPI 和可信单跳反向代理。
 - 新增 Nginx/OpenResty 生产配置，区分 Frontend、API 与设备 WebSocket，规范
