@@ -54,6 +54,10 @@ docker compose config --quiet
 (cd backend && pnpm smoke)
 ```
 
+Pull Request 与 `main` 推送会由 `.github/workflows/ci.yml` 自动复跑后端、前端门禁和完整
+Compose 黑盒。自动流程只构建后端与前端；SDK 变更仍由提交者按影响范围在本地执行对应检查并
+把结果写入 Pull Request。
+
 ## Pull Request
 
 Pull Request 应包含：

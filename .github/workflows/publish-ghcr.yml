@@ -1,0 +1,83 @@
+name: 发布 GHCR 镜像
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: 发布 ${{ matrix.name }} 镜像
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: ./backend
+            image: ghcr.io/rezoch340/r2rpc-backend
+          - name: frontend
+            context: ./frontend
+            image: ghcr.io/rezoch340/r2rpc-frontend
+    concurrency:
+      group: publish-ghcr-${{ github.repository }}-${{ matrix.name }}
+      cancel-in-progress: false
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: 校验 Docker 镜像标签
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9][A-Za-z0-9_.-]{0,126}$ ]]; then
+            echo "::error::发布标签必须匹配 v+数字开头的 Docker 安全格式: $RELEASE_TAG"
+            exit 1
+          fi
+
+      - name: 配置 Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: 登录 GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 构建镜像
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: ${{ matrix.context }}
+          load: true
+          push: false
+          platforms: linux/amd64
+          tags: ${{ matrix.image }}:${{ github.ref_name }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ github.ref_name }}
+          cache-from: type=registry,ref=${{ matrix.image }}:buildcache
+          cache-to: type=registry,ref=${{ matrix.image }}:buildcache,mode=max
+
+      - name: 检查镜像大小
+        env:
+          VERSION_IMAGE: ${{ matrix.image }}:${{ github.ref_name }}
+          MAXIMUM_IMAGE_SIZE_BYTES: 524288000
+        run: |
+          image_size_bytes="$(docker image inspect --format '{{.Size}}' "$VERSION_IMAGE")"
+          echo "镜像大小: ${image_size_bytes} bytes"
+          test "$image_size_bytes" -le "$MAXIMUM_IMAGE_SIZE_BYTES"
+
+      - name: 推送镜像
+        env:
+          VERSION_IMAGE: ${{ matrix.image }}:${{ github.ref_name }}
+          LATEST_IMAGE: ${{ matrix.image }}:latest
+        run: |
+          docker push "$VERSION_IMAGE"
+          docker tag "$VERSION_IMAGE" "$LATEST_IMAGE"
+          docker push "$LATEST_IMAGE"

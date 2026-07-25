@@ -72,6 +72,15 @@ cd ../android
 `clientId`；JavaScript 由宿主持久化并跨重启复用，不能每次启动临时随机生成。设计见
 `docs/superpowers/specs/2026-07-24-device-sdks-design.md`。
 
+## GitHub Actions
+
+- `.github/workflows/ci.yml` 在 Pull Request 与 `main` 推送时只构建后端和前端，并在完整
+  Compose 环境运行后端 HTTP/WebSocket 黑盒及前端 Playwright 黑盒。
+- `.github/workflows/publish-ghcr.yml` 只在合法 `v*` 标签发布 backend/frontend GHCR 镜像；
+  backend 镜像由不同启动命令同时承载 API 与 Worker。
+- Android 与 JavaScript SDK 不进入 GitHub Actions 构建矩阵；涉及 SDK 的变更按上方命令
+  本地验证。
+
 - **前置基础设施**:PostgreSQL / Redis / Manticore 按根目录 `config.yaml`(默认
   `localhost:5432/6379/9308`)须已在跑；仓库提供根目录 `compose.yaml` 与
   `deploy/dev-up.sh`。前后端默认读取同一 schema，`CONFIG_FILE` 只用于选择文件，
