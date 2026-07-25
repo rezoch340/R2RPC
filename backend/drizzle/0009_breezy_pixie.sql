@@ -1,0 +1,1 @@
+ALTER TABLE "device_tokens" DROP COLUMN "expires_at";

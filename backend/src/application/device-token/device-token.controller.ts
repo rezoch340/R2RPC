@@ -32,7 +32,7 @@ export class DeviceTokenController {
     targetType: 'device-token',
     targetNameField: 'name',
     targetResponseField: 'id',
-    metadataBodyFields: ['projects', 'expiresAt'],
+    metadataBodyFields: ['projects'],
   })
   @ApiOperation({ summary: '生成 device token(返回明文,供 SDK 配置)' })
   create(@Body() input: CreateDeviceTokenDto, @Req() request: AuthedRequest) {
@@ -40,7 +40,6 @@ export class DeviceTokenController {
       name: input.name,
       projects: input.projects,
       description: input.description,
-      expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
       createdBy: request.user?.id,
     });
   }

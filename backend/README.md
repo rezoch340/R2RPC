@@ -151,15 +151,26 @@ docker compose up -d --build
 
 完整设计见 `../docs/superpowers/specs/2026-07-24-manual-rpc-debugger-design.md`。
 
-## 令牌功能组作用域
+## 令牌作用域与过期策略
 
+- Device Token 是设备长期凭证，不接受过期时间；其生命周期只由撤销或软删除控制。Access
+  Token 支持可选绝对过期时间与最大 RPC 调用次数。
+- `PATCH /access-tokens/:id` 可在同一次事务中替换完整 `projects` 集合，并编辑
+  `expiresAt`、`maximumUsageCount`；字段设为 `null` 表示取消对应限制，编辑不会重置
+  `usageCount`。
 - `PATCH /access-tokens/:id/projects` 与 `PATCH /device-tokens/:id/projects` 使用完整
-  `projects` 名称集合替换现有作用域；空数组和不存在的 project 会被拒绝，重复名称会去重。
+  `projects` 名称集合替换现有作用域；Access Token 的旧路径保留为兼容入口。空数组和不存在的
+  project 会被拒绝，重复名称会去重。
+- 只有通过鉴权和请求参数校验的公开 `POST /rpc/invoke/:project/:action` 消耗一次额度；
+  `GET /rpc/clientQueue` 不消耗。调用到达业务层后，无设备、设备错误或超时均计数。
+- 有次数上限的调用通过 PostgreSQL 条件更新原子计数，达到上限返回 `429`；不限次数令牌不写
+  计数并继续使用 Redis cache-aside 热路径。
 - Access Token 更新后立即删除 Guard 正缓存，新增与移除的作用域从下一次 RPC 请求开始生效。
 - Device Token 更新后删除 WS 鉴权缓存，并发布
   `ws:device-token-scope-changed` 集群事件；所有 API 实例会以 close `4002` 断开该 token 的
   现有连接，设备重连后继承新作用域。
-- 两类更新均写入系统操作审计；metadata 只记录编号和 project 集合，不记录 token 明文。
+- 两类更新均写入系统操作审计；metadata 只记录编号、project 集合和 Access Token 过期策略，
+  不记录 token 明文。
 
 ## 系统操作审计
 
@@ -240,12 +251,13 @@ BASE_URL=http://127.0.0.1:3000 pnpm smoke
 - 覆盖用户资料、改密和管理员资料/密码/启停/删除/RBAC 角色关系隔离
 - 覆盖权限组编辑、嵌套权限、用户分组查询和非 root 持 `manage/rbac` 仍被拒绝
 - 覆盖授权缓存已命中后的权限挂载、移除、权限删除、用户分组、启停和软删除即时生效
-- 覆盖两类令牌二次编辑功能组、缓存即时失效和 Device Token 旧作用域连接断开重连
+- 覆盖两类令牌二次编辑功能组、Access Token 时间/次数策略、并发原子计数、额度用尽 `429`、
+  缓存即时失效和 Device Token 旧作用域连接断开重连
 - 覆盖全部 19 条内置权限说明、`invoke/manual-rpc` 拒绝/放行、真实设备往返、系统审计和
   `requesterUserId` 溯源
 - 覆盖登录成功/失败、控制面读取、Guard 拒绝、业务写入、筛选和密码不泄露
 - 通过 monitor/metrics API 观察 Worker 冷路径
-- 当前为 172 项运行时检查
+- 当前为 180 项运行时检查
 
 `test/assert-blackbox-e2e.js` 会拒绝 E2E 或性能执行器导入持久层客户端或应用内部服务。
 
@@ -279,7 +291,7 @@ pnpm openapi:gen
 
 生成文件：`../docs/openapi.yaml`。
 
-当前导出基线为 39 个 HTTP 路径模板、51 个操作。运行时 Swagger 与静态 YAML 共用同一
+当前导出基线为 39 个 HTTP 路径模板、52 个操作。运行时 Swagger 与静态 YAML 共用同一
 配置和响应契约；生成过程会拒绝缺少 operation 映射的接口。每个操作都必须包含：
 
 - 非空 description。

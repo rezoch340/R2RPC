@@ -26,14 +26,12 @@ const WEBSOCKET_TOKEN_NEGATIVE_TIME_TO_LIVE_SECONDS = 10;
 type CachedDeviceToken = {
   id: number;
   status: string;
-  expiresAt: Date | string | null;
   projectIds: number[];
 };
 const cachedDeviceTokenSchema = z
   .object({
     id: z.number().int(),
     status: z.string(),
-    expiresAt: z.union([z.date(), z.string()]).nullable(),
     projectIds: z.array(z.number().int()),
   })
   .nullable();
@@ -58,7 +56,6 @@ export class DeviceTokenService {
   async create(input: {
     name: string;
     projects: string[];
-    expiresAt?: Date;
     description?: string;
     createdBy?: number;
   }) {
@@ -74,7 +71,6 @@ export class DeviceTokenService {
         .values({
           name: input.name,
           token,
-          expiresAt: input.expiresAt,
           description: input.description,
           createdBy: input.createdBy,
         })
@@ -222,7 +218,6 @@ export class DeviceTokenService {
     return {
       id: deviceTokenRecord.id,
       status: deviceTokenRecord.status,
-      expiresAt: deviceTokenRecord.expiresAt,
       projectIds: projectRows.map((projectRecord) => projectRecord.projectId),
     };
   }
@@ -245,12 +240,6 @@ export class DeviceTokenService {
       return null;
     }
     if (deviceTokenRecord.status !== 'active') {
-      return null;
-    }
-    if (
-      deviceTokenRecord.expiresAt &&
-      new Date(deviceTokenRecord.expiresAt) < new Date()
-    ) {
       return null;
     }
     return {

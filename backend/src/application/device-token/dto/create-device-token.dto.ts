@@ -1,11 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  ArrayNotEmpty,
-  IsArray,
-  IsDateString,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsOptional, IsString } from 'class-validator';
 
 export class CreateDeviceTokenDto {
   @ApiProperty()
@@ -17,11 +11,6 @@ export class CreateDeviceTokenDto {
   @ArrayNotEmpty()
   @IsString({ each: true })
   projects: string[];
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsDateString()
-  expiresAt?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()

@@ -82,7 +82,6 @@ const tokenProperties = {
     description: '明文令牌；Access Token 使用 rk_，Device Token 使用 dk_。',
   },
   status: { type: 'string', enum: ['active', 'revoked'] },
-  expiresAt: nullableDateTimeSchema,
   description: nullableStringSchema,
   createdBy: { type: 'integer', nullable: true },
   createdAt: dateTimeSchema,
@@ -231,8 +230,32 @@ export const OPEN_API_RESPONSE_SCHEMAS = {
   },
   AccessTokenRecord: {
     type: 'object',
-    required: ['id', 'name', 'token', 'status', 'createdAt', 'projects'],
-    properties: tokenProperties,
+    required: [
+      'id',
+      'name',
+      'token',
+      'status',
+      'expiresAt',
+      'maximumUsageCount',
+      'usageCount',
+      'createdAt',
+      'projects',
+    ],
+    properties: {
+      ...tokenProperties,
+      expiresAt: nullableDateTimeSchema,
+      maximumUsageCount: {
+        type: 'integer',
+        nullable: true,
+        minimum: 1,
+        description: '最大 RPC 调用次数；null 表示不限制。',
+      },
+      usageCount: {
+        type: 'integer',
+        minimum: 0,
+        description: '已消耗的 RPC 调用次数。',
+      },
+    },
   },
   DeviceTokenRecord: {
     type: 'object',

@@ -1,8 +1,8 @@
 # R2RPC 文档索引
 
-> 更新日期：2026-07-25。当前验证基线为后端 HTTP/WebSocket 黑盒 **172 passed**、
+> 更新日期：2026-07-25。当前验证基线为后端 HTTP/WebSocket 黑盒 **180 passed**、
 > Jest **10 suites / 35 tests**、前端 Playwright **12 passed**、OpenAPI
-> **39 个路径模板 / 51 个操作 / 53 个 schema**；
+> **39 个路径模板 / 52 个操作 / 54 个 schema**；
 > JavaScript SDK **10 tests**、Android SDK **8 tests**；
 > 受限 Compose 性能基线为 **4 devices / 1600 requests / 0 failures / 80.03 req/s /
 > P95 7.50 ms**。

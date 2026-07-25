@@ -14,7 +14,8 @@
 - PostgreSQL 是业务权威库，Redis 承担 presence/队列/分布式协调，Manticore 保存 payload 和设备 AppAudit Step。
 - API 与 Worker 是独立进程：`src/main.ts`、`src/worker.ts`。
 - 设备使用 `dk_` device token 连接 `/api/client/ws`。
-- 调用方使用 `rk_` access token 调 `POST /rpc/invoke/:project/:action`。
+- 调用方使用 `rk_` access token 调 `POST /rpc/invoke/:project/:action`；令牌可按绝对时间或
+  RPC 调用次数过期。
 - 官方 SDK 位于 `sdk/android` 和 `sdk/javascript`，两端都提供 Device、Caller 和
   AppAudit Recorder。
 - 设备可在 WS `result.appAudit` 上报 V1 执行 Step，契约见 `docs/device-app-audit.md`。
@@ -28,7 +29,8 @@
 - 后端 backlog #1–#15、管理前端 #16、手动 RPC #17、后台授权缓存 #18、统一配置/Compose
   #19、容器性能验收 #20、Android/JavaScript SDK #21 已全部完成。
 - 管理前端 #16 已完成，覆盖全部后台管理公开面；默认端口 3001。
-- 当前基线：OpenAPI 39 个路径模板、后端 HTTP/WebSocket 黑盒 172 passed、前端 Playwright
+- 当前基线：OpenAPI 39 个路径模板 / 52 个操作 / 54 个 schema、后端 HTTP/WebSocket 黑盒
+  180 passed、前端 Playwright
   12 passed、Jest 10 suites / 35 tests、JavaScript SDK 10 tests、Android SDK 8 tests。
 - API、Worker、迁移、种子和前端共用根目录 `config.yaml` schema；根目录 `compose.yaml`
   提供 PostgreSQL、Redis、Manticore 和全部应用服务编排。
@@ -36,8 +38,10 @@
   `performance` profile 默认挂 4 台虚拟 WS 设备，压测自动/随机设备 Hello 并生成 JSON 报告。
 - 全部列表默认 10 条/页、最大 100 条/页；运行概览使用折线趋势图，请求详情使用宽版右侧
   抽屉，AppAudit Step 默认收起。
-- 两类令牌均支持二次编辑 project；Access Token 更新立即失效鉴权缓存，Device Token 更新
-  会以 close 4002 断开旧连接并在重连后应用新作用域。
+- 两类令牌均支持二次编辑 project；Access Token 还可二次编辑绝对过期时间与最大调用次数，
+  且不会清零累计次数。更新立即失效鉴权缓存；次数受限的 invoke 以 PostgreSQL 原子计数，
+  达到上限返回 `429`。
+- Device Token 不设置过期时间，只能撤销或删除。
 - 后台用户身份与权限快照使用公共 Redis cache-aside，默认 TTL 60 秒；Redis 未命中或异常时
   回源 PostgreSQL 并回写，RBAC、账号启停和软删除写入成功后立即删除受影响用户缓存。
 - 令牌和 JSON 复制必须复用公共 `CopyButton`；非安全上下文使用兼容回退。

@@ -7,6 +7,7 @@ export interface AccessTokenContext {
   id: number;
   name: string;
   projectIds: number[];
+  maximumUsageCount: number | null;
 }
 
 export interface AuthenticatedRequestHeaders extends Record<

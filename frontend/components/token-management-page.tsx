@@ -6,6 +6,10 @@ import { Pencil, ShieldX, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { CopyButton } from '@/components/copy-button';
+import {
+  AccessTokenEditDialog,
+  type AccessTokenUpdateValues,
+} from '@/components/access-token-edit-dialog';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
 import { PageHeader } from '@/components/page-header';
@@ -39,6 +43,7 @@ interface TokenFilters {
 interface UpdateTokenProjectsInput {
   token: TokenRecord;
   projectNames: string[];
+  accessTokenPolicy?: Omit<AccessTokenUpdateValues, 'projectNames'>;
 }
 
 const EMPTY_FILTERS: TokenFilters = {
@@ -72,6 +77,7 @@ export function TokenManagementPage({
   const [editingToken, setEditingToken] = useState<TokenRecord | null>(null);
   const [pendingAction, setPendingAction] = useState<TokenAction | null>(null);
   const queryClient = useQueryClient();
+  const allowsExpiration = resourcePath === '/access-tokens';
 
   const tokensQuery = useQuery({
     queryKey: [resourceQueryKey],
@@ -114,19 +120,27 @@ export function TokenManagementPage({
       toast.error(getRequestErrorMessage(error, '操作令牌失败')),
   });
 
-  const updateProjectsMutation = useMutation({
+  const updateTokenMutation = useMutation({
     mutationFn: (input: UpdateTokenProjectsInput) =>
-      requestApi<TokenRecord>(`${resourcePath}/${input.token.id}/projects`, {
-        method: 'PATCH',
-        body: JSON.stringify({ projects: input.projectNames }),
-      }),
+      requestApi<TokenRecord>(
+        allowsExpiration
+          ? `${resourcePath}/${input.token.id}`
+          : `${resourcePath}/${input.token.id}/projects`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            projects: input.projectNames,
+            ...input.accessTokenPolicy,
+          }),
+        },
+      ),
     onSuccess: async () => {
-      toast.success('令牌功能组已更新');
+      toast.success('令牌配置已更新');
       setEditingToken(null);
       await queryClient.invalidateQueries({ queryKey: [resourceQueryKey] });
     },
     onError: (error) =>
-      toast.error(getRequestErrorMessage(error, '更新令牌功能组失败')),
+      toast.error(getRequestErrorMessage(error, '更新令牌配置失败')),
   });
 
   const filteredTokens = useMemo(() => {
@@ -251,16 +265,33 @@ export function TokenManagementPage({
           },
         ]
       : []),
-    {
-      key: 'expiration',
-      header: '过期时间',
-      className: 'w-36',
-      render: (token) => (
-        <span className="whitespace-nowrap text-xs text-muted-foreground">
-          {formatDateTime(token.expiresAt)}
-        </span>
-      ),
-    },
+    ...(allowsExpiration
+      ? [
+          {
+            key: 'usage-count',
+            header: '调用次数',
+            className: 'w-28',
+            render: (token: TokenRecord) => (
+              <span className="whitespace-nowrap text-xs text-muted-foreground">
+                {token.maximumUsageCount === null ||
+                token.maximumUsageCount === undefined
+                  ? `${token.usageCount ?? 0} / 不限`
+                  : `${token.usageCount ?? 0} / ${token.maximumUsageCount}`}
+              </span>
+            ),
+          },
+          {
+            key: 'expiration',
+            header: '过期时间',
+            className: 'w-36',
+            render: (token: TokenRecord) => (
+              <span className="whitespace-nowrap text-xs text-muted-foreground">
+                {formatDateTime(token.expiresAt)}
+              </span>
+            ),
+          },
+        ]
+      : []),
     {
       key: 'actions',
       header: '操作',
@@ -270,7 +301,7 @@ export function TokenManagementPage({
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="编辑功能组"
+            aria-label={allowsExpiration ? '编辑令牌' : '编辑功能组'}
             onClick={() => setEditingToken(token)}
           >
             <Pencil />
@@ -309,6 +340,8 @@ export function TokenManagementPage({
             title={`新建${title.replace('令牌', '')}令牌`}
             description={createDescription}
             projects={projectsQuery.data ?? []}
+            allowsExpiration={allowsExpiration}
+            allowsUsageLimit={allowsExpiration}
             isSubmitting={createMutation.isPending}
             onCreate={async (values) => {
               await createMutation.mutateAsync(values);
@@ -337,7 +370,11 @@ export function TokenManagementPage({
         isLoading={tokensQuery.isLoading}
         emptyMessage="暂无令牌"
         rowKey={(token) => token.id}
-        tableClassName="min-w-[1140px] table-fixed"
+        tableClassName={
+          allowsExpiration
+            ? 'min-w-[1260px] table-fixed'
+            : 'min-w-[1140px] table-fixed'
+        }
         footer={
           <Pagination
             page={pagination.page}
@@ -349,15 +386,33 @@ export function TokenManagementPage({
           />
         }
       />
-      {editingToken ? (
+      {editingToken && allowsExpiration ? (
+        <AccessTokenEditDialog
+          token={editingToken}
+          projects={projectsQuery.data ?? []}
+          isSubmitting={updateTokenMutation.isPending}
+          onClose={() => setEditingToken(null)}
+          onSave={async (values) => {
+            await updateTokenMutation.mutateAsync({
+              token: editingToken,
+              projectNames: values.projectNames,
+              accessTokenPolicy: {
+                expiresAt: values.expiresAt,
+                maximumUsageCount: values.maximumUsageCount,
+              },
+            });
+          }}
+        />
+      ) : null}
+      {editingToken && !allowsExpiration ? (
         <TokenProjectsDialog
           token={editingToken}
           projects={projectsQuery.data ?? []}
-          isSubmitting={updateProjectsMutation.isPending}
+          isSubmitting={updateTokenMutation.isPending}
           disconnectsDevices={showOnlineDevices}
           onClose={() => setEditingToken(null)}
           onSave={async (projectNames) => {
-            await updateProjectsMutation.mutateAsync({
+            await updateTokenMutation.mutateAsync({
               token: editingToken,
               projectNames,
             });

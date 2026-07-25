@@ -212,7 +212,8 @@ flowchart TB
 ### RPC 主链路
 
 1. 调用方使用 Access Token 请求 `POST /rpc/invoke/:project/:action`。
-2. API 校验 Token、功能组和可选 `clientId` 边界。
+2. API 校验 Token、功能组、可选 `clientId` 边界和可选次数上限；有次数上限时通过
+   PostgreSQL 原子占用一次调用额度。
 3. 服务端在目标功能组内选择在线设备，通过 WebSocket 派发任务。
 4. 设备回传结果以及可选的 AppAudit V1 Step。
 5. API 将结果返回调用方；Worker 异步完成载荷索引、指标聚合和维护任务。
@@ -379,6 +380,8 @@ Redis、JWT 或管理员配置。
 | 后台用户 | JWT | 登录管理控制台并按权限组访问控制面 |
 
 - Access Token 与 Device Token 都支持二次编辑功能组，更新后相关缓存立即失效。
+- Device Token 是设备长期凭证，不设置过期时间；只通过撤销或删除使其失效。Access Token
+  可同时按绝对时间或 RPC 调用次数过期，并可二次编辑两类策略；编辑不会清零累计调用次数。
 - Device Token 作用域变化后，旧作用域连接会主动断开，设备重连后继承新配置。
 - `isRoot=true` 的种子管理员只能由本人修改；RBAC 写操作仅 root 可执行。
 - 用户和权限快照使用公共 Redis cache-aside，未命中时回源 PostgreSQL 并回写。
@@ -396,6 +399,7 @@ Redis、JWT 或管理员配置。
 |---|---|
 | `POST /rpc/invoke/:project/:action` | 调用方发起 RPC |
 | `GET /rpc/clientQueue?project=...` | 查看 Access Token 边界内的在线设备 |
+| `PATCH /access-tokens/:id` | 编辑 Access Token 功能组、时间与次数上限 |
 | `GET /rpc/debug/options` | 获取后台手动调试上下文 |
 | `POST /rpc/debug/invoke/:project/:action` | 后台 JWT 手动发起真实 RPC |
 | `GET /monitor/requests` | 请求日志筛选分页 |
@@ -420,7 +424,7 @@ Redis、JWT 或管理员配置。
 
 | 验证层 | 基线 |
 |---|---:|
-| HTTP/WebSocket 黑盒冒烟 | 172 passed |
+| HTTP/WebSocket 黑盒冒烟 | 180 passed |
 | 后端 Jest | 10 suites / 35 tests |
 | 前端 Playwright | 12 passed |
 | JavaScript SDK | 3 files / 10 tests |

@@ -176,7 +176,7 @@ pnpm test:e2e
 当前基线：
 
 - 后端 Jest：**10 suites / 35 tests**
-- 后端 HTTP/WebSocket 黑盒：**172 passed**
+- 后端 HTTP/WebSocket 黑盒：**180 passed**
 - 前端 Playwright：**12 passed**
 - 受限 Compose 性能测试：**4 devices / 1600 requests / 0 failures / 80.03 req/s / P95 7.50 ms**
 

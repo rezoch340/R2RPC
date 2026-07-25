@@ -43,6 +43,7 @@ const STANDARD_ERROR_RESPONSES: Record<string, ResponseDefinition> = {
   ),
   NotFound: errorResponse('目标资源不存在或已被软删除。'),
   Conflict: errorResponse('资源名称或关联关系与现有数据冲突。'),
+  TooManyRequests: errorResponse('Access Token 的 RPC 调用次数已经用尽。'),
   InternalServerError: errorResponse('服务端发生未预期错误。'),
 };
 
@@ -129,6 +130,9 @@ function applyErrorResponses(operation: Operation, operationId: string): void {
   }
   if (CONFLICT_OPERATION_IDS.has(operationId)) {
     operation.responses['409'] = responseReference('Conflict');
+  }
+  if (operationId === 'RpcController_invoke') {
+    operation.responses['429'] = responseReference('TooManyRequests');
   }
 }
 

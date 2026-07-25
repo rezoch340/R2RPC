@@ -64,6 +64,20 @@
       "when": 1784900169091,
       "tag": "0008_sudden_james_howlett",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784980777757,
+      "tag": "0009_breezy_pixie",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784981992885,
+      "tag": "0010_lazy_plazm",
+      "breakpoints": true
     }
   ]
 }

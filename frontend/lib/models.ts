@@ -47,7 +47,9 @@ export interface TokenRecord {
   token: string;
   status: string;
   projects: string[];
-  expiresAt: string | null;
+  expiresAt?: string | null;
+  maximumUsageCount?: number | null;
+  usageCount?: number;
   description: string | null;
   createdBy: number | null;
   createdAt: string;

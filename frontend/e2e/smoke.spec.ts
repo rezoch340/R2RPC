@@ -193,14 +193,40 @@ test('系统日志长事件描述不会覆盖其他列', async ({ page }) => {
   await expect(eventDescription).toHaveCSS('white-space', 'nowrap');
 });
 
-test('访问令牌和设备令牌均可二次编辑功能组', async ({ page }) => {
-  for (const route of ['/access-tokens', '/device-tokens']) {
-    await page.goto(route);
-    await page.getByRole('button', { name: '编辑功能组' }).first().click();
+test('两类令牌可编辑功能组且访问令牌可编辑过期策略', async ({ page }) => {
+  const tokenPages = [
+    {
+      route: '/access-tokens',
+      showsExpiration: true,
+      editButtonName: '编辑令牌',
+      dialogHeading: '编辑访问令牌',
+    },
+    {
+      route: '/device-tokens',
+      showsExpiration: false,
+      editButtonName: '编辑功能组',
+      dialogHeading: '编辑令牌功能组',
+    },
+  ];
+  for (const tokenPage of tokenPages) {
+    await page.goto(tokenPage.route);
+    await expect(
+      page.getByRole('columnheader', { name: '过期时间' }),
+    ).toHaveCount(tokenPage.showsExpiration ? 1 : 0);
+    await expect(
+      page.getByRole('columnheader', { name: '调用次数' }),
+    ).toHaveCount(tokenPage.showsExpiration ? 1 : 0);
+    await page
+      .getByRole('button', { name: tokenPage.editButtonName })
+      .first()
+      .click();
     const editDialog = page.getByRole('dialog');
     await expect(
-      editDialog.getByRole('heading', { name: '编辑令牌功能组' }),
+      editDialog.getByRole('heading', { name: tokenPage.dialogHeading }),
     ).toBeVisible();
+    await expect(editDialog.getByLabel('最大调用次数')).toHaveCount(
+      tokenPage.showsExpiration ? 1 : 0,
+    );
     await expect(editDialog.getByRole('checkbox').first()).toBeVisible();
     const selectedProjectCount = await editDialog
       .getByRole('checkbox', { checked: true })
