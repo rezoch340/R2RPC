@@ -1,7 +1,7 @@
 # R2RPC
 
 [![wakatime](https://wakatime.com/badge/user/bd5036d3-6da5-4386-8a6b-2acdaf448df5/project/4d0173df-ceea-4da6-b039-6f406b360801.svg)](https://wakatime.com/badge/user/bd5036d3-6da5-4386-8a6b-2acdaf448df5/project/4d0173df-ceea-4da6-b039-6f406b360801)
-[![持续集成](https://github.com/rezoch340/R2RPC/actions/workflows/ci.yml/badge.svg)](https://github.com/rezoch340/R2RPC/actions/workflows/ci.yml)
+[![发布 GHCR](https://github.com/rezoch340/R2RPC/actions/workflows/publish-ghcr.yml/badge.svg)](https://github.com/rezoch340/R2RPC/actions/workflows/publish-ghcr.yml)
 ![Node.js](https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white)
 ![NestJS](https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
@@ -56,7 +56,7 @@ R2RPC 解决“服务端需要调用位于 NAT、移动网络或客户现场中�
 | 官方 SDK | Android/Kotlin、JavaScript/TypeScript 设备端与调用方 SDK，内置重连、超时和 AppAudit Recorder |
 | 部署运维 | 统一 YAML、独立迁移/种子、健康检查、非 root 应用容器、持久化卷 |
 | 性能验收 | 4 台虚拟在线设备、真实 WS Hello、自动轮询/随机指定设备、质量阈值和 JSON 报告 |
-| 持续集成 | 后端/前端 lint、格式、构建、单测、契约漂移、Compose 黑盒与浏览器 E2E |
+| 本地质量门禁 | 一条命令覆盖后端/前端 lint、格式、构建、单测和契约漂移，可选完整黑盒 |
 | 镜像发布 | `v*` 标签自动发布 backend/frontend 的版本标签与 `latest` 到 GHCR |
 
 ## 管理面板样例
@@ -438,37 +438,29 @@ Redis、JWT 或管理员配置。
 > 该测试结果仅代表 R2RPC 后台服务性能，不代表真实设备端侧的执行性能。
 
 ```bash
-# 后端
-cd backend
-pnpm lint:check
-pnpm build
-pnpm test
-pnpm smoke
+# 日常提交前：后端与前端静态质量门禁
+./scripts/local-ci.sh
 
-# 前端
-cd ../frontend
-pnpm lint
-pnpm build
-pnpm test:e2e
+# 发布前：额外启动隔离 Compose，执行 HTTP/WS 与浏览器黑盒
+./scripts/local-ci.sh --full
 
 # JavaScript / TypeScript SDK
-cd ../sdk/javascript
+cd sdk/javascript
 corepack pnpm check
 
 # Android / Kotlin SDK
 cd ../android
 ./gradlew :r2rpc-sdk:testDebugUnitTest :r2rpc-sdk:assembleRelease
 
-# Compose 与镜像
+# 性能测试
 cd ../..
-docker compose config --quiet
-docker compose build api frontend
 docker compose --profile performance run --rm performance
 ```
 
-`pnpm smoke` 和 `pnpm test:e2e` 只通过公开 HTTP、WebSocket 和浏览器 UI 验证系统，不直接
+`local-ci.sh --full` 只通过公开 HTTP、WebSocket 和浏览器 UI 验证系统，不直接
 连接数据库、Redis 或 Manticore；性能执行器遵守同一黑盒边界，并校验所有虚拟设备都实际
-收到 Hello。源码门禁同时禁止含糊缩写变量名，并限制控制流复杂度。
+收到 Hello。源码门禁同时禁止含糊缩写变量名，并限制控制流复杂度。Pull Request 与
+`main` 推送不会启动 GitHub Actions；检查结果由提交者在本地确认。
 
 ## 项目结构
 
@@ -478,6 +470,7 @@ R2RPC/
 ├── frontend/                Next.js 管理控制台与 Playwright E2E
 ├── deploy/                  Compose 配置模板、启动脚本和部署说明
 ├── docs/                    OpenAPI、当前文档、设计规格与历史归档
+├── scripts/local-ci.sh      后端/前端本地质量门禁与可选完整黑盒
 ├── sdk/                     Android/Kotlin 与 JavaScript/TypeScript SDK
 ├── compose.yaml             完整容器编排
 ├── config.example.yaml      宿主机统一配置模板
@@ -494,8 +487,9 @@ R2RPC/
 - 设备 RPC、后台控制面、权限、审计、管理前端、完整 Compose 和容器性能验收已形成闭环。
 - Android/Kotlin 与 JavaScript/TypeScript SDK 已纳入仓库，设备与调用方可直接复用
   [SDK 接入说明](sdk/README.md)。
-- GitHub Actions 已自动执行后端与前端质量门禁、完整 Compose 黑盒验收；推送 `v*` 标签时
-  发布 `r2rpc-backend` 和 `r2rpc-frontend` GHCR 镜像。SDK 不进入该自动构建。
+- 后端与前端质量门禁、完整 Compose 黑盒均由 `scripts/local-ci.sh` 在本地执行；GitHub
+  Actions 只在推送 `v*` 标签时发布 `r2rpc-backend` 和 `r2rpc-frontend` GHCR 镜像。
+  SDK 不进入该自动构建。
 - 发布阶段待办以[`docs/下一步-后端待办.md`](docs/下一步-后端待办.md)为准。
 
 ## 项目文档

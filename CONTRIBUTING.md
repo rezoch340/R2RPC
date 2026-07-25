@@ -38,25 +38,30 @@ docker compose up -d postgres redis manticore
 
 ## 提交前验证
 
-按变更范围执行；影响共享协议时应执行全部项目：
+日常提交前统一执行本地质量门禁：
 
 ```bash
-(cd backend && pnpm lint:check && pnpm build && pnpm test && pnpm openapi:gen)
-(cd frontend && pnpm lint && pnpm build && pnpm test:e2e)
+./scripts/local-ci.sh
+```
+
+发布前或影响 HTTP、WebSocket、Compose、配置、权限和跨端协议时执行完整黑盒：
+
+```bash
+./scripts/local-ci.sh --full
+```
+
+SDK 不进入服务端/前端门禁，修改对应 SDK 时按范围额外执行：
+
+```bash
 (cd sdk/javascript && corepack pnpm check)
 (cd sdk/android && ./gradlew :r2rpc-sdk:testDebugUnitTest :r2rpc-sdk:assembleRelease)
-docker compose config --quiet
 ```
 
-后端完整性冒烟需要隔离基础设施、真实 API 和 Worker：
-
-```bash
-(cd backend && pnpm smoke)
-```
-
-Pull Request 与 `main` 推送会由 `.github/workflows/ci.yml` 自动复跑后端、前端门禁和完整
-Compose 黑盒。自动流程只构建后端与前端；SDK 变更仍由提交者按影响范围在本地执行对应检查并
-把结果写入 Pull Request。
+`--full` 会使用独立 Compose 项目启动真实 API、Worker 和基础设施，只通过公开 HTTP、
+WebSocket 与浏览器 UI 验证；测试固定挂载 `deploy/config.example.yaml`，并在结束时清理
+测试容器和卷。执行前需确保默认服务端口未被占用。Pull Request 与 `main` 推送不会启动
+云端质量门禁；提交者必须在 Pull Request 中记录本地执行命令和结果。GitHub Actions 只负责
+`v*` 标签对应的后端/前端镜像发布。
 
 ## Pull Request
 

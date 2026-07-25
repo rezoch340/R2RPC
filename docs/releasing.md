@@ -25,20 +25,19 @@ R2RPC 当前处于 `0.x` 阶段，服务端、管理前端、JavaScript SDK 和 
 5. 执行：
 
 ```bash
-(cd backend && pnpm lint:check && pnpm build && pnpm test && pnpm openapi:gen)
-(cd frontend && pnpm lint && pnpm build && pnpm test:e2e)
+./scripts/local-ci.sh --full
 (cd sdk/javascript && corepack pnpm check && npm pack --dry-run)
 (cd sdk/android && ./gradlew :r2rpc-sdk:testDebugUnitTest :r2rpc-sdk:assembleRelease)
-docker compose config --quiet
 docker compose build api frontend
 ```
 
-6. 在隔离环境运行 `pnpm smoke`；发布服务端镜像时还应执行 Compose 性能测试。
+6. 发布服务端镜像时还应执行 Compose 性能测试。
 7. 对生成的 `docs/openapi.yaml` 执行差异审查，确保每个操作都有说明、成功响应 schema、
    鉴权方案和 4xx 响应。
 
-Pull Request 与 `main` 推送由 `.github/workflows/ci.yml` 自动执行后端/前端构建及完整黑盒。
-GitHub Actions 不构建 SDK，SDK 检查仍按变更范围在发布前本地执行。
+Pull Request 与 `main` 推送不运行 GitHub Actions。后端、前端、SDK 和完整黑盒均在本地
+验收，结果记录到 Pull Request；GitHub Actions 只在合法 `v*` 标签上构建并发布后端/前端
+镜像。
 
 ## 发布与回滚
 

@@ -74,8 +74,8 @@ cd ../android
 
 ## GitHub Actions
 
-- `.github/workflows/ci.yml` 在 Pull Request 与 `main` 推送时只构建后端和前端，并在完整
-  Compose 环境运行后端 HTTP/WebSocket 黑盒及前端 Playwright 黑盒。
+- Pull Request 与 `main` 推送不运行云端质量门禁。后端与前端日常门禁使用
+  `./scripts/local-ci.sh`，完整 Compose 黑盒使用 `./scripts/local-ci.sh --full`。
 - `.github/workflows/publish-ghcr.yml` 只在合法 `v*` 标签发布 backend/frontend GHCR 镜像；
   backend 镜像由不同启动命令同时承载 API 与 Worker。
 - Android 与 JavaScript SDK 不进入 GitHub Actions 构建矩阵；涉及 SDK 的变更按上方命令

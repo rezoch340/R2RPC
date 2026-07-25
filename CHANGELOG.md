@@ -12,14 +12,13 @@
 - 宿主机与 Compose 配置模板、根 README、后端说明和部署文档补齐生产关闭示例、重启步骤、
   `404` 预期与静态 `docs/openapi.yaml` 的独立维护边界。
 
-### GitHub Actions 与 GHCR 发布
-- 新增持续集成工作流，在 Pull Request 和 `main` 推送时分别执行后端、前端质量门禁，并在
-  完整 Compose 环境运行 180 项 HTTP/WebSocket 黑盒和 12 项 Playwright 浏览器黑盒。
-- 后端门禁覆盖完整变量名/ESLint、Prettier、构建、Jest、OpenAPI 与 Drizzle 迁移漂移；
-  前端门禁覆盖完整变量名/ESLint 和生产构建。
-- CI 统一使用 Node.js 24 自带 Corepack 激活仓库锁定的 pnpm，移除仍以 Node.js 20 运行的
-  `pnpm/action-setup`；生成校验显式读取 `config.example.yaml`，避免干净 Runner 缺少
-  `config.yaml` 时误报失败。
+### 本地质量门禁与 GHCR 发布
+- 新增 `scripts/local-ci.sh`，默认在本地执行后端/前端依赖锁定安装、完整变量名/ESLint、
+  Prettier、构建、Jest、OpenAPI/Drizzle 漂移和 Compose 配置校验。
+- `scripts/local-ci.sh --full` 使用独立 Compose 项目额外执行 180 项 HTTP/WebSocket 黑盒和
+  12 项 Playwright 浏览器黑盒，并在结束后清理测试容器与卷。
+- 移除 Pull Request 与 `main` 推送触发的云端 CI，提交者在本地完成质量门禁并记录结果；
+  GitHub Actions 仅保留标签镜像发布，避免重复消耗云端 Runner。
 - 参考 FlowCore 的标签发布流程，`v*` 标签使用固定提交版本的 GitHub Actions，只构建并发布
   `ghcr.io/rezoch340/r2rpc-backend` 与 `ghcr.io/rezoch340/r2rpc-frontend`，同时写入版本标签
   和 `latest`，单镜像上限 500 MiB。
