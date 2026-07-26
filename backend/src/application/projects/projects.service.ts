@@ -57,7 +57,12 @@ export class ProjectsService {
   }
 
   async list() {
-    return this.database.select().from(projects).where(alive(projects));
+    // 显式排序:没有 ORDER BY 时任何一次 UPDATE 都会改变返回顺序,让下拉选项跳位
+    return this.database
+      .select()
+      .from(projects)
+      .where(alive(projects))
+      .orderBy(projects.id);
   }
 
   /**

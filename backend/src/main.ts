@@ -4,6 +4,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { WsAdapter } from '@nestjs/platform-ws';
 import { SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { rejectNullByte } from './common/middleware/reject-null-byte.middleware';
 import { buildOpenApiConfiguration } from './common/openapi/openapi.configuration';
 import { completeOpenApiDocument } from './common/openapi/openapi.document';
 import { ConfigService } from './infrastructure/config/config.service';
@@ -28,6 +29,8 @@ async function bootstrap() {
     application.setGlobalPrefix(configuration.app.globalPrefix);
   }
   application.useWebSocketAdapter(new WsAdapter(application));
+  // 必须在校验管道之前:IsString 认为含 NUL 的字符串合法,放过去要到 pg 驱动才炸成 500
+  application.use(rejectNullByte);
   application.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true }),
   );

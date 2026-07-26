@@ -3,10 +3,10 @@ import {
   Get,
   NotFoundException,
   Param,
-  ParseIntPipe,
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ParseEntityIdPipe } from '../../common/pipes/parse-entity-id.pipe';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { DevicesService } from './devices.service';
 import { QueryDevicesDto } from './dto/query-devices.dto';
@@ -30,7 +30,7 @@ export class DevicesController {
   @Get(':id')
   @RequirePermission('read', 'device')
   @ApiOperation({ summary: '设备详情' })
-  async get(@Param('id', ParseIntPipe) deviceId: number) {
+  async get(@Param('id', ParseEntityIdPipe) deviceId: number) {
     const device = await this.devices.get(deviceId);
     if (!device) {
       throw new NotFoundException('设备不存在');

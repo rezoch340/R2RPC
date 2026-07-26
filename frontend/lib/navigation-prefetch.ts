@@ -27,11 +27,16 @@ interface NavigationPrefetchTask {
 
 type PermissionChecker = (action: string, subject: string) => boolean;
 
+// 字段集合与 app/(dashboard)/request-logs/page.tsx 的 EMPTY_FILTERS 必须逐字段一致:
+// queryKey 用整个 filters 对象做哈希,少一个字段就永远命中不了预取缓存
 const EMPTY_REQUEST_LOG_FILTERS = {
   project: "",
   action: "",
   clientId: "",
   status: "",
+  payloadState: "",
+  minimumLatencyMs: "",
+  maximumLatencyMs: "",
   from: "",
   to: "",
 };
@@ -58,10 +63,14 @@ const EMPTY_USER_FILTERS = {
 // 列表页首屏都是第 1 页、10 条,预取参数与页面初始 queryKey 必须一致才会命中
 const FIRST_PAGE = { page: 1, pageSize: 10 };
 
+// 同上,与 app/(dashboard)/system-logs/page.tsx 的 EMPTY_FILTERS 逐字段一致
 const EMPTY_SYSTEM_LOG_FILTERS = {
+  name: "",
   actorUsername: "",
   action: "",
   subject: "",
+  targetType: "",
+  targetName: "",
   status: "",
   from: "",
   to: "",
@@ -145,7 +154,7 @@ const navigationPrefetchTasks: Record<string, NavigationPrefetchTask[]> = {
   ],
   "/request-logs": [
     createPrefetchTask({
-      queryKey: ["request-logs", EMPTY_REQUEST_LOG_FILTERS, 1, 20],
+      queryKey: ["request-logs", EMPTY_REQUEST_LOG_FILTERS, 1, 10],
       queryFunction: () =>
         requestApi<PaginatedResponse<RequestLogRecord>>(
           `/monitor/requests${buildQueryString({
@@ -233,7 +242,7 @@ const navigationPrefetchTasks: Record<string, NavigationPrefetchTask[]> = {
   ],
   "/system-logs": [
     createPrefetchTask({
-      queryKey: ["system-logs", EMPTY_SYSTEM_LOG_FILTERS, 1, 20],
+      queryKey: ["system-logs", EMPTY_SYSTEM_LOG_FILTERS, 1, 10],
       queryFunction: () =>
         requestApi<PaginatedResponse<SystemLogRecord>>(
           `/system-logs${buildQueryString({

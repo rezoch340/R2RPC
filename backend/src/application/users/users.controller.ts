@@ -4,13 +4,13 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Query,
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ParseEntityIdPipe } from '../../common/pipes/parse-entity-id.pipe';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import type { AuthedRequest } from '../../common/types/authed-request';
@@ -37,7 +37,7 @@ export class UsersController {
   @Get(':id')
   @RequirePermission('read', 'user')
   @ApiOperation({ summary: '用户详情' })
-  findOne(@Param('id', ParseIntPipe) userId: number) {
+  findOne(@Param('id', ParseEntityIdPipe) userId: number) {
     return this.usersService.findById(userId);
   }
 
@@ -69,7 +69,7 @@ export class UsersController {
   })
   @ApiOperation({ summary: '修改用户资料(管理员账号只能由本人修改)' })
   update(
-    @Param('id', ParseIntPipe) userId: number,
+    @Param('id', ParseEntityIdPipe) userId: number,
     @Body() input: UpdateUserDto,
     @Req() request: AuthedRequest,
   ) {
@@ -92,7 +92,7 @@ export class UsersController {
   })
   @ApiOperation({ summary: '修改用户密码(管理员账号只能由本人修改)' })
   setPassword(
-    @Param('id', ParseIntPipe) userId: number,
+    @Param('id', ParseEntityIdPipe) userId: number,
     @Body() input: UpdatePasswordDto,
     @Req() request: AuthedRequest,
   ) {
@@ -114,7 +114,7 @@ export class UsersController {
   })
   @ApiOperation({ summary: '删除用户(管理员账号只能由本人修改)' })
   remove(
-    @Param('id', ParseIntPipe) userId: number,
+    @Param('id', ParseEntityIdPipe) userId: number,
     @Req() request: AuthedRequest,
   ) {
     return this.usersService.remove(request.user!.id, userId);
@@ -133,7 +133,7 @@ export class UsersController {
   })
   @ApiOperation({ summary: '启用/停用用户(停用后禁止登录且立即吊销现有会话)' })
   setEnabled(
-    @Param('id', ParseIntPipe) userId: number,
+    @Param('id', ParseEntityIdPipe) userId: number,
     @Body() input: SetEnabledDto,
     @Req() request: AuthedRequest,
   ) {

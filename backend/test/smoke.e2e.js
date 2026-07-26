@@ -2266,6 +2266,48 @@ async function main() {
       'GET /devices 的 pageSize 超过 100 返回 400',
     );
 
+    // 以下四条守的是「非法输入必须变成 400,而不是打到数据库层炸成 500」
+    const overflowingPage = await httpRequest(
+      'GET',
+      '/devices?page=1000001',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      overflowingPage.status === 400,
+      'page 超过上界返回 400,不让 offset 溢出成 500',
+    );
+    const nullByteFilter = await httpRequest(
+      'GET',
+      '/devices?clientId=%00',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      nullByteFilter.status === 400,
+      '筛选值含 NUL 字节返回 400,不打到 PostgreSQL 变 500',
+    );
+    const oversizedEntityId = await httpRequest(
+      'GET',
+      '/devices/9999999999',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      oversizedEntityId.status === 400,
+      '实体编号超出 int4 上界返回 400,不查库变 500',
+    );
+    const invalidMonitorFrom = await httpRequest(
+      'GET',
+      '/monitor/requests?from=not-a-date',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      invalidMonitorFrom.status === 400,
+      'GET /monitor/requests 非法 from 返回 400,与 /system-logs 口径一致',
+    );
+
     // 同 clientId 新连接覆盖 session；旧连接随后断开不能误清新 session。
     const replacementDevice = connectDevice({
       token: deviceToken,
@@ -2930,6 +2972,13 @@ async function main() {
           !('appAudit' in row),
       ),
       'monitor 列表只返回 PG 脊柱，不返回 payload/appAudit',
+    );
+    assert(
+      requestList.json.rows.every((row) => 'accessTokenId' in row) &&
+        requestList.json.rows.some(
+          (row) => typeof row.accessTokenId === 'number',
+        ),
+      'monitor 列表返回 OpenAPI 声明的 accessTokenId 调用方身份',
     );
     assert(
       requestList.json.rows.some(

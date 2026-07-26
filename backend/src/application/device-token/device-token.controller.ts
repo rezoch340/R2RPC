@@ -4,7 +4,6 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -12,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { QueryTokensDto } from '../../common/dto/query-tokens.dto';
+import { ParseEntityIdPipe } from '../../common/pipes/parse-entity-id.pipe';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import type { AuthedRequest } from '../../common/types/authed-request';
@@ -67,7 +67,7 @@ export class DeviceTokenController {
   })
   @ApiOperation({ summary: '替换 device token 的功能组作用域' })
   updateProjects(
-    @Param('id', ParseIntPipe) deviceTokenId: number,
+    @Param('id', ParseEntityIdPipe) deviceTokenId: number,
     @Body() input: UpdateDeviceTokenProjectsDto,
   ) {
     return this.tokens.updateProjects(deviceTokenId, input.projects);
@@ -84,7 +84,7 @@ export class DeviceTokenController {
     targetNameField: 'name',
   })
   @ApiOperation({ summary: '撤销 device token' })
-  revoke(@Param('id', ParseIntPipe) deviceTokenId: number) {
+  revoke(@Param('id', ParseEntityIdPipe) deviceTokenId: number) {
     return this.tokens.revoke(deviceTokenId);
   }
 
@@ -98,7 +98,7 @@ export class DeviceTokenController {
     targetParameter: 'id',
   })
   @ApiOperation({ summary: '删除 device token(软删,与撤销正交)' })
-  delete(@Param('id', ParseIntPipe) deviceTokenId: number) {
+  delete(@Param('id', ParseEntityIdPipe) deviceTokenId: number) {
     return this.tokens.delete(deviceTokenId);
   }
 }

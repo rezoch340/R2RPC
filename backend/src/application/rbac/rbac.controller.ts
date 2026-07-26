@@ -4,13 +4,13 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ParseEntityIdPipe } from '../../common/pipes/parse-entity-id.pipe';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import { RootGuard } from '../../common/guards/root.guard';
@@ -59,7 +59,7 @@ export class RbacController {
   })
   @ApiOperation({ summary: '编辑权限组(仅种子管理员)' })
   updateRole(
-    @Param('id', ParseIntPipe) roleId: number,
+    @Param('id', ParseEntityIdPipe) roleId: number,
     @Body() input: UpdateRoleDto,
   ) {
     return this.rbacService.updateRole(roleId, input);
@@ -83,7 +83,7 @@ export class RbacController {
     targetParameter: 'id',
   })
   @ApiOperation({ summary: '删除权限组(仅种子管理员)' })
-  deleteRole(@Param('id', ParseIntPipe) roleId: number) {
+  deleteRole(@Param('id', ParseEntityIdPipe) roleId: number) {
     return this.rbacService.deleteRole(roleId);
   }
 
@@ -127,7 +127,7 @@ export class RbacController {
     targetParameter: 'id',
   })
   @ApiOperation({ summary: '删除权限(仅种子管理员)' })
-  deletePermission(@Param('id', ParseIntPipe) permissionId: number) {
+  deletePermission(@Param('id', ParseEntityIdPipe) permissionId: number) {
     return this.rbacService.deletePermission(permissionId);
   }
 
@@ -146,7 +146,7 @@ export class RbacController {
   })
   @ApiOperation({ summary: '权限组配置权限(请求体形式,仅种子管理员)' })
   attachPermissionFromBody(
-    @Param('roleId', ParseIntPipe) roleId: number,
+    @Param('roleId', ParseEntityIdPipe) roleId: number,
     @Body() input: AttachPermissionDto,
   ) {
     return this.rbacService.attachPermission(roleId, input.permissionId);
@@ -165,8 +165,8 @@ export class RbacController {
   })
   @ApiOperation({ summary: '权限组配置权限(兼容 URL 形式,仅种子管理员)' })
   attachPermission(
-    @Param('roleId', ParseIntPipe) roleId: number,
-    @Param('permissionId', ParseIntPipe) permissionId: number,
+    @Param('roleId', ParseEntityIdPipe) roleId: number,
+    @Param('permissionId', ParseEntityIdPipe) permissionId: number,
   ) {
     return this.rbacService.attachPermission(roleId, permissionId);
   }
@@ -184,8 +184,8 @@ export class RbacController {
   })
   @ApiOperation({ summary: '权限组移除权限(仅种子管理员)' })
   detachPermission(
-    @Param('roleId', ParseIntPipe) roleId: number,
-    @Param('permissionId', ParseIntPipe) permissionId: number,
+    @Param('roleId', ParseEntityIdPipe) roleId: number,
+    @Param('permissionId', ParseEntityIdPipe) permissionId: number,
   ) {
     return this.rbacService.detachPermission(roleId, permissionId);
   }
@@ -195,7 +195,7 @@ export class RbacController {
   @Get('users/:userId/roles')
   @RequirePermission('read', 'rbac')
   @ApiOperation({ summary: '用户已分配的权限组' })
-  listUserRoles(@Param('userId', ParseIntPipe) userId: number) {
+  listUserRoles(@Param('userId', ParseEntityIdPipe) userId: number) {
     return this.rbacService.listUserRoles(userId);
   }
 
@@ -212,7 +212,7 @@ export class RbacController {
   })
   @ApiOperation({ summary: '用户分配权限组(请求体形式,仅种子管理员)' })
   assignRoleFromBody(
-    @Param('userId', ParseIntPipe) userId: number,
+    @Param('userId', ParseEntityIdPipe) userId: number,
     @Body() input: AssignRoleDto,
     @Req() request: AuthedRequest,
   ) {
@@ -232,8 +232,8 @@ export class RbacController {
   })
   @ApiOperation({ summary: '用户分配权限组(兼容 URL 形式,仅种子管理员)' })
   assignRole(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Param('roleId', ParseIntPipe) roleId: number,
+    @Param('userId', ParseEntityIdPipe) userId: number,
+    @Param('roleId', ParseEntityIdPipe) roleId: number,
     @Req() request: AuthedRequest,
   ) {
     return this.rbacService.assignRole(request.user!.id, userId, roleId);
@@ -252,8 +252,8 @@ export class RbacController {
   })
   @ApiOperation({ summary: '用户移除权限组(仅种子管理员)' })
   unassignRole(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Param('roleId', ParseIntPipe) roleId: number,
+    @Param('userId', ParseEntityIdPipe) userId: number,
+    @Param('roleId', ParseEntityIdPipe) roleId: number,
     @Req() request: AuthedRequest,
   ) {
     return this.rbacService.unassignRole(request.user!.id, userId, roleId);

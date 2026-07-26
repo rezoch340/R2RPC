@@ -35,6 +35,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   // 返回值挂到 request.user;附带加载权限列表 + isRoot,供 PermissionGuard 消费
   async validate(payload: JwtPayload) {
     const userId = Number(payload.sub);
+    // 验签通过不代表 payload 形态合法:sub 缺失或非数字时 Number() 得 NaN,
+    // 直接查库会在 pg 驱动层抛错变成 500。这里当作凭证非法拒掉。
+    if (!Number.isInteger(userId) || userId < 1) {
+      throw new UnauthorizedException('凭证无效');
+    }
     const authorization = await this.userAuthorizationCacheService.getOrLoad(
       userId,
       async () => {
