@@ -145,35 +145,24 @@ export class AccessTokenService {
   }
 
   /**
-   * 列表:所有 token + 其 project 名(join accessTokenProjects→projects)
+   * 列表:所有 token + 其 project 名。
+   * project 名由 ProjectsService.namesByTokenIds 一次批量装载(固定 2 次查询,与 token 数无关)。
    */
   async list() {
-    // ponytail: 简单 select + 内存 join;若列表超大,可建数据库 view
     const tokenRecords = await this.database
       .select()
       .from(accessTokens)
       .where(alive(accessTokens));
 
-    // 为每个 token 查其 project 名
-    const result = await Promise.all(
-      tokenRecords.map(async (tokenRecord) => {
-        const projectNames = await this.database
-          .select({ name: projects.name })
-          .from(accessTokenProjects)
-          // 软删 project 不进展示的 project 名列表(读到已删)
-          .innerJoin(
-            projects,
-            alive(projects, eq(accessTokenProjects.projectId, projects.id)),
-          )
-          .where(eq(accessTokenProjects.tokenId, tokenRecord.id));
-        return {
-          ...tokenRecord,
-          projects: projectNames.map((projectRecord) => projectRecord.name),
-        };
-      }),
+    const projectNamesByTokenId = await this.projects.namesByTokenIds(
+      accessTokenProjects,
+      tokenRecords.map((tokenRecord) => tokenRecord.id),
     );
 
-    return result;
+    return tokenRecords.map((tokenRecord) => ({
+      ...tokenRecord,
+      projects: projectNamesByTokenId.get(tokenRecord.id) ?? [],
+    }));
   }
 
   /**

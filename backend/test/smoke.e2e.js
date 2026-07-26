@@ -1839,6 +1839,26 @@ async function main() {
       updatedScopeWelcome.projects.length === 2,
       'device token 重连后使用更新后的功能组作用域',
     );
+    // 在线设备数由一次 GROUP BY 批量装载:同时校验有设备的令牌计到 1、
+    // 无设备的令牌仍为 0,批量结果错配到别的令牌时本条即失败。
+    const onlineCountList = await httpRequest(
+      'GET',
+      '/device-tokens',
+      undefined,
+      administratorAccessToken,
+    );
+    const connectedTokenRow = onlineCountList.json.find(
+      (token) => token.id === editableDeviceToken.json.id,
+    );
+    const idleTokenRow = onlineCountList.json.find(
+      (token) => token.id === createMainDeviceToken.json.id,
+    );
+    assert(
+      onlineCountList.status === 200 &&
+        connectedTokenRow?.onlineDeviceCount === 1 &&
+        idleTokenRow?.onlineDeviceCount === 0,
+      'GET /device-tokens 的在线设备数按令牌正确归属',
+    );
     await closeDevice(updatedDeviceConnection);
     const invalidDeviceTokenUpdate = await httpRequest(
       'PATCH',

@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import {
@@ -16,7 +16,6 @@ import { deviceTokenCacheKey } from '../../infrastructure/redis/cache-keys';
 import { RedisCacheAsideService } from '../../infrastructure/redis/redis-cache-aside.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
 import { devices } from '../devices/devices.schema';
-import { projects } from '../projects/projects.schema';
 import { ProjectsService } from '../projects/projects.service';
 import { deviceTokenProjects, deviceTokens } from './device-token.schema';
 
@@ -122,45 +121,67 @@ export class DeviceTokenService {
   }
 
   /**
-   * 列表:所有 token + project 名 + 在线设备数(count devices where device_token_id=? and online, alive)。
+   * 列表:所有 token + project 名 + 在线设备数。
+   * project 名与在线设备数各由一次批量查询装载(固定 3 次查询,与 token 数无关)。
    */
   async list() {
     const tokenRecords = await this.database
       .select()
       .from(deviceTokens)
       .where(alive(deviceTokens));
+    const tokenIds = tokenRecords.map((tokenRecord) => tokenRecord.id);
 
-    return Promise.all(
-      tokenRecords.map(async (tokenRecord) => {
-        const projectNames = await this.database
-          .select({ name: projects.name })
-          .from(deviceTokenProjects)
-          .innerJoin(
-            projects,
-            alive(projects, eq(deviceTokenProjects.projectId, projects.id)),
-          )
-          .where(eq(deviceTokenProjects.tokenId, tokenRecord.id));
-
-        const [{ onlineDeviceCount }] = await this.database
-          .select({ onlineDeviceCount: sql<number>`count(*)::int` })
-          .from(devices)
-          .where(
-            alive(
-              devices,
-              and(
-                eq(devices.deviceTokenId, tokenRecord.id),
-                eq(devices.online, true),
-              ),
-            ),
-          );
-
-        return {
-          ...tokenRecord,
-          projects: projectNames.map((projectRecord) => projectRecord.name),
-          onlineDeviceCount,
-        };
-      }),
+    const projectNamesByTokenId = await this.projects.namesByTokenIds(
+      deviceTokenProjects,
+      tokenIds,
     );
+    const onlineDeviceCountByTokenId =
+      await this.onlineDeviceCountByTokenId(tokenIds);
+
+    return tokenRecords.map((tokenRecord) => ({
+      ...tokenRecord,
+      projects: projectNamesByTokenId.get(tokenRecord.id) ?? [],
+      onlineDeviceCount: onlineDeviceCountByTokenId.get(tokenRecord.id) ?? 0,
+    }));
+  }
+
+  /** 在线设备数:一次 GROUP BY 取回全部令牌的在线 alive 设备数,避免逐令牌 count。 */
+  private async onlineDeviceCountByTokenId(
+    tokenIds: number[],
+  ): Promise<Map<number, number>> {
+    const onlineDeviceCountByTokenId = new Map<number, number>();
+    if (tokenIds.length === 0) {
+      return onlineDeviceCountByTokenId;
+    }
+
+    const countRecords = await this.database
+      .select({
+        deviceTokenId: devices.deviceTokenId,
+        onlineDeviceCount: sql<number>`count(*)::int`,
+      })
+      .from(devices)
+      .where(
+        alive(
+          devices,
+          and(
+            inArray(devices.deviceTokenId, tokenIds),
+            eq(devices.online, true),
+          ),
+        ),
+      )
+      .groupBy(devices.deviceTokenId);
+
+    for (const countRecord of countRecords) {
+      // device_token_id 可空;inArray 已排除 NULL,此处只为满足静态类型
+      if (countRecord.deviceTokenId === null) {
+        continue;
+      }
+      onlineDeviceCountByTokenId.set(
+        countRecord.deviceTokenId,
+        countRecord.onlineDeviceCount,
+      );
+    }
+    return onlineDeviceCountByTokenId;
   }
 
   /** 撤销:status='revoked'。 */

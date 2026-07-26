@@ -3,7 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { count, eq, max, sql } from 'drizzle-orm';
+import { count, eq, inArray, max, sql } from 'drizzle-orm';
+import { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
 import { devices } from '../devices/devices.schema';
@@ -15,6 +16,10 @@ import { MetricsService } from '../metrics/metrics.service';
 import { projects } from './projects.schema';
 
 const SEVEN_DAYS_IN_MILLISECONDS = 7 * 86_400_000;
+
+// 令牌—功能组关联表的最小约束。两类令牌的关联表结构一致(token_id/project_id),
+// 故 namesByTokenIds 可同时服务 access token 与 device token。
+type TokenProjectsTable = PgTable & { tokenId: PgColumn; projectId: PgColumn };
 
 function deriveProjectStatus(input: {
   enabled: boolean;
@@ -53,6 +58,43 @@ export class ProjectsService {
 
   async list() {
     return this.database.select().from(projects).where(alive(projects));
+  }
+
+  /**
+   * 批量装载「令牌 → 功能组名」:一次查询取回全部令牌的功能组名,再按 tokenId 内存分组。
+   * 令牌列表接口逐条查库会退化成 N+1,两类令牌统一走这里。
+   * 软删的功能组由 inner join alive 排除,与单令牌读口径一致;按名称排序保证列表输出稳定。
+   */
+  async namesByTokenIds(
+    tokenProjectsTable: TokenProjectsTable,
+    tokenIds: number[],
+  ): Promise<Map<number, string[]>> {
+    const projectNamesByTokenId = new Map<number, string[]>();
+    if (tokenIds.length === 0) {
+      return projectNamesByTokenId;
+    }
+
+    const relationRecords = await this.database
+      .select({
+        // 结构化列类型拿不到 number 静态类型,用 sql<number> 标注(int4 由 pg 驱动返回 JS number)
+        tokenId: sql<number>`${tokenProjectsTable.tokenId}`,
+        projectName: projects.name,
+      })
+      .from(tokenProjectsTable)
+      .innerJoin(
+        projects,
+        alive(projects, eq(tokenProjectsTable.projectId, projects.id)),
+      )
+      .where(inArray(tokenProjectsTable.tokenId, tokenIds))
+      .orderBy(projects.name);
+
+    for (const relationRecord of relationRecords) {
+      const projectNames =
+        projectNamesByTokenId.get(relationRecord.tokenId) ?? [];
+      projectNames.push(relationRecord.projectName);
+      projectNamesByTokenId.set(relationRecord.tokenId, projectNames);
+    }
+    return projectNamesByTokenId;
   }
 
   async findByName(name: string) {
