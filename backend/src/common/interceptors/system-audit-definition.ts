@@ -6,9 +6,11 @@ interface AuditedResource {
   subject: string;
   targetType: string;
   safeQueryFields?: string[];
-  // 见 SystemAuditDefinition.skipSuccessfulRead
-  skipSuccessfulRead?: boolean;
 }
+
+// 分页参数不进审计 metadata:审计要回答「谁按什么条件查了什么」,翻到第几页没有取证价值。
+// 记进去只会让翻十页变成十条只有 page 不同的噪音记录。
+const PAGINATION_QUERY_FIELDS = new Set(['page', 'pageSize']);
 
 const AUDITED_RESOURCES: Record<string, AuditedResource> = {
   auth: {
@@ -60,8 +62,6 @@ const AUDITED_RESOURCES: Record<string, AuditedResource> = {
       'maximumLatencyMs',
       'from',
       'to',
-      'page',
-      'pageSize',
     ],
   },
   metrics: {
@@ -74,9 +74,6 @@ const AUDITED_RESOURCES: Record<string, AuditedResource> = {
     label: '系统日志',
     subject: 'system-log',
     targetType: 'system-log',
-    // 读它就写它:每翻一页都插一条新记录,而新记录落在倒序首页,把后续页整体挤后一位,
-    // 翻页必然重复。成功读取不再记录,鉴权失败仍记录。
-    skipSuccessfulRead: true,
     safeQueryFields: [
       'name',
       'actorUsername',
@@ -87,8 +84,6 @@ const AUDITED_RESOURCES: Record<string, AuditedResource> = {
       'status',
       'from',
       'to',
-      'page',
-      'pageSize',
     ],
   },
 };
@@ -140,9 +135,10 @@ export function inferSystemAuditDefinition(
     subject: auditedResource.subject,
     targetType: auditedResource.targetType,
     targetParameter: targetParameterOf(request),
-    skipSuccessfulRead: auditedResource.skipSuccessfulRead,
     metadataQueryFields: auditedResource.safeQueryFields?.filter(
-      (fieldName) => request.query[fieldName] !== undefined,
+      (fieldName) =>
+        !PAGINATION_QUERY_FIELDS.has(fieldName) &&
+        request.query[fieldName] !== undefined,
     ),
   };
 }

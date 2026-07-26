@@ -35,32 +35,31 @@ describe('系统访问审计定义推导', () => {
       subject: 'system-log',
       targetType: 'system-log',
       targetParameter: undefined,
-      skipSuccessfulRead: true,
-      metadataQueryFields: ['page'],
+      metadataQueryFields: [],
     });
   });
 
-  it('只有系统日志自身跳过成功读取,其余控制面读取照常记录', () => {
+  it('分页参数不进审计 metadata,翻页不会产生只有页码不同的噪音记录', () => {
     const systemLogRead = inferSystemAuditDefinition(
-      createRequest('GET', '/system-logs'),
+      createRequest(
+        'GET',
+        '/system-logs?actorUsername=admin&page=3&pageSize=50',
+        {},
+        { actorUsername: 'admin', page: '3', pageSize: '50' },
+      ),
     );
-    const userRead = inferSystemAuditDefinition(createRequest('GET', '/users'));
     const monitorRead = inferSystemAuditDefinition(
-      createRequest('GET', '/monitor/requests'),
+      createRequest(
+        'GET',
+        '/monitor/requests?project=cn-nodes&page=2&pageSize=20',
+        {},
+        { project: 'cn-nodes', page: '2', pageSize: '20' },
+      ),
     );
 
-    expect(systemLogRead?.skipSuccessfulRead).toBe(true);
-    expect(userRead?.skipSuccessfulRead).toBeUndefined();
-    expect(monitorRead?.skipSuccessfulRead).toBeUndefined();
-  });
-
-  it('系统日志的写入型操作不跳过审计', () => {
-    const systemLogDelete = inferSystemAuditDefinition(
-      createRequest('DELETE', '/system-logs/9', { id: '9' }),
-    );
-
-    // 标志仍在定义上,但拦截器只在 action==='read' 时跳过,写操作照常留痕
-    expect(systemLogDelete?.action).toBe('delete');
+    // 筛选条件是「谁按什么条件查的」,要留;页码没有取证价值,不留
+    expect(systemLogRead?.metadataQueryFields).toEqual(['actorUsername']);
+    expect(monitorRead?.metadataQueryFields).toEqual(['project']);
   });
 
   it('拒绝在系统日志中重复记录 RPC 数据面', () => {

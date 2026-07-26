@@ -675,40 +675,54 @@ async function main() {
       '系统日志记录读取了哪个后台账号',
     );
 
-    // 读系统日志本身不再写系统日志:否则每翻一页都插一条新记录、新记录又落在倒序首页,
-    // 把后续页整体挤后一位,翻页必然重复。
-    const systemLogTotalBefore = await httpRequest(
+    // 审计要回答「谁按什么条件查了什么」,翻到第几页没有取证价值。
+    // 记进去只会让翻十页变成十条只有 page 不同的噪音记录。
+    const paginatedSystemLogRead = await httpRequest(
       'GET',
-      '/system-logs?pageSize=1',
+      '/system-logs?actorUsername=admin&page=2&pageSize=5',
       undefined,
       administratorAccessToken,
     );
-    const systemLogTotalAfter = await httpRequest(
+    assert(paginatedSystemLogRead.status === 200, '带筛选和分页读取系统日志');
+    const systemLogReadAudit = await httpRequest(
       'GET',
-      '/system-logs?pageSize=1',
+      '/system-logs?action=read&subject=system-log&pageSize=100',
       undefined,
       administratorAccessToken,
     );
+    const systemLogReadRow = systemLogReadAudit.json.rows.find(
+      (systemLog) =>
+        systemLog.name === '读取系统日志' &&
+        systemLog.metadata &&
+        systemLog.metadata.actorUsername === 'admin',
+    );
+    assert(!!systemLogReadRow, '读取系统日志本身仍然留痕并记录筛选条件');
     assert(
-      systemLogTotalBefore.json.total === systemLogTotalAfter.json.total,
-      '连续读取系统日志不会让总数自增',
+      !!systemLogReadRow &&
+        !('page' in systemLogReadRow.metadata) &&
+        !('pageSize' in systemLogReadRow.metadata),
+      '审计 metadata 不记分页参数,翻页不产生只有页码不同的噪音',
     );
-    const systemLogFirstPage = await httpRequest(
+    // 只验本次刚产生的那条:历史记录是旧代码写的,metadata 里仍带 page
+    await httpRequest(
       'GET',
-      '/system-logs?page=1&pageSize=1',
+      `/monitor/requests?project=${encodeURIComponent(projectNames.main)}&page=2&pageSize=5`,
       undefined,
       administratorAccessToken,
     );
-    const systemLogSecondPage = await httpRequest(
+    const monitorReadAudit = await httpRequest(
       'GET',
-      '/system-logs?page=2&pageSize=1',
+      '/system-logs?action=read&subject=monitor&pageSize=1',
       undefined,
       administratorAccessToken,
     );
+    const latestMonitorRead = monitorReadAudit.json.rows[0];
     assert(
-      systemLogFirstPage.json.rows[0].id !==
-        systemLogSecondPage.json.rows[0].id,
-      '系统日志翻页不再因读取自写而重复同一行',
+      !!latestMonitorRead &&
+        latestMonitorRead.metadata.project === projectNames.main &&
+        !('page' in latestMonitorRead.metadata) &&
+        !('pageSize' in latestMonitorRead.metadata),
+      '请求日志读取的审计保留筛选条件但不记分页参数',
     );
 
     const roleName = `${TEST_RESOURCE_PREFIX}-role`;
