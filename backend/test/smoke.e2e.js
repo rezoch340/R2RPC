@@ -675,6 +675,42 @@ async function main() {
       '系统日志记录读取了哪个后台账号',
     );
 
+    // 读系统日志本身不再写系统日志:否则每翻一页都插一条新记录、新记录又落在倒序首页,
+    // 把后续页整体挤后一位,翻页必然重复。
+    const systemLogTotalBefore = await httpRequest(
+      'GET',
+      '/system-logs?pageSize=1',
+      undefined,
+      administratorAccessToken,
+    );
+    const systemLogTotalAfter = await httpRequest(
+      'GET',
+      '/system-logs?pageSize=1',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      systemLogTotalBefore.json.total === systemLogTotalAfter.json.total,
+      '连续读取系统日志不会让总数自增',
+    );
+    const systemLogFirstPage = await httpRequest(
+      'GET',
+      '/system-logs?page=1&pageSize=1',
+      undefined,
+      administratorAccessToken,
+    );
+    const systemLogSecondPage = await httpRequest(
+      'GET',
+      '/system-logs?page=2&pageSize=1',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      systemLogFirstPage.json.rows[0].id !==
+        systemLogSecondPage.json.rows[0].id,
+      '系统日志翻页不再因读取自写而重复同一行',
+    );
+
     const roleName = `${TEST_RESOURCE_PREFIX}-role`;
     const createRole = await httpRequest(
       'POST',
@@ -883,6 +919,55 @@ async function main() {
       userAuthenticationToken,
     );
     assert(permittedRead.status === 200, '具有 read/user 的用户可 GET /users');
+
+    // 成功读取系统日志不再留痕,但鉴权失败必须留痕 —— 谁在试探审计日志是重要安全信号。
+    // 用一个不挂任何权限组的探针账号,上面那个测试账号此时已被授予 read/system-log。
+    const auditProbeUsername = `${TEST_RESOURCE_PREFIX}-audit-probe`;
+    const createAuditProbe = await httpRequest(
+      'POST',
+      '/users',
+      {
+        username: auditProbeUsername,
+        password,
+        role: 'operator',
+        description: 'black-box audit probe',
+      },
+      administratorAccessToken,
+    );
+    requireValue(
+      createAuditProbe.status < 300 &&
+        Number.isInteger(createAuditProbe.json.id),
+      'POST /users 创建审计探针账号',
+      createAuditProbe,
+    );
+    cleanup.userIds.push(createAuditProbe.json.id);
+    const auditProbeLogin = await httpRequest('POST', '/auth/login', {
+      username: auditProbeUsername,
+      password,
+    });
+    const deniedSystemLogRead = await httpRequest(
+      'GET',
+      '/system-logs',
+      undefined,
+      auditProbeLogin.json.token,
+    );
+    assert(deniedSystemLogRead.status === 403, '无权限账号不能读系统日志');
+    const deniedSystemLogAudit = await httpRequest(
+      'GET',
+      `/system-logs?actorUsername=${encodeURIComponent(auditProbeUsername)}&subject=system-log&status=failed&pageSize=100`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      deniedSystemLogAudit.status === 200 &&
+        deniedSystemLogAudit.json.rows.some(
+          (systemLog) =>
+            systemLog.subject === 'system-log' &&
+            systemLog.status === 'failed' &&
+            systemLog.actorUsername === auditProbeUsername,
+        ),
+      '读取系统日志被拒绝仍然写入系统日志',
+    );
 
     const deniedProjectRead = await httpRequest(
       'GET',

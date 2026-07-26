@@ -14,6 +14,7 @@ import {
   map,
   mergeMap,
   Observable,
+  of,
   throwError,
 } from 'rxjs';
 import { SystemLogsService } from '../../application/system-logs/system-logs.service';
@@ -52,8 +53,13 @@ export class SystemAuditInterceptor implements NestInterceptor {
       .switchToHttp()
       .getResponse<{ statusCode: number }>();
     return next.handle().pipe(
-      concatMap((responseBody: unknown) =>
-        from(
+      concatMap((responseBody: unknown) => {
+        // 读取自身的成功调用不入库,否则日志表被自己的读取污染、翻页必然重复;
+        // 失败分支不受影响,鉴权拒绝仍然留痕
+        if (this.skipsSuccessfulRead(definition)) {
+          return of(responseBody);
+        }
+        return from(
           this.recordAndMark(
             request,
             buildSystemAuditEntry({
@@ -64,8 +70,8 @@ export class SystemAuditInterceptor implements NestInterceptor {
               statusCode: response.statusCode,
             }),
           ),
-        ).pipe(map(() => responseBody)),
-      ),
+        ).pipe(map(() => responseBody));
+      }),
       catchError((handlerError: unknown) =>
         from(
           this.recordAndMark(
@@ -80,6 +86,12 @@ export class SystemAuditInterceptor implements NestInterceptor {
           ),
         ).pipe(mergeMap(() => throwError(() => handlerError))),
       ),
+    );
+  }
+
+  private skipsSuccessfulRead(definition: SystemAuditDefinition): boolean {
+    return (
+      definition.skipSuccessfulRead === true && definition.action === 'read'
     );
   }
 

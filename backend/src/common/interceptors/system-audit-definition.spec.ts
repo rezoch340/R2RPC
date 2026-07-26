@@ -35,8 +35,32 @@ describe('系统访问审计定义推导', () => {
       subject: 'system-log',
       targetType: 'system-log',
       targetParameter: undefined,
+      skipSuccessfulRead: true,
       metadataQueryFields: ['page'],
     });
+  });
+
+  it('只有系统日志自身跳过成功读取,其余控制面读取照常记录', () => {
+    const systemLogRead = inferSystemAuditDefinition(
+      createRequest('GET', '/system-logs'),
+    );
+    const userRead = inferSystemAuditDefinition(createRequest('GET', '/users'));
+    const monitorRead = inferSystemAuditDefinition(
+      createRequest('GET', '/monitor/requests'),
+    );
+
+    expect(systemLogRead?.skipSuccessfulRead).toBe(true);
+    expect(userRead?.skipSuccessfulRead).toBeUndefined();
+    expect(monitorRead?.skipSuccessfulRead).toBeUndefined();
+  });
+
+  it('系统日志的写入型操作不跳过审计', () => {
+    const systemLogDelete = inferSystemAuditDefinition(
+      createRequest('DELETE', '/system-logs/9', { id: '9' }),
+    );
+
+    // 标志仍在定义上,但拦截器只在 action==='read' 时跳过,写操作照常留痕
+    expect(systemLogDelete?.action).toBe('delete');
   });
 
   it('拒绝在系统日志中重复记录 RPC 数据面', () => {
