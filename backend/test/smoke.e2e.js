@@ -1262,14 +1262,55 @@ async function main() {
 
     const userList = await httpRequest(
       'GET',
-      '/users',
+      '/users?pageSize=100',
       undefined,
       administratorAccessToken,
     );
-    const userListRow = userList.json.find((row) => row.id === userId);
+    const userListRow = userList.json.rows.find((row) => row.id === userId);
     assert(
       !!userListRow && typeof userListRow.lastLoginAt === 'string',
       'GET /users 暴露已更新的 lastLoginAt',
+    );
+
+    const firstUserPage = await httpRequest(
+      'GET',
+      '/users?page=1&pageSize=1',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      firstUserPage.status === 200 &&
+        firstUserPage.json.rows.length === 1 &&
+        firstUserPage.json.page === 1 &&
+        firstUserPage.json.pageSize === 1 &&
+        firstUserPage.json.total >= 2,
+      'GET /users 返回分页信封并按 pageSize 截断',
+    );
+    const filteredUserPage = await httpRequest(
+      'GET',
+      `/users?username=${encodeURIComponent(username)}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      filteredUserPage.json.rows.some((row) => row.id === userId) &&
+        filteredUserPage.json.rows.every((row) =>
+          row.username.includes(username),
+        ) &&
+        filteredUserPage.json.total === filteredUserPage.json.rows.length,
+      'GET /users 按账号服务端筛选,total 随筛选收敛',
+    );
+    const disabledUserPage = await httpRequest(
+      'GET',
+      '/users?enabled=disabled&pageSize=100',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      disabledUserPage.json.rows.every(
+        (userRecord) => userRecord.enabled === false,
+      ),
+      'GET /users 按启用状态筛选只返回匹配账号',
     );
 
     const deleteUser = await httpRequest(
@@ -1374,18 +1415,47 @@ async function main() {
 
     const accessList = await httpRequest(
       'GET',
-      '/access-tokens',
+      '/access-tokens?pageSize=100',
       undefined,
       administratorAccessToken,
     );
     assert(
       accessList.status === 200 &&
-        accessList.json.some(
+        accessList.json.rows.some(
           (token) =>
             token.id === createMainAccess.json.id &&
             token.projects.includes(projectNames.main),
         ),
       'GET /access-tokens 返回 token 与 project 作用域',
+    );
+
+    const firstAccessTokenPage = await httpRequest(
+      'GET',
+      '/access-tokens?page=1&pageSize=1',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      firstAccessTokenPage.json.rows.length === 1 &&
+        firstAccessTokenPage.json.pageSize === 1 &&
+        firstAccessTokenPage.json.total === accessList.json.total,
+      'GET /access-tokens 返回分页信封,total 不随 pageSize 变化',
+    );
+    // 令牌可以挂多个功能组,EXISTS 子查询若写成 join 会让这类令牌重复出现、total 也被放大
+    const accessTokensByProject = await httpRequest(
+      'GET',
+      `/access-tokens?project=${encodeURIComponent(projectNames.main)}&pageSize=100`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      accessTokensByProject.json.rows.length > 0 &&
+        accessTokensByProject.json.rows.every((token) =>
+          token.projects.includes(projectNames.main),
+        ) &&
+        accessTokensByProject.json.total ===
+          accessTokensByProject.json.rows.length,
+      'GET /access-tokens 按功能组筛选只返回该作用域令牌且不产生重复行',
     );
 
     const noInvokeToken = await httpRequest(
@@ -1526,13 +1596,14 @@ async function main() {
     );
     const accessTokensAfterQueueRead = await httpRequest(
       'GET',
-      '/access-tokens',
+      '/access-tokens?pageSize=100',
       undefined,
       administratorAccessToken,
     );
-    const usageLimitedAfterQueueRead = accessTokensAfterQueueRead.json.find(
-      (token) => token.id === usageLimitedAccessToken.json.id,
-    );
+    const usageLimitedAfterQueueRead =
+      accessTokensAfterQueueRead.json.rows.find(
+        (token) => token.id === usageLimitedAccessToken.json.id,
+      );
     assert(
       usageLimitedQueueRead.status === 200 &&
         usageLimitedAfterQueueRead.usageCount === 0,
@@ -1629,12 +1700,12 @@ async function main() {
     ]);
     const accessTokensAfterUnlimitedInvocations = await httpRequest(
       'GET',
-      '/access-tokens',
+      '/access-tokens?pageSize=100',
       undefined,
       administratorAccessToken,
     );
     const unlimitedTokenAfterInvocations =
-      accessTokensAfterUnlimitedInvocations.json.find(
+      accessTokensAfterUnlimitedInvocations.json.rows.find(
         (token) => token.id === usageLimitedAccessToken.json.id,
       );
     assert(
@@ -1769,19 +1840,55 @@ async function main() {
 
     const deviceTokenList = await httpRequest(
       'GET',
-      '/device-tokens',
+      '/device-tokens?pageSize=100',
       undefined,
       administratorAccessToken,
     );
     assert(
       deviceTokenList.status === 200 &&
-        deviceTokenList.json.some(
+        deviceTokenList.json.rows.some(
           (token) =>
             token.id === createMainDeviceToken.json.id &&
             token.projects.includes(projectNames.main) &&
             token.onlineDeviceCount === 0,
         ),
       'GET /device-tokens 返回作用域和在线设备数',
+    );
+
+    const firstDeviceTokenPage = await httpRequest(
+      'GET',
+      '/device-tokens?page=1&pageSize=1',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      firstDeviceTokenPage.json.rows.length === 1 &&
+        firstDeviceTokenPage.json.pageSize === 1 &&
+        firstDeviceTokenPage.json.total === deviceTokenList.json.total,
+      'GET /device-tokens 返回分页信封,total 不随 pageSize 变化',
+    );
+    const activeDeviceTokens = await httpRequest(
+      'GET',
+      '/device-tokens?status=active&pageSize=100',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      activeDeviceTokens.json.rows.length > 0 &&
+        activeDeviceTokens.json.rows.every(
+          (token) => token.status === 'active',
+        ),
+      'GET /device-tokens 按状态服务端筛选只返回匹配令牌',
+    );
+    const oversizedTokenPageSize = await httpRequest(
+      'GET',
+      '/device-tokens?pageSize=101',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      oversizedTokenPageSize.status === 400,
+      'GET /device-tokens 的 pageSize 超过 100 返回 400',
     );
 
     const editableDeviceToken = await httpRequest(
@@ -1843,14 +1950,14 @@ async function main() {
     // 无设备的令牌仍为 0,批量结果错配到别的令牌时本条即失败。
     const onlineCountList = await httpRequest(
       'GET',
-      '/device-tokens',
+      '/device-tokens?pageSize=100',
       undefined,
       administratorAccessToken,
     );
-    const connectedTokenRow = onlineCountList.json.find(
+    const connectedTokenRow = onlineCountList.json.rows.find(
       (token) => token.id === editableDeviceToken.json.id,
     );
-    const idleTokenRow = onlineCountList.json.find(
+    const idleTokenRow = onlineCountList.json.rows.find(
       (token) => token.id === createMainDeviceToken.json.id,
     );
     assert(
@@ -2070,14 +2177,25 @@ async function main() {
 
     const deviceList = await httpRequest(
       'GET',
-      '/devices',
+      `/devices?clientId=${encodeURIComponent(clientId)}`,
       undefined,
       administratorAccessToken,
     );
-    const deviceRow = deviceList.json.find(
+    assert(
+      Array.isArray(deviceList.json.rows) &&
+        typeof deviceList.json.total === 'number' &&
+        deviceList.json.page === 1 &&
+        deviceList.json.pageSize === 10,
+      'GET /devices 返回分页信封 rows/page/pageSize/total',
+    );
+    const deviceRow = deviceList.json.rows.find(
       (device) => device.clientId === clientId,
     );
-    requireValue(!!deviceRow, 'GET /devices 返回 WS 自注册设备', deviceRow);
+    requireValue(
+      !!deviceRow,
+      'GET /devices 按 clientId 服务端筛选返回 WS 自注册设备',
+      deviceRow,
+    );
     assert(
       deviceRow.online === true &&
         deviceRow.status === 'online' &&
@@ -2104,6 +2222,49 @@ async function main() {
       administratorAccessToken,
     );
     assert(missingDevice.status === 404, '不存在设备详情返回 404');
+
+    const firstDevicePage = await httpRequest(
+      'GET',
+      '/devices?page=1&pageSize=1',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      firstDevicePage.json.rows.length === 1 && firstDevicePage.json.total >= 1,
+      'GET /devices 按 pageSize 截断返回行,total 仍是全量计数',
+    );
+    const onlineDevices = await httpRequest(
+      'GET',
+      '/devices?status=online',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      onlineDevices.json.rows.length > 0 &&
+        onlineDevices.json.rows.every((device) => device.status === 'online'),
+      'GET /devices 按 status 服务端筛选只返回匹配设备',
+    );
+    const overflowDevicePage = await httpRequest(
+      'GET',
+      '/devices?page=999999&pageSize=10',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      overflowDevicePage.json.rows.length === 0 &&
+        overflowDevicePage.json.total === firstDevicePage.json.total,
+      'GET /devices 越界页返回空 rows 但保留 total',
+    );
+    const oversizedDevicePageSize = await httpRequest(
+      'GET',
+      '/devices?pageSize=101',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      oversizedDevicePageSize.status === 400,
+      'GET /devices 的 pageSize 超过 100 返回 400',
+    );
 
     // 同 clientId 新连接覆盖 session；旧连接随后断开不能误清新 session。
     const replacementDevice = connectDevice({
@@ -2959,7 +3120,7 @@ async function main() {
           undefined,
           administratorAccessToken,
         );
-        const row = response.json.find(
+        const row = response.json.rows.find(
           (device) => device.clientId === clientId,
         );
         return row?.online === false && row?.status === 'offline';

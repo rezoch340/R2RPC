@@ -7,9 +7,11 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { QueryTokensDto } from '../../common/dto/query-tokens.dto';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import type { AuthedRequest } from '../../common/types/authed-request';
@@ -47,10 +49,10 @@ export class DeviceTokenController {
   @Get()
   @RequirePermission('manage', 'device-token')
   @ApiOperation({
-    summary: '列表:所有 device token(含明文、project 名、在线设备数)',
+    summary: '列表:device token(含明文、project 名、在线设备数),服务端筛选分页',
   })
-  list() {
-    return this.tokens.list();
+  list(@Query() query: QueryTokensDto) {
+    return this.tokens.list(query);
   }
 
   @Patch(':id/projects')

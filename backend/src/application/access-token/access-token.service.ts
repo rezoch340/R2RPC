@@ -7,9 +7,12 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
+import { desc, eq, ilike, SQL, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
+import { containsPattern } from '../../common/db/like-pattern';
+import { pageBounds } from '../../common/db/page-bounds';
 import { alive, softDelete } from '../../common/db/soft-delete';
+import { QueryTokensDto } from '../../common/dto/query-tokens.dto';
 import { DbService } from '../../infrastructure/db/db.service';
 import { accessTokenCacheKey } from '../../infrastructure/redis/cache-keys';
 import { RedisCacheAsideService } from '../../infrastructure/redis/redis-cache-aside.service';
@@ -145,24 +148,55 @@ export class AccessTokenService {
   }
 
   /**
-   * 列表:所有 token + 其 project 名。
-   * project 名由 ProjectsService.namesByTokenIds 一次批量装载(固定 2 次查询,与 token 数无关)。
+   * 列表:服务端筛选 + 分页,只装载当前页令牌的 project 名。
+   * project 名由 ProjectsService.namesByTokenIds 一次批量装载(固定 3 次查询,与 token 数无关)。
+   * 按 id 倒序保证翻页稳定。
    */
-  async list() {
+  async list(query: QueryTokensDto = {}) {
+    const whereClause = alive(accessTokens, ...this.buildConditions(query));
+    const { page, pageSize, offset } = pageBounds(query);
     const tokenRecords = await this.database
       .select()
       .from(accessTokens)
-      .where(alive(accessTokens));
+      .where(whereClause)
+      .orderBy(desc(accessTokens.id))
+      .limit(pageSize)
+      .offset(offset);
+    const [{ total }] = await this.database
+      .select({ total: sql<number>`count(*)::int` })
+      .from(accessTokens)
+      .where(whereClause);
 
     const projectNamesByTokenId = await this.projects.namesByTokenIds(
       accessTokenProjects,
       tokenRecords.map((tokenRecord) => tokenRecord.id),
     );
 
-    return tokenRecords.map((tokenRecord) => ({
+    const rows = tokenRecords.map((tokenRecord) => ({
       ...tokenRecord,
       projects: projectNamesByTokenId.get(tokenRecord.id) ?? [],
     }));
+    return { rows, page, pageSize, total };
+  }
+
+  private buildConditions(query: QueryTokensDto): SQL[] {
+    const conditions: SQL[] = [];
+    if (query.name) {
+      conditions.push(ilike(accessTokens.name, containsPattern(query.name)));
+    }
+    if (query.status) {
+      conditions.push(eq(accessTokens.status, query.status));
+    }
+    if (query.project) {
+      conditions.push(
+        this.projects.hasProjectNameMatch(
+          accessTokenProjects,
+          accessTokens.id,
+          query.project,
+        ),
+      );
+    }
+    return conditions;
   }
 
   /**

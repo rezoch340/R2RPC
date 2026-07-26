@@ -3,14 +3,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, SQL, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import {
   DEVICE_TOKEN_SCOPE_CHANGED_CHANNEL,
   type DeviceTokenScopeChangedEvent,
 } from '../../common/constants/device-token-events';
+import { containsPattern } from '../../common/db/like-pattern';
+import { pageBounds } from '../../common/db/page-bounds';
 import { alive, softDelete } from '../../common/db/soft-delete';
+import { QueryTokensDto } from '../../common/dto/query-tokens.dto';
 import { DbService } from '../../infrastructure/db/db.service';
 import { deviceTokenCacheKey } from '../../infrastructure/redis/cache-keys';
 import { RedisCacheAsideService } from '../../infrastructure/redis/redis-cache-aside.service';
@@ -121,14 +124,24 @@ export class DeviceTokenService {
   }
 
   /**
-   * 列表:所有 token + project 名 + 在线设备数。
-   * project 名与在线设备数各由一次批量查询装载(固定 3 次查询,与 token 数无关)。
+   * 列表:服务端筛选 + 分页,只装载当前页令牌的 project 名与在线设备数。
+   * project 名与在线设备数各由一次批量查询装载(固定 4 次查询,与 token 数无关)。
+   * 按 id 倒序保证翻页稳定。
    */
-  async list() {
+  async list(query: QueryTokensDto = {}) {
+    const whereClause = alive(deviceTokens, ...this.buildConditions(query));
+    const { page, pageSize, offset } = pageBounds(query);
     const tokenRecords = await this.database
       .select()
       .from(deviceTokens)
-      .where(alive(deviceTokens));
+      .where(whereClause)
+      .orderBy(desc(deviceTokens.id))
+      .limit(pageSize)
+      .offset(offset);
+    const [{ total }] = await this.database
+      .select({ total: sql<number>`count(*)::int` })
+      .from(deviceTokens)
+      .where(whereClause);
     const tokenIds = tokenRecords.map((tokenRecord) => tokenRecord.id);
 
     const projectNamesByTokenId = await this.projects.namesByTokenIds(
@@ -138,11 +151,32 @@ export class DeviceTokenService {
     const onlineDeviceCountByTokenId =
       await this.onlineDeviceCountByTokenId(tokenIds);
 
-    return tokenRecords.map((tokenRecord) => ({
+    const rows = tokenRecords.map((tokenRecord) => ({
       ...tokenRecord,
       projects: projectNamesByTokenId.get(tokenRecord.id) ?? [],
       onlineDeviceCount: onlineDeviceCountByTokenId.get(tokenRecord.id) ?? 0,
     }));
+    return { rows, page, pageSize, total };
+  }
+
+  private buildConditions(query: QueryTokensDto): SQL[] {
+    const conditions: SQL[] = [];
+    if (query.name) {
+      conditions.push(ilike(deviceTokens.name, containsPattern(query.name)));
+    }
+    if (query.status) {
+      conditions.push(eq(deviceTokens.status, query.status));
+    }
+    if (query.project) {
+      conditions.push(
+        this.projects.hasProjectNameMatch(
+          deviceTokenProjects,
+          deviceTokens.id,
+          query.project,
+        ),
+      );
+    }
+    return conditions;
   }
 
   /** 在线设备数:一次 GROUP BY 取回全部令牌的在线 alive 设备数,避免逐令牌 count。 */

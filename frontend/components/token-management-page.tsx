@@ -1,7 +1,12 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { Pencil, ShieldX, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -24,10 +29,17 @@ import {
 import { TokenProjectsDialog } from '@/components/token-projects-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { getRequestErrorMessage, requestApi } from '@/lib/api-client';
+import {
+  buildQueryString,
+  getRequestErrorMessage,
+  requestApi,
+} from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
-import type { ProjectRecord, TokenRecord } from '@/lib/models';
-import { useClientPagination } from '@/lib/use-client-pagination';
+import type {
+  PaginatedResponse,
+  ProjectRecord,
+  TokenRecord,
+} from '@/lib/models';
 
 interface TokenAction {
   type: 'revoke' | 'delete';
@@ -74,14 +86,24 @@ export function TokenManagementPage({
   const [draftFilters, setDraftFilters] = useState<TokenFilters>(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] =
     useState<TokenFilters>(EMPTY_FILTERS);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [editingToken, setEditingToken] = useState<TokenRecord | null>(null);
   const [pendingAction, setPendingAction] = useState<TokenAction | null>(null);
   const queryClient = useQueryClient();
   const allowsExpiration = resourcePath === '/access-tokens';
 
   const tokensQuery = useQuery({
-    queryKey: [resourceQueryKey],
-    queryFn: () => requestApi<TokenRecord[]>(resourcePath),
+    queryKey: [resourceQueryKey, appliedFilters, page, pageSize],
+    queryFn: () =>
+      requestApi<PaginatedResponse<TokenRecord>>(
+        `${resourcePath}${buildQueryString({
+          ...appliedFilters,
+          page,
+          pageSize,
+        })}`,
+      ),
+    placeholderData: keepPreviousData,
   });
   const projectsQuery = useQuery({
     queryKey: ['projects'],
@@ -143,20 +165,6 @@ export function TokenManagementPage({
       toast.error(getRequestErrorMessage(error, '更新令牌配置失败')),
   });
 
-  const filteredTokens = useMemo(() => {
-    const normalizedName = appliedFilters.name.trim().toLowerCase();
-    return (tokensQuery.data ?? []).filter((token) => {
-      const matchesName =
-        !normalizedName || token.name.toLowerCase().includes(normalizedName);
-      const matchesProject =
-        !appliedFilters.project ||
-        token.projects.includes(appliedFilters.project);
-      const matchesStatus =
-        !appliedFilters.status || token.status === appliedFilters.status;
-      return matchesName && matchesProject && matchesStatus;
-    });
-  }, [appliedFilters, tokensQuery.data]);
-  const pagination = useClientPagination(filteredTokens);
   const filterFields = useMemo<
     Array<FilterFieldDefinition<keyof TokenFilters>>
   >(
@@ -356,17 +364,17 @@ export function TokenManagementPage({
         onChange={updateDraftFilter}
         onSubmit={() => {
           setAppliedFilters(draftFilters);
-          pagination.resetPage();
+          setPage(1);
         }}
         onReset={() => {
           setDraftFilters(EMPTY_FILTERS);
           setAppliedFilters(EMPTY_FILTERS);
-          pagination.resetPage();
+          setPage(1);
         }}
       />
       <DataTable
         columns={columns}
-        rows={pagination.pageRows}
+        rows={tokensQuery.data?.rows ?? []}
         isLoading={tokensQuery.isLoading}
         emptyMessage="暂无令牌"
         rowKey={(token) => token.id}
@@ -377,12 +385,15 @@ export function TokenManagementPage({
         }
         footer={
           <Pagination
-            page={pagination.page}
-            pageSize={pagination.pageSize}
-            total={pagination.total}
+            page={tokensQuery.data?.page ?? page}
+            pageSize={tokensQuery.data?.pageSize ?? pageSize}
+            total={tokensQuery.data?.total ?? 0}
             isFetching={tokensQuery.isFetching}
-            onPageChange={pagination.setPage}
-            onPageSizeChange={pagination.setPageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(newPageSize) => {
+              setPageSize(newPageSize);
+              setPage(1);
+            }}
           />
         }
       />

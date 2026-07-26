@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -14,6 +15,7 @@ import { RequirePermission } from '../../common/decorators/require-permission.de
 import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import type { AuthedRequest } from '../../common/types/authed-request';
 import { CreateUserDto } from './dto/create-user.dto';
+import { QueryUsersDto } from './dto/query-users.dto';
 import { SetEnabledDto } from './dto/set-enabled.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -27,9 +29,9 @@ export class UsersController {
 
   @Get()
   @RequirePermission('read', 'user')
-  @ApiOperation({ summary: '用户列表' })
-  list() {
-    return this.usersService.list();
+  @ApiOperation({ summary: '用户列表(服务端筛选分页)' })
+  list(@Query() query: QueryUsersDto) {
+    return this.usersService.list(query);
   }
 
   @Get(':id')

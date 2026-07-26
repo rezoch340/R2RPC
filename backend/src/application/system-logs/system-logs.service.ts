@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { and, desc, eq, gte, lte, SQL, sql } from 'drizzle-orm';
+import { pageBounds } from '../../common/db/page-bounds';
 import { DbService } from '../../infrastructure/db/db.service';
 import { QuerySystemLogsDto } from './dto/query-system-logs.dto';
 import { CreateSystemLogInput } from './entity/model';
@@ -20,15 +21,14 @@ export class SystemLogsService {
   async list(query: QuerySystemLogsDto) {
     const conditions = this.buildConditions(query);
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    const page = query.page ?? 1;
-    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 10));
+    const { page, pageSize, offset } = pageBounds(query);
     const rows = await this.database
       .select()
       .from(systemLogs)
       .where(whereClause)
       .orderBy(desc(systemLogs.createdAt), desc(systemLogs.id))
       .limit(pageSize)
-      .offset((page - 1) * pageSize);
+      .offset(offset);
     const [{ total }] = await this.database
       .select({ total: sql<number>`count(*)::int` })
       .from(systemLogs)

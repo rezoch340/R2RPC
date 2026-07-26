@@ -36,6 +36,28 @@ const EMPTY_REQUEST_LOG_FILTERS = {
   to: "",
 };
 
+const EMPTY_DEVICE_FILTERS = {
+  clientId: "",
+  platform: "",
+  lastIp: "",
+  status: "",
+};
+
+const EMPTY_TOKEN_FILTERS = {
+  name: "",
+  project: "",
+  status: "",
+};
+
+const EMPTY_USER_FILTERS = {
+  username: "",
+  role: "",
+  enabled: "",
+};
+
+// 列表页首屏都是第 1 页、10 条,预取参数与页面初始 queryKey 必须一致才会命中
+const FIRST_PAGE = { page: 1, pageSize: 10 };
+
 const EMPTY_SYSTEM_LOG_FILTERS = {
   actorUsername: "",
   action: "",
@@ -84,8 +106,19 @@ const navigationPrefetchTasks: Record<string, NavigationPrefetchTask[]> = {
       permission: { action: "read", subject: "project" },
     }),
     createPrefetchTask({
-      queryKey: ["devices"],
-      queryFunction: () => requestApi<DeviceRecord[]>("/devices"),
+      queryKey: ["devices", "count"],
+      queryFunction: () =>
+        requestApi<PaginatedResponse<DeviceRecord>>(
+          "/devices?page=1&pageSize=1",
+        ),
+      permission: { action: "read", subject: "device" },
+    }),
+    createPrefetchTask({
+      queryKey: ["devices", "count", "online"],
+      queryFunction: () =>
+        requestApi<PaginatedResponse<DeviceRecord>>(
+          "/devices?page=1&pageSize=1&status=online",
+        ),
       permission: { action: "read", subject: "device" },
     }),
   ],
@@ -98,8 +131,15 @@ const navigationPrefetchTasks: Record<string, NavigationPrefetchTask[]> = {
   ],
   "/devices": [
     createPrefetchTask({
-      queryKey: ["devices"],
-      queryFunction: () => requestApi<DeviceRecord[]>("/devices"),
+      queryKey: ["devices", EMPTY_DEVICE_FILTERS, 1, 10],
+      queryFunction: () =>
+        requestApi<PaginatedResponse<DeviceRecord>>(
+          `/devices${buildQueryString({
+            ...EMPTY_DEVICE_FILTERS,
+            page: 1,
+            pageSize: 10,
+          })}`,
+        ),
       permission: { action: "read", subject: "device" },
     }),
   ],
@@ -127,8 +167,14 @@ const navigationPrefetchTasks: Record<string, NavigationPrefetchTask[]> = {
   ],
   "/device-tokens": [
     createPrefetchTask({
-      queryKey: ["device-tokens"],
-      queryFunction: () => requestApi<TokenRecord[]>("/device-tokens"),
+      queryKey: ["device-tokens", EMPTY_TOKEN_FILTERS, 1, 10],
+      queryFunction: () =>
+        requestApi<PaginatedResponse<TokenRecord>>(
+          `/device-tokens${buildQueryString({
+            ...EMPTY_TOKEN_FILTERS,
+            ...FIRST_PAGE,
+          })}`,
+        ),
       permission: { action: "manage", subject: "device-token" },
     }),
     createPrefetchTask({
@@ -139,8 +185,14 @@ const navigationPrefetchTasks: Record<string, NavigationPrefetchTask[]> = {
   ],
   "/access-tokens": [
     createPrefetchTask({
-      queryKey: ["access-tokens"],
-      queryFunction: () => requestApi<TokenRecord[]>("/access-tokens"),
+      queryKey: ["access-tokens", EMPTY_TOKEN_FILTERS, 1, 10],
+      queryFunction: () =>
+        requestApi<PaginatedResponse<TokenRecord>>(
+          `/access-tokens${buildQueryString({
+            ...EMPTY_TOKEN_FILTERS,
+            ...FIRST_PAGE,
+          })}`,
+        ),
       permission: { action: "manage", subject: "access-token" },
     }),
     createPrefetchTask({
@@ -151,8 +203,14 @@ const navigationPrefetchTasks: Record<string, NavigationPrefetchTask[]> = {
   ],
   "/users": [
     createPrefetchTask({
-      queryKey: ["users"],
-      queryFunction: () => requestApi<UserRecord[]>("/users"),
+      queryKey: ["users", EMPTY_USER_FILTERS, 1, 10],
+      queryFunction: () =>
+        requestApi<PaginatedResponse<UserRecord>>(
+          `/users${buildQueryString({
+            ...EMPTY_USER_FILTERS,
+            ...FIRST_PAGE,
+          })}`,
+        ),
       permission: { action: "read", subject: "user" },
     }),
     createPrefetchTask({

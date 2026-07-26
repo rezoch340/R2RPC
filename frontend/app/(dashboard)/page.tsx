@@ -20,6 +20,7 @@ import type {
   DailyTrendPoint,
   DeviceRecord,
   MetricsOverview,
+  PaginatedResponse,
   ProjectRecord,
 } from '@/lib/models';
 
@@ -47,15 +48,23 @@ export default function OverviewPage() {
     queryFn: () => requestApi<ProjectRecord[]>('/projects/info'),
     enabled: canReadProjects,
   });
-  const devicesQuery = useQuery({
-    queryKey: ['devices'],
-    queryFn: () => requestApi<DeviceRecord[]>('/devices'),
+  // 概览只要两个计数,取 pageSize=1 的 total,不把设备整表拉到浏览器
+  const deviceCountQuery = useQuery({
+    queryKey: ['devices', 'count'],
+    queryFn: () =>
+      requestApi<PaginatedResponse<DeviceRecord>>('/devices?page=1&pageSize=1'),
     enabled: canReadDevices,
     refetchInterval: 15_000,
   });
-
-  const onlineDeviceCount =
-    devicesQuery.data?.filter((device) => device.online).length ?? 0;
+  const onlineDeviceCountQuery = useQuery({
+    queryKey: ['devices', 'count', 'online'],
+    queryFn: () =>
+      requestApi<PaginatedResponse<DeviceRecord>>(
+        '/devices?page=1&pageSize=1&status=online',
+      ),
+    enabled: canReadDevices,
+    refetchInterval: 15_000,
+  });
   const requestTotals = metricsQuery.data?.totals;
 
   return (
@@ -108,11 +117,11 @@ export default function OverviewPage() {
         <StatCard
           label="在线设备"
           value={
-            canReadDevices && devicesQuery.data
-              ? formatNumber(onlineDeviceCount)
+            canReadDevices && onlineDeviceCountQuery.data
+              ? formatNumber(onlineDeviceCountQuery.data.total)
               : '—'
           }
-          hint={`登记设备 ${formatNumber(devicesQuery.data?.length)}`}
+          hint={`登记设备 ${formatNumber(deviceCountQuery.data?.total)}`}
           icon={Cpu}
         />
         <StatCard

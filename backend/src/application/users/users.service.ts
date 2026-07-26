@@ -3,12 +3,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { desc, eq, ilike, SQL, sql } from 'drizzle-orm';
+import { containsPattern } from '../../common/db/like-pattern';
+import { pageBounds } from '../../common/db/page-bounds';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { hashPassword } from '../../common/utils/password';
 import { DbService } from '../../infrastructure/db/db.service';
 import { UserAuthorizationCacheService } from '../../infrastructure/redis/user-authorization-cache.service';
 import { AdministratorAccountPolicyService } from './administrator-account-policy.service';
+import { QueryUsersDto } from './dto/query-users.dto';
 import { users } from './users.schema';
 
 const publicUserSelection = {
@@ -44,11 +47,36 @@ export class UsersService {
     return userRecord ?? null;
   }
 
-  async list() {
-    return this.database
+  // 列表:服务端筛选 + 分页;按 id 倒序保证翻页稳定,不整表返回
+  async list(query: QueryUsersDto = {}) {
+    const whereClause = alive(users, ...this.buildConditions(query));
+    const { page, pageSize, offset } = pageBounds(query);
+    const rows = await this.database
       .select(publicUserSelection)
       .from(users)
-      .where(alive(users));
+      .where(whereClause)
+      .orderBy(desc(users.id))
+      .limit(pageSize)
+      .offset(offset);
+    const [{ total }] = await this.database
+      .select({ total: sql<number>`count(*)::int` })
+      .from(users)
+      .where(whereClause);
+    return { rows, page, pageSize, total };
+  }
+
+  private buildConditions(query: QueryUsersDto): SQL[] {
+    const conditions: SQL[] = [];
+    if (query.username) {
+      conditions.push(ilike(users.username, containsPattern(query.username)));
+    }
+    if (query.role) {
+      conditions.push(ilike(users.role, containsPattern(query.role)));
+    }
+    if (query.enabled) {
+      conditions.push(eq(users.enabled, query.enabled === 'enabled'));
+    }
+    return conditions;
   }
 
   async findById(userId: number) {

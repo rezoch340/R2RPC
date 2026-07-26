@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { count, eq, inArray, max, sql } from 'drizzle-orm';
+import { and, count, eq, exists, inArray, max, SQL, sql } from 'drizzle-orm';
 import { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
@@ -95,6 +95,33 @@ export class ProjectsService {
       projectNamesByTokenId.set(relationRecord.tokenId, projectNames);
     }
     return projectNamesByTokenId;
+  }
+
+  /**
+   * 「令牌挂了这个功能组」条件,供两类令牌列表按功能组筛选。
+   * 功能组名取自下拉选项,是完整名称,故用等值而不是模糊匹配。
+   * 用 EXISTS 而不是 join:主查询行数不会因令牌挂多个功能组而翻倍,分页与 count 都不需要去重。
+   */
+  hasProjectNameMatch(
+    tokenProjectsTable: TokenProjectsTable,
+    tokenIdColumn: PgColumn,
+    projectName: string,
+  ): SQL {
+    return exists(
+      this.database
+        .select({ matched: sql`1` })
+        .from(tokenProjectsTable)
+        .innerJoin(
+          projects,
+          alive(projects, eq(tokenProjectsTable.projectId, projects.id)),
+        )
+        .where(
+          and(
+            eq(tokenProjectsTable.tokenId, tokenIdColumn),
+            eq(projects.name, projectName),
+          ),
+        ),
+    );
   }
 
   async findByName(name: string) {
