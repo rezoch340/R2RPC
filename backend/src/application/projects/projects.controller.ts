@@ -1,13 +1,6 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseIntPipe,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ParseEntityIdPipe } from '../../common/pipes/parse-entity-id.pipe';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -59,7 +52,7 @@ export class ProjectsController {
     targetParameter: 'id',
   })
   @ApiOperation({ summary: '删除功能组' })
-  remove(@Param('id', ParseIntPipe) projectId: number) {
+  remove(@Param('id', ParseEntityIdPipe) projectId: number) {
     return this.projects.remove(projectId);
   }
 
@@ -76,7 +69,7 @@ export class ProjectsController {
   })
   @ApiOperation({ summary: '启用/停用功能组(停用后 invoke 拒派)' })
   setEnabled(
-    @Param('id', ParseIntPipe) projectId: number,
+    @Param('id', ParseEntityIdPipe) projectId: number,
     @Body() input: SetEnabledDto,
   ) {
     return this.projects.setEnabled(projectId, input.enabled);

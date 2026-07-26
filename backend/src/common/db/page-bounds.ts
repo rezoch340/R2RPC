@@ -1,5 +1,7 @@
 const DEFAULT_PAGE_SIZE = 10;
 const MAXIMUM_PAGE_SIZE = 100;
+// 与 PaginationQueryDto 的上界一致:防止 (page-1)*pageSize 溢出 bigint 把 OFFSET 打崩
+const MAXIMUM_PAGE = 1_000_000;
 
 interface PaginationInput {
   page?: number;
@@ -12,7 +14,7 @@ interface PaginationInput {
  * 返回的 offset 直接喂给 drizzle `.offset()`。
  */
 export function pageBounds(query: PaginationInput) {
-  const page = Math.max(1, query.page ?? 1);
+  const page = Math.min(MAXIMUM_PAGE, Math.max(1, query.page ?? 1));
   const pageSize = Math.min(
     MAXIMUM_PAGE_SIZE,
     Math.max(1, query.pageSize ?? DEFAULT_PAGE_SIZE),

@@ -38,15 +38,18 @@ paths:
           required: false
           in: query
           schema:
+            minimum: 1
+            maximum: 1000000
             default: 1
-            type: number
+            type: integer
         - name: pageSize
           required: false
           in: query
           schema:
+            minimum: 1
             maximum: 100
             default: 10
-            type: number
+            type: integer
         - name: name
           required: false
           in: query
@@ -450,15 +453,18 @@ paths:
           required: false
           in: query
           schema:
+            minimum: 1
+            maximum: 1000000
             default: 1
-            type: number
+            type: integer
         - name: pageSize
           required: false
           in: query
           schema:
+            minimum: 1
             maximum: 100
             default: 10
-            type: number
+            type: integer
         - name: clientId
           required: false
           in: query
@@ -1031,15 +1037,18 @@ paths:
           required: false
           in: query
           schema:
+            minimum: 1
+            maximum: 1000000
             default: 1
-            type: number
+            type: integer
         - name: pageSize
           required: false
           in: query
           schema:
+            minimum: 1
             maximum: 100
             default: 10
-            type: number
+            type: integer
         - name: username
           required: false
           in: query
@@ -1382,15 +1391,18 @@ paths:
           required: false
           in: query
           schema:
+            minimum: 1
+            maximum: 1000000
             default: 1
-            type: number
+            type: integer
         - name: pageSize
           required: false
           in: query
           schema:
+            minimum: 1
             maximum: 100
             default: 10
-            type: number
+            type: integer
         - name: name
           required: false
           in: query
@@ -1742,15 +1754,18 @@ paths:
           required: false
           in: query
           schema:
+            minimum: 1
+            maximum: 1000000
             default: 1
-            type: number
+            type: integer
         - name: pageSize
           required: false
           in: query
           schema:
+            minimum: 1
             maximum: 100
             default: 10
-            type: number
+            type: integer
         - name: project
           required: false
           in: query
@@ -1899,15 +1914,18 @@ paths:
           required: false
           in: query
           schema:
+            minimum: 1
+            maximum: 1000000
             default: 1
-            type: number
+            type: integer
         - name: pageSize
           required: false
           in: query
           schema:
+            minimum: 1
             maximum: 100
             default: 10
-            type: number
+            type: integer
         - name: name
           required: false
           in: query

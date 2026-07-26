@@ -31,6 +31,8 @@ const REQUEST_LOG_SPINE_COLUMNS = {
   projectName: requestLogs.projectName,
   actionName: requestLogs.actionName,
   clientId: requestLogs.clientId,
+  // 调用方身份是取证脊柱的一部分:落库时已写入,OpenAPI 也声明了,必须一并选出来返回
+  accessTokenId: requestLogs.accessTokenId,
   requesterUserId: requestLogs.requesterUserId,
   status: requestLogs.status,
   httpCode: requestLogs.httpCode,

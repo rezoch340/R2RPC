@@ -4,7 +4,6 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -12,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { QueryTokensDto } from '../../common/dto/query-tokens.dto';
+import { ParseEntityIdPipe } from '../../common/pipes/parse-entity-id.pipe';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import type { AuthedRequest } from '../../common/types/authed-request';
@@ -72,7 +72,7 @@ export class AccessTokenController {
   })
   @ApiOperation({ summary: '修改 access token 的功能组与过期策略' })
   update(
-    @Param('id', ParseIntPipe) accessTokenId: number,
+    @Param('id', ParseEntityIdPipe) accessTokenId: number,
     @Body() input: UpdateAccessTokenDto,
   ) {
     return this.tokens.update(accessTokenId, {
@@ -99,7 +99,7 @@ export class AccessTokenController {
   })
   @ApiOperation({ summary: '替换 access token 的功能组作用域' })
   updateProjects(
-    @Param('id', ParseIntPipe) accessTokenId: number,
+    @Param('id', ParseEntityIdPipe) accessTokenId: number,
     @Body() input: UpdateAccessTokenProjectsDto,
   ) {
     return this.tokens.updateProjects(accessTokenId, input.projects);
@@ -117,7 +117,7 @@ export class AccessTokenController {
     targetNameField: 'name',
   })
   @ApiOperation({ summary: '撤销 access token' })
-  revoke(@Param('id', ParseIntPipe) accessTokenId: number) {
+  revoke(@Param('id', ParseEntityIdPipe) accessTokenId: number) {
     return this.tokens.revoke(accessTokenId);
   }
 
@@ -132,7 +132,7 @@ export class AccessTokenController {
     targetParameter: 'id',
   })
   @ApiOperation({ summary: '删除 access token(软删,与撤销正交)' })
-  delete(@Param('id', ParseIntPipe) accessTokenId: number) {
+  delete(@Param('id', ParseEntityIdPipe) accessTokenId: number) {
     return this.tokens.delete(accessTokenId);
   }
 }
