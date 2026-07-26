@@ -6,6 +6,8 @@ interface AuditedResource {
   subject: string;
   targetType: string;
   safeQueryFields?: string[];
+  // 见 SystemAuditDefinition.skipSuccessfulRead
+  skipSuccessfulRead?: boolean;
 }
 
 const AUDITED_RESOURCES: Record<string, AuditedResource> = {
@@ -72,6 +74,9 @@ const AUDITED_RESOURCES: Record<string, AuditedResource> = {
     label: '系统日志',
     subject: 'system-log',
     targetType: 'system-log',
+    // 读它就写它:每翻一页都插一条新记录,而新记录落在倒序首页,把后续页整体挤后一位,
+    // 翻页必然重复。成功读取不再记录,鉴权失败仍记录。
+    skipSuccessfulRead: true,
     safeQueryFields: [
       'name',
       'actorUsername',
@@ -135,6 +140,7 @@ export function inferSystemAuditDefinition(
     subject: auditedResource.subject,
     targetType: auditedResource.targetType,
     targetParameter: targetParameterOf(request),
+    skipSuccessfulRead: auditedResource.skipSuccessfulRead,
     metadataQueryFields: auditedResource.safeQueryFields?.filter(
       (fieldName) => request.query[fieldName] !== undefined,
     ),
