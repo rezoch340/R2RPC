@@ -184,7 +184,11 @@ function buildPerformanceScenarios(
     createReadScenario('读取认证信息', '/auth/me', administratorToken),
     createReadScenario('读取概览指标', '/metrics/overview', administratorToken),
     createReadScenario('读取功能组', '/projects', administratorToken),
-    createReadScenario('读取设备', '/devices', administratorToken),
+    createReadScenario(
+      '读取设备',
+      '/devices?page=1&pageSize=10',
+      administratorToken,
+    ),
     createReadScenario(
       '读取请求日志',
       '/monitor/requests?page=1&pageSize=10',

@@ -307,7 +307,8 @@ test('页面切换等待接口预取完成且不闪加载骨架', async ({ page 
     releaseUsersRequest = resolve;
   });
 
-  await page.route('**/users', async (route) => {
+  // 用户列表已改为服务端分页，请求恒带 page/pageSize，拦截模式必须覆盖 query string
+  await page.route('**/users?*', async (route) => {
     markUsersRequestStarted?.();
     await usersRequestCanContinue;
     await route.continue();

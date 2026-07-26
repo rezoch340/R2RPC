@@ -4,10 +4,12 @@ import {
   NotFoundException,
   Param,
   ParseIntPipe,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { DevicesService } from './devices.service';
+import { QueryDevicesDto } from './dto/query-devices.dto';
 
 @ApiTags('devices')
 @ApiBearerAuth('adminJwt')
@@ -18,10 +20,11 @@ export class DevicesController {
   @Get()
   @RequirePermission('read', 'device')
   @ApiOperation({
-    summary: '设备列表(持久态:online/status/platform/last_ip/last_seen)',
+    summary:
+      '设备列表(持久态:online/status/platform/last_ip/last_seen),服务端筛选分页',
   })
-  list() {
-    return this.devices.list();
+  list(@Query() query: QueryDevicesDto) {
+    return this.devices.list(query);
   }
 
   @Get(':id')

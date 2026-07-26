@@ -1,9 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
 // 请求记录列表查询(全为可选过滤)
-export class QueryRequestsDto {
+export class QueryRequestsDto extends PaginationQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() project?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() action?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() clientId?: string;
@@ -29,17 +30,4 @@ export class QueryRequestsDto {
   @IsOptional()
   @IsString()
   to?: string;
-  @ApiPropertyOptional({ default: 1 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page?: number;
-  @ApiPropertyOptional({ default: 10, maximum: 100 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  pageSize?: number;
 }

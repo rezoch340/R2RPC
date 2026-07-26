@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Eye } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
@@ -19,10 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { requestApi } from '@/lib/api-client';
+import { buildQueryString, requestApi } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
-import type { DeviceRecord } from '@/lib/models';
-import { useClientPagination } from '@/lib/use-client-pagination';
+import type { DeviceRecord, PaginatedResponse } from '@/lib/models';
 
 interface DeviceFilters {
   clientId: string;
@@ -50,6 +49,7 @@ const FILTER_FIELDS: Array<FilterFieldDefinition<keyof DeviceFilters>> = [
     options: [
       { value: 'online', label: '在线' },
       { value: 'offline', label: '离线' },
+      { value: 'stale', label: '失联' },
     ],
   },
 ];
@@ -62,34 +62,21 @@ export default function DevicesPage() {
   const [selectedDevice, setSelectedDevice] = useState<DeviceRecord | null>(
     null,
   );
-  const devicesQuery = useQuery({
-    queryKey: ['devices'],
-    queryFn: () => requestApi<DeviceRecord[]>('/devices'),
-    refetchInterval: 15_000,
-  });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  const filteredDevices = useMemo(() => {
-    const normalizedClientId = appliedFilters.clientId.trim().toLowerCase();
-    const normalizedPlatform = appliedFilters.platform.trim().toLowerCase();
-    const normalizedLastIp = appliedFilters.lastIp.trim().toLowerCase();
-    return (devicesQuery.data ?? []).filter((device) => {
-      const matchesClientId =
-        !normalizedClientId ||
-        device.clientId.toLowerCase().includes(normalizedClientId);
-      const matchesPlatform =
-        !normalizedPlatform ||
-        device.platform?.toLowerCase().includes(normalizedPlatform);
-      const matchesLastIp =
-        !normalizedLastIp ||
-        device.lastIp?.toLowerCase().includes(normalizedLastIp);
-      const matchesStatus =
-        !appliedFilters.status || device.status === appliedFilters.status;
-      return (
-        matchesClientId && matchesPlatform && matchesLastIp && matchesStatus
-      );
-    });
-  }, [appliedFilters, devicesQuery.data]);
-  const pagination = useClientPagination(filteredDevices);
+  const queryString = buildQueryString({
+    ...appliedFilters,
+    page,
+    pageSize,
+  });
+  const devicesQuery = useQuery({
+    queryKey: ['devices', appliedFilters, page, pageSize],
+    queryFn: () =>
+      requestApi<PaginatedResponse<DeviceRecord>>(`/devices${queryString}`),
+    refetchInterval: 15_000,
+    placeholderData: keepPreviousData,
+  });
 
   function updateDraftFilter(key: keyof DeviceFilters, value: string) {
     setDraftFilters((currentFilters) => ({
@@ -167,28 +154,31 @@ export default function DevicesPage() {
         onChange={updateDraftFilter}
         onSubmit={() => {
           setAppliedFilters(draftFilters);
-          pagination.resetPage();
+          setPage(1);
         }}
         onReset={() => {
           setDraftFilters(EMPTY_FILTERS);
           setAppliedFilters(EMPTY_FILTERS);
-          pagination.resetPage();
+          setPage(1);
         }}
       />
       <DataTable
         columns={columns}
-        rows={pagination.pageRows}
+        rows={devicesQuery.data?.rows ?? []}
         isLoading={devicesQuery.isLoading}
         emptyMessage="暂无设备，设备首次通过 WebSocket 上线后会自动登记"
         rowKey={(device) => device.id}
         footer={
           <Pagination
-            page={pagination.page}
-            pageSize={pagination.pageSize}
-            total={pagination.total}
+            page={devicesQuery.data?.page ?? page}
+            pageSize={devicesQuery.data?.pageSize ?? pageSize}
+            total={devicesQuery.data?.total ?? 0}
             isFetching={devicesQuery.isFetching}
-            onPageChange={pagination.setPage}
-            onPageSizeChange={pagination.setPageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(newPageSize) => {
+              setPageSize(newPageSize);
+              setPage(1);
+            }}
           />
         }
       />

@@ -33,16 +33,47 @@ paths:
       description: 生成 device token(返回明文,供 SDK 配置)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     get:
       operationId: DeviceTokenController_list
-      parameters: []
+      parameters:
+        - name: page
+          required: false
+          in: query
+          schema:
+            default: 1
+            type: number
+        - name: pageSize
+          required: false
+          in: query
+          schema:
+            maximum: 100
+            default: 10
+            type: number
+        - name: name
+          required: false
+          in: query
+          description: 令牌名称模糊匹配
+          schema:
+            type: string
+        - name: project
+          required: false
+          in: query
+          description: 所挂功能组名称,完整名等值匹配
+          schema:
+            type: string
+        - name: status
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - active
+              - revoked
       responses:
         '200':
-          description: 列表:所有 device token(含明文、project 名、在线设备数)成功。
+          description: 列表:device token(含明文、project 名、在线设备数),服务端筛选分页成功。
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/DeviceTokenRecord'
+                $ref: '#/components/schemas/DeviceTokenPage'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -53,10 +84,10 @@ paths:
           $ref: '#/components/responses/InternalServerError'
       security:
         - adminJwt: []
-      summary: 列表:所有 device token(含明文、project 名、在线设备数)
+      summary: 列表:device token(含明文、project 名、在线设备数),服务端筛选分页
       tags:
         - device-token
-      description: 列表:所有 device token(含明文、project 名、在线设备数)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+      description: 列表:device token(含明文、project 名、在线设备数),服务端筛选分页。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /device-tokens/{id}/projects:
     patch:
       operationId: DeviceTokenController_updateProjects
@@ -414,16 +445,54 @@ paths:
   /devices:
     get:
       operationId: DevicesController_list
-      parameters: []
+      parameters:
+        - name: page
+          required: false
+          in: query
+          schema:
+            default: 1
+            type: number
+        - name: pageSize
+          required: false
+          in: query
+          schema:
+            maximum: 100
+            default: 10
+            type: number
+        - name: clientId
+          required: false
+          in: query
+          description: 设备编号模糊匹配
+          schema:
+            type: string
+        - name: platform
+          required: false
+          in: query
+          description: 平台模糊匹配
+          schema:
+            type: string
+        - name: lastIp
+          required: false
+          in: query
+          description: 最后 IP 模糊匹配
+          schema:
+            type: string
+        - name: status
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - online
+              - offline
+              - stale
       responses:
         '200':
-          description: 设备列表(持久态:online/status/platform/last_ip/last_seen)成功。
+          description: 设备列表(持久态:online/status/platform/last_ip/last_seen),服务端筛选分页成功。
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Device'
+                $ref: '#/components/schemas/DevicePage'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -434,10 +503,10 @@ paths:
           $ref: '#/components/responses/InternalServerError'
       security:
         - adminJwt: []
-      summary: 设备列表(持久态:online/status/platform/last_ip/last_seen)
+      summary: 设备列表(持久态:online/status/platform/last_ip/last_seen),服务端筛选分页
       tags:
         - devices
-      description: 设备列表(持久态:online/status/platform/last_ip/last_seen)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+      description: 设备列表(持久态:online/status/platform/last_ip/last_seen),服务端筛选分页。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /devices/{id}:
     get:
       operationId: DevicesController_get
@@ -957,16 +1026,47 @@ paths:
   /users:
     get:
       operationId: UsersController_list
-      parameters: []
+      parameters:
+        - name: page
+          required: false
+          in: query
+          schema:
+            default: 1
+            type: number
+        - name: pageSize
+          required: false
+          in: query
+          schema:
+            maximum: 100
+            default: 10
+            type: number
+        - name: username
+          required: false
+          in: query
+          description: 账号模糊匹配
+          schema:
+            type: string
+        - name: role
+          required: false
+          in: query
+          description: 展示角色模糊匹配
+          schema:
+            type: string
+        - name: enabled
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - enabled
+              - disabled
       responses:
         '200':
-          description: 用户列表成功。
+          description: 用户列表(服务端筛选分页)成功。
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/User'
+                $ref: '#/components/schemas/UserPage'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -977,10 +1077,10 @@ paths:
           $ref: '#/components/responses/InternalServerError'
       security:
         - adminJwt: []
-      summary: 用户列表
+      summary: 用户列表(服务端筛选分页)
       tags:
         - users
-      description: 用户列表。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+      description: 用户列表(服务端筛选分页)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     post:
       operationId: UsersController_create
       parameters: []
@@ -1277,16 +1377,47 @@ paths:
       description: 生成 access token(返回明文)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     get:
       operationId: AccessTokenController_list
-      parameters: []
+      parameters:
+        - name: page
+          required: false
+          in: query
+          schema:
+            default: 1
+            type: number
+        - name: pageSize
+          required: false
+          in: query
+          schema:
+            maximum: 100
+            default: 10
+            type: number
+        - name: name
+          required: false
+          in: query
+          description: 令牌名称模糊匹配
+          schema:
+            type: string
+        - name: project
+          required: false
+          in: query
+          description: 所挂功能组名称,完整名等值匹配
+          schema:
+            type: string
+        - name: status
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - active
+              - revoked
       responses:
         '200':
-          description: 列表:所有 access token(含明文、project 名)成功。
+          description: 列表:access token(含明文、project 名),服务端筛选分页成功。
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/AccessTokenRecord'
+                $ref: '#/components/schemas/AccessTokenPage'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1297,10 +1428,10 @@ paths:
           $ref: '#/components/responses/InternalServerError'
       security:
         - adminJwt: []
-      summary: 列表:所有 access token(含明文、project 名)
+      summary: 列表:access token(含明文、project 名),服务端筛选分页
       tags:
         - access-token
-      description: 列表:所有 access token(含明文、project 名)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+      description: 列表:access token(含明文、project 名),服务端筛选分页。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /access-tokens/{id}:
     patch:
       operationId: AccessTokenController_update
@@ -1607,6 +1738,19 @@ paths:
     get:
       operationId: MonitorController_list
       parameters:
+        - name: page
+          required: false
+          in: query
+          schema:
+            default: 1
+            type: number
+        - name: pageSize
+          required: false
+          in: query
+          schema:
+            maximum: 100
+            default: 10
+            type: number
         - name: project
           required: false
           in: query
@@ -1654,19 +1798,6 @@ paths:
           description: ISO 结束时间
           schema:
             type: string
-        - name: page
-          required: false
-          in: query
-          schema:
-            default: 1
-            type: number
-        - name: pageSize
-          required: false
-          in: query
-          schema:
-            maximum: 100
-            default: 10
-            type: number
       responses:
         '200':
           description: 请求记录列表(查 PG 脊柱,不返 payload)成功。
@@ -1764,6 +1895,19 @@ paths:
     get:
       operationId: SystemLogsController_list
       parameters:
+        - name: page
+          required: false
+          in: query
+          schema:
+            default: 1
+            type: number
+        - name: pageSize
+          required: false
+          in: query
+          schema:
+            maximum: 100
+            default: 10
+            type: number
         - name: name
           required: false
           in: query
@@ -1814,19 +1958,6 @@ paths:
           description: ISO 结束时间
           schema:
             type: string
-        - name: page
-          required: false
-          in: query
-          schema:
-            default: 1
-            type: number
-        - name: pageSize
-          required: false
-          in: query
-          schema:
-            maximum: 100
-            default: 10
-            type: number
       responses:
         '200':
           description: 系统操作审计日志列表成功。
@@ -3166,6 +3297,94 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SystemLog'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    DevicePage:
+      type: object
+      required:
+        - rows
+        - page
+        - pageSize
+        - total
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/Device'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    UserPage:
+      type: object
+      required:
+        - rows
+        - page
+        - pageSize
+        - total
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    AccessTokenPage:
+      type: object
+      required:
+        - rows
+        - page
+        - pageSize
+        - total
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccessTokenRecord'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    DeviceTokenPage:
+      type: object
+      required:
+        - rows
+        - page
+        - pageSize
+        - total
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeviceTokenRecord'
         page:
           type: integer
           minimum: 1

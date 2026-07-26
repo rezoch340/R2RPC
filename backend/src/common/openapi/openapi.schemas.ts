@@ -4,6 +4,23 @@ type SchemaDefinition = NonNullable<
   NonNullable<OpenAPIObject['components']>['schemas']
 >[string];
 
+// 分页信封:结构固定,只有 rows 的元素类型不同
+function pageSchema(itemSchemaName: string): SchemaDefinition {
+  return {
+    type: 'object',
+    required: ['rows', 'page', 'pageSize', 'total'],
+    properties: {
+      rows: {
+        type: 'array',
+        items: { $ref: `#/components/schemas/${itemSchemaName}` },
+      },
+      page: { type: 'integer', minimum: 1 },
+      pageSize: { type: 'integer', minimum: 1, maximum: 100 },
+      total: { type: 'integer', minimum: 0 },
+    },
+  };
+}
+
 const dateTimeSchema = {
   type: 'string',
   format: 'date-time',
@@ -474,19 +491,7 @@ export const OPEN_API_RESPONSE_SCHEMAS = {
     ],
     properties: requestLogProperties,
   },
-  RequestLogPage: {
-    type: 'object',
-    required: ['rows', 'page', 'pageSize', 'total'],
-    properties: {
-      rows: {
-        type: 'array',
-        items: { $ref: '#/components/schemas/RequestLog' },
-      },
-      page: { type: 'integer', minimum: 1 },
-      pageSize: { type: 'integer', minimum: 1, maximum: 100 },
-      total: { type: 'integer', minimum: 0 },
-    },
-  },
+  RequestLogPage: pageSchema('RequestLog'),
   RequestOptions: {
     type: 'object',
     required: ['projects', 'actions', 'clientIds'],
@@ -631,19 +636,11 @@ export const OPEN_API_RESPONSE_SCHEMAS = {
       createdAt: dateTimeSchema,
     },
   },
-  SystemLogPage: {
-    type: 'object',
-    required: ['rows', 'page', 'pageSize', 'total'],
-    properties: {
-      rows: {
-        type: 'array',
-        items: { $ref: '#/components/schemas/SystemLog' },
-      },
-      page: { type: 'integer', minimum: 1 },
-      pageSize: { type: 'integer', minimum: 1, maximum: 100 },
-      total: { type: 'integer', minimum: 0 },
-    },
-  },
+  SystemLogPage: pageSchema('SystemLog'),
+  DevicePage: pageSchema('Device'),
+  UserPage: pageSchema('User'),
+  AccessTokenPage: pageSchema('AccessTokenRecord'),
+  DeviceTokenPage: pageSchema('DeviceTokenRecord'),
 } satisfies Record<string, SchemaDefinition>;
 
 export function schemaReference(schemaName: string): SchemaDefinition {

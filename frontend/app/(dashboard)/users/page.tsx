@@ -1,7 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import {
   KeyRound,
   Pencil,
@@ -20,11 +25,18 @@ import { PermissionBoundary } from '@/components/permission-boundary';
 import { QueryErrorState } from '@/components/query-state';
 import { RowActions } from '@/components/row-actions';
 import { Badge } from '@/components/ui/badge';
-import { getRequestErrorMessage, requestApi } from '@/lib/api-client';
+import {
+  buildQueryString,
+  getRequestErrorMessage,
+  requestApi,
+} from '@/lib/api-client';
 import { useAuthentication } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
-import type { PermissionGroup, UserRecord } from '@/lib/models';
-import { useClientPagination } from '@/lib/use-client-pagination';
+import type {
+  PaginatedResponse,
+  PermissionGroup,
+  UserRecord,
+} from '@/lib/models';
 import {
   UserCreateDialog,
   UserDescriptionDialog,
@@ -73,6 +85,8 @@ export default function UsersPage() {
   );
   const [passwordUser, setPasswordUser] = useState<UserRecord | null>(null);
   const [roleUser, setRoleUser] = useState<UserRecord | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [confirmation, setConfirmation] = useState<UserConfirmation | null>(
     null,
   );
@@ -80,8 +94,12 @@ export default function UsersPage() {
   const { user: authenticatedUser, can, isRoot } = useAuthentication();
 
   const usersQuery = useQuery({
-    queryKey: ['users'],
-    queryFn: () => requestApi<UserRecord[]>('/users'),
+    queryKey: ['users', appliedFilters, page, pageSize],
+    queryFn: () =>
+      requestApi<PaginatedResponse<UserRecord>>(
+        `/users${buildQueryString({ ...appliedFilters, page, pageSize })}`,
+      ),
+    placeholderData: keepPreviousData,
   });
   const permissionGroupsQuery = useQuery({
     queryKey: ['permission-groups'],
@@ -172,24 +190,6 @@ export default function UsersPage() {
     onError: (error) =>
       toast.error(getRequestErrorMessage(error, '权限组更新失败')),
   });
-
-  const filteredUsers = useMemo(() => {
-    const normalizedUsername = appliedFilters.username.trim().toLowerCase();
-    const normalizedRole = appliedFilters.role.trim().toLowerCase();
-    return (usersQuery.data ?? []).filter((userRecord) => {
-      const matchesUsername =
-        !normalizedUsername ||
-        userRecord.username.toLowerCase().includes(normalizedUsername);
-      const matchesRole =
-        !normalizedRole ||
-        userRecord.role.toLowerCase().includes(normalizedRole);
-      const enabledStatus = userRecord.enabled ? 'enabled' : 'disabled';
-      const matchesEnabled =
-        !appliedFilters.enabled || enabledStatus === appliedFilters.enabled;
-      return matchesUsername && matchesRole && matchesEnabled;
-    });
-  }, [appliedFilters, usersQuery.data]);
-  const pagination = useClientPagination(filteredUsers);
 
   function updateDraftFilter(key: keyof UserFilters, value: string) {
     setDraftFilters((currentFilters) => ({
@@ -332,28 +332,31 @@ export default function UsersPage() {
         onChange={updateDraftFilter}
         onSubmit={() => {
           setAppliedFilters(draftFilters);
-          pagination.resetPage();
+          setPage(1);
         }}
         onReset={() => {
           setDraftFilters(EMPTY_FILTERS);
           setAppliedFilters(EMPTY_FILTERS);
-          pagination.resetPage();
+          setPage(1);
         }}
       />
       <DataTable
         columns={columns}
-        rows={pagination.pageRows}
+        rows={usersQuery.data?.rows ?? []}
         isLoading={usersQuery.isLoading}
         emptyMessage="暂无后台账号"
         rowKey={(userRecord) => userRecord.id}
         footer={
           <Pagination
-            page={pagination.page}
-            pageSize={pagination.pageSize}
-            total={pagination.total}
+            page={usersQuery.data?.page ?? page}
+            pageSize={usersQuery.data?.pageSize ?? pageSize}
+            total={usersQuery.data?.total ?? 0}
             isFetching={usersQuery.isFetching}
-            onPageChange={pagination.setPage}
-            onPageSizeChange={pagination.setPageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(newPageSize) => {
+              setPageSize(newPageSize);
+              setPage(1);
+            }}
           />
         }
       />

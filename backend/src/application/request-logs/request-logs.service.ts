@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { and, desc, eq, gte, isNotNull, lt, lte, SQL, sql } from 'drizzle-orm';
 import { DbService } from '../../infrastructure/db/db.service';
+import { pageBounds } from '../../common/db/page-bounds';
 import { alive } from '../../common/db/soft-delete';
 import { devices } from '../devices/devices.schema';
 import { projects } from '../projects/projects.schema';
@@ -85,15 +86,14 @@ export class RequestLogsService {
   async list(filter: ListFilter) {
     const conditions = this.buildListConditions(filter);
     const whereClause = conditions.length ? and(...conditions) : undefined;
-    const page = Math.max(1, filter.page ?? 1);
-    const pageSize = Math.min(100, Math.max(1, filter.pageSize ?? 10));
+    const { page, pageSize, offset } = pageBounds(filter);
     const requestRecords = await this.database
       .select(REQUEST_LOG_SPINE_COLUMNS)
       .from(requestLogs)
       .where(whereClause)
       .orderBy(desc(requestLogs.createdAt))
       .limit(pageSize)
-      .offset((page - 1) * pageSize);
+      .offset(offset);
     const [{ total }] = await this.database
       .select({ total: sql<number>`count(*)::int` })
       .from(requestLogs)

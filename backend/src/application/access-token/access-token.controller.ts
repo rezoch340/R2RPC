@@ -7,9 +7,11 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { QueryTokensDto } from '../../common/dto/query-tokens.dto';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { SystemAudit } from '../../common/decorators/system-audit.decorator';
 import type { AuthedRequest } from '../../common/types/authed-request';
@@ -51,9 +53,11 @@ export class AccessTokenController {
   // 列表:所有 token(包含明文,后台可回看)
   @Get()
   @RequirePermission('manage', 'access-token')
-  @ApiOperation({ summary: '列表:所有 access token(含明文、project 名)' })
-  list() {
-    return this.tokens.list();
+  @ApiOperation({
+    summary: '列表:access token(含明文、project 名),服务端筛选分页',
+  })
+  list(@Query() query: QueryTokensDto) {
+    return this.tokens.list(query);
   }
 
   @Patch(':id')
