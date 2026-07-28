@@ -35,10 +35,16 @@ CPU 和内存时，可以在下文改用无限资源生成脚本。
 
 ## 2. 安装发布文件
 
-在 1Panel 的“终端”中进入 root shell：
+1Panel 的“终端”通常已经是 root shell。提示符以 `root@` 开头时不要再次执行 `sudo -i`，否则
+会启动嵌套登录 shell 并把当前目录重置为 `/root`。只有当前用户不是 root 时，才先单独执行：
 
 ```bash
 sudo -i
+```
+
+等待出现 root 提示符后，再执行下面的安装命令：
+
+```bash
 git clone --branch v0.1.1 --depth 1 \
   https://github.com/rezoch340/R2RPC.git \
   /opt/r2rpc
