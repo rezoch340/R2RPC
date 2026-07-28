@@ -295,6 +295,8 @@ cat performance-results/latest.json
 Access Token 自动轮询和随机指定设备 `hello`；不会直连 PostgreSQL、Redis 或 Manticore。
 Compose 对全部服务声明的 CPU 上限合计 **4.00 核**，内存上限合计 **3840 MiB**，低于
 **4 GiB** 硬预算。
+1Panel 生产环境也可生成不设置任何 CPU 或内存限制的独立编排文件，使用方式见
+[`deploy/1panel/README.md`](deploy/1panel/README.md)。
 
 ### 方式二：本地开发
 

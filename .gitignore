@@ -52,6 +52,7 @@ config.yaml
 deploy/compose.production.yaml
 deploy/admin-initial-password.txt
 compose.1panel.yaml
+compose.1panel.unlimited.yaml
 
 # Claude Code 本地状态 / worktree
 .claude/

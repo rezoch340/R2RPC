@@ -9,11 +9,12 @@ OpenResty、Cloudflare 和证书配置仍以部署文档为准。
 ## 更新原则
 
 - 先备份，再切换标签和重建容器。
-- `deploy/config.yaml`、`deploy/compose.production.yaml` 和 `compose.1panel.yaml` 含生产配置，
+- `deploy/config.yaml`、`deploy/compose.production.yaml` 和所选 `compose.1panel*.yaml` 含生产配置，
   均已被 Git 忽略，切换标签不会自动更新或覆盖它们。
 - Migration、Seed、API、Worker 和 Performance 必须使用同一个 Backend 版本，Frontend 使用
   同版本的 Frontend 镜像；不能只更新 API。
-- 1Panel 始终只选择 `/opt/r2rpc/compose.1panel.yaml`，不能填写逗号分隔的两个 Compose 路径。
+- 1Panel 始终只选择一个与资源模式一致的 `compose.1panel*.yaml`，不能填写逗号分隔的多个
+  Compose 路径，也不能在一次更新中切换文件。
 - 不得执行 `docker compose down -v`，该命令会删除生产命名卷。
 
 ## 1. 更新前检查
@@ -28,8 +29,16 @@ target_version=v0.1.1
 repository_directory=/opt/r2rpc
 backup_directory="/opt/r2rpc-backups/$(date +%Y%m%d-%H%M%S)"
 
+# 保持现有部署的资源模式。受限模式使用下面两行。
+panel_compose_file=compose.1panel.yaml
+compose_generation_script=./deploy/1panel/generate-compose-file.sh
+
+# 无限资源模式改用下面两行，不要混用两种模式。
+# panel_compose_file=compose.1panel.unlimited.yaml
+# compose_generation_script=./deploy/1panel/generate-unlimited-compose-file.sh
+
 git describe --tags --exact-match
-docker compose -f compose.1panel.yaml ps
+docker compose -f "$panel_compose_file" ps
 df -h /opt /var/lib/docker
 ```
 
@@ -47,13 +56,13 @@ PostgreSQL 逻辑备份可以在服务运行期间完成：
 mkdir -p "$backup_directory"
 chmod 700 "$backup_directory"
 
-docker compose -f compose.1panel.yaml exec -T postgres \
+docker compose -f "$panel_compose_file" exec -T postgres \
   pg_dump -U r2rpc -d r2rpc -Fc \
   > "$backup_directory/postgres.dump"
 
 cp deploy/config.yaml \
    deploy/compose.production.yaml \
-   compose.1panel.yaml \
+   "$panel_compose_file" \
    "$backup_directory/"
 
 test -s "$backup_directory/postgres.dump"
@@ -88,7 +97,7 @@ git describe --tags --exact-match
 ```bash
 test -f deploy/config.yaml
 test -f deploy/compose.production.yaml
-test -f compose.1panel.yaml
+test -f "$panel_compose_file"
 ```
 
 ## 4. 更新全部 R2RPC 镜像标签
@@ -116,11 +125,12 @@ test "$target_image_reference_count" -eq 6
 重新生成 1Panel 使用的单一 Compose 文件：
 
 ```bash
-./deploy/1panel/generate-compose-file.sh
-docker compose -f compose.1panel.yaml config --quiet
+"$compose_generation_script"
+docker compose -f "$panel_compose_file" config --quiet
 ```
 
-不要手工编辑 `compose.1panel.yaml`；它每次都应由基础编排和生产覆盖文件重新生成。
+不要手工编辑所选 `compose.1panel*.yaml`；它每次都应由基础编排和生产覆盖文件重新生成。无限
+资源模式必须继续运行无限资源脚本，否则会在更新时重新引入 4 核、3840 MiB 上限。
 
 ## 5. 校验配置并预拉取镜像
 
@@ -136,7 +146,7 @@ docker run --rm \
 只有输出 `生产配置检查通过` 才能继续：
 
 ```bash
-docker compose -f compose.1panel.yaml pull
+docker compose -f "$panel_compose_file" pull
 ```
 
 先完成配置检查和镜像拉取，再重建容器，可以缩短生产不可用窗口。
@@ -144,7 +154,7 @@ docker compose -f compose.1panel.yaml pull
 ## 6. 执行更新
 
 ```bash
-docker compose -f compose.1panel.yaml \
+docker compose -f "$panel_compose_file" \
   up -d --no-build --wait --wait-timeout 180
 ```
 
@@ -154,7 +164,7 @@ Worker 和 Frontend。已有 PostgreSQL、Redis 和 Manticore 数据卷不会被
 ## 7. 验收容器、版本和日志
 
 ```bash
-docker compose -f compose.1panel.yaml ps
+docker compose -f "$panel_compose_file" ps
 
 docker inspect \
   -f '{{.Name}} image={{.Config.Image}} exit={{.State.ExitCode}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \
@@ -177,13 +187,13 @@ Frontend 刚启动时可能短暂显示 `health: starting`。等待后重查，�
 
 ```bash
 sleep 15
-docker compose -f compose.1panel.yaml ps frontend
+docker compose -f "$panel_compose_file" ps frontend
 ```
 
 查看必要日志：
 
 ```bash
-docker compose -f compose.1panel.yaml \
+docker compose -f "$panel_compose_file" \
   logs --tail=200 api worker frontend migration
 ```
 
@@ -230,12 +240,12 @@ sed -i -E \
   deploy/compose.production.yaml
 
 # 先用当前版本的部署工具生成回滚编排；v0.1.0 标签还没有该生成脚本。
-./deploy/1panel/generate-compose-file.sh
-docker compose -f compose.1panel.yaml pull
+"$compose_generation_script"
+docker compose -f "$panel_compose_file" pull
 
 git switch --detach "$rollback_version"
 
-docker compose -f compose.1panel.yaml \
+docker compose -f "$panel_compose_file" \
   up -d --no-build --wait --wait-timeout 180
 ```
 
@@ -246,10 +256,11 @@ docker compose -f compose.1panel.yaml \
 ## 10. 1Panel 操作说明
 
 升级不需要删除或重新创建 1Panel 编排。命令行更新完成后，1Panel 会显示同一 `r2rpc` Compose
-项目的新容器。面板中的编排路径始终是：
+项目的新容器。面板中的编排路径必须与本次更新所选模式一致，并且只能选择其中一个：
 
 ```text
-/opt/r2rpc/compose.1panel.yaml
+受限模式：/opt/r2rpc/compose.1panel.yaml
+无限资源模式：/opt/r2rpc/compose.1panel.unlimited.yaml
 ```
 
 禁止填写：

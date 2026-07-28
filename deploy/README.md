@@ -94,6 +94,12 @@ API healthy + Worker started ─────────────────
 Compose 服务资源统计。migration、seed 和 performance 是一次性容器，正常运行时不会长期
 同时占用预算，但仍已计入上述最坏情况合计。
 
+1Panel 生产部署可按宿主机容量选择另一种模式：
+`deploy/1panel/generate-unlimited-compose-file.sh` 会在合并生产覆盖文件后，结构化移除全部服务的
+CPU 配额、CPU 预留、内存上限和内存预留，但保留 PID 上限。生成结果与默认受限编排只能二选一，
+具体命令和更新方法见 [`deploy/1panel/README.md`](1panel/README.md)。根级 `compose.yaml` 仍保留
+4 核、3840 MiB 的默认硬预算，不受该脚本影响。
+
 ## 一键完整启动
 
 ```bash

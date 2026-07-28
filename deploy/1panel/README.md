@@ -29,8 +29,9 @@ Cloudflare
 - 服务器安全组允许 Cloudflare 访问 80/443，运维来源允许访问 SSH 和 1Panel。
 - 已推送的 GHCR Release 镜像；本文示例使用 `v0.1.1`。
 
-Compose 声明的服务 CPU 上限合计为 4.00 核，内存上限合计为 3840 MiB。该限制不包含
-Docker daemon、BuildKit、1Panel 和宿主机 OpenResty。
+默认 Compose 声明的服务 CPU 上限合计为 4.00 核，内存上限合计为 3840 MiB。该限制不包含
+Docker daemon、BuildKit、1Panel 和宿主机 OpenResty。资源充足且希望容器使用宿主机全部可用
+CPU 和内存时，可以在下文改用无限资源生成脚本。
 
 ## 2. 安装发布文件
 
@@ -114,20 +115,42 @@ chown 1000:1000 deploy/config.yaml
 chmod 600 deploy/config.yaml deploy/compose.production.yaml
 ```
 
-1Panel 的“路径选择”只接受一个 Compose 文件，不能把两个路径用逗号拼接。生成已经合并生产
-覆盖的单文件：
+1Panel 的“路径选择”只接受一个 Compose 文件，不能把两个路径用逗号拼接。以下两种模式只能
+选择一种。
+
+保留 4.00 核、3840 MiB CPU/内存上限时生成受限文件：
 
 ```bash
 ./deploy/1panel/generate-compose-file.sh
 ```
 
-生成结果为 `/opt/r2rpc/compose.1panel.yaml`，包含生产数据库密码，因此已被 Git 忽略并设置
-为 `600` 权限。每次修改 `compose.yaml` 或 `deploy/compose.production.yaml` 后都必须重新
-生成。
+完全不设置任何 CPU 配额、CPU 预留、内存上限或内存预留时生成无限资源文件：
+
+```bash
+./deploy/1panel/generate-unlimited-compose-file.sh
+```
+
+两个结果分别为 `/opt/r2rpc/compose.1panel.yaml` 和
+`/opt/r2rpc/compose.1panel.unlimited.yaml`，都包含生产数据库密码，因此已被 Git 忽略并设置为
+`600` 权限。无限资源文件仍保留各服务的 PID 上限，防止失控进程无限创建；Docker 不会限制其
+CPU 和内存使用量。每次修改 `compose.yaml` 或 `deploy/compose.production.yaml` 后，都必须用
+所选模式的脚本重新生成对应文件。
 
 ## 3. 校验并启动容器
 
-先用将要发布的后端镜像执行生产配置门禁：
+先设置后续命令使用的编排文件。无限资源模式：
+
+```bash
+panel_compose_file=compose.1panel.unlimited.yaml
+```
+
+受限模式：
+
+```bash
+panel_compose_file=compose.1panel.yaml
+```
+
+不要在同一次部署中交替使用两个文件。然后用将要发布的后端镜像执行生产配置门禁：
 
 ```bash
 docker run --rm \
@@ -140,11 +163,11 @@ docker run --rm \
 
 ```bash
 docker compose \
-  -f compose.1panel.yaml \
+  -f "$panel_compose_file" \
   pull
 
 docker compose \
-  -f compose.1panel.yaml \
+  -f "$panel_compose_file" \
   up -d --no-build
 ```
 
@@ -152,7 +175,7 @@ docker compose \
 
 ```bash
 docker compose \
-  -f compose.1panel.yaml \
+  -f "$panel_compose_file" \
   ps
 
 docker inspect \
@@ -172,10 +195,12 @@ Migration 与 Seed 的退出码均为 `0`。宿主机仅监听：
 127.0.0.1:9306/9308 Manticore
 ```
 
-需要在面板中启停时，进入“容器 → 编排 → 创建编排 → 路径选择”，只选择：
+需要在面板中启停时，进入“容器 → 编排 → 创建编排 → 路径选择”，并且只选择与生成模式一致的
+一个文件：
 
 ```text
-/opt/r2rpc/compose.1panel.yaml
+受限模式：/opt/r2rpc/compose.1panel.yaml
+无限资源模式：/opt/r2rpc/compose.1panel.unlimited.yaml
 ```
 
 不要填写 `/opt/r2rpc/compose.yaml,/opt/r2rpc/deploy/compose.production.yaml`；1Panel 会把
@@ -354,7 +379,7 @@ deploy/reverse-proxy/check-production.sh \
 ```bash
 cd /opt/r2rpc
 docker compose \
-  -f compose.1panel.yaml \
+  -f "${panel_compose_file:-compose.1panel.yaml}" \
   logs --tail=200 api worker frontend
 ```
 
