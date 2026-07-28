@@ -52,14 +52,14 @@ export function Pagination({
   page,
   pageSize,
   total,
-  isFetching,
+  isPageTransitioning = false,
   onPageChange,
   onPageSizeChange,
 }: {
   page: number;
   pageSize: number;
   total: number;
-  isFetching: boolean;
+  isPageTransitioning?: boolean;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
 }) {
@@ -89,7 +89,7 @@ export function Pagination({
           variant="ghost"
           size="icon-sm"
           aria-label="上一页"
-          disabled={currentPage <= 1 || isFetching}
+          disabled={currentPage <= 1 || isPageTransitioning}
           onClick={() => onPageChange(currentPage - 1)}
         >
           <ChevronLeft />
@@ -108,7 +108,7 @@ export function Pagination({
               }
               aria-label={`第 ${pageItem} 页`}
               aria-current={pageItem === currentPage ? 'page' : undefined}
-              disabled={isFetching}
+              disabled={isPageTransitioning}
               onClick={() => onPageChange(pageItem)}
             >
               {pageItem}
@@ -127,14 +127,14 @@ export function Pagination({
           variant="ghost"
           size="icon-sm"
           aria-label="下一页"
-          disabled={currentPage >= totalPages || isFetching}
+          disabled={currentPage >= totalPages || isPageTransitioning}
           onClick={() => onPageChange(currentPage + 1)}
         >
           <ChevronRight />
         </Button>
         <Select
           value={String(pageSize)}
-          disabled={isFetching}
+          disabled={isPageTransitioning}
           onValueChange={(selectedValue) => {
             if (typeof selectedValue === 'string') {
               onPageSizeChange(Number(selectedValue));
@@ -164,7 +164,7 @@ export function Pagination({
             min={1}
             max={totalPages}
             value={jumpPage}
-            disabled={isFetching}
+            disabled={isPageTransitioning}
             aria-label="跳转页码"
             onChange={(changeEvent) => setJumpPage(changeEvent.target.value)}
           />

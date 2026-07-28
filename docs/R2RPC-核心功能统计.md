@@ -30,7 +30,7 @@
 | 分布式 | Redis session/waiter/pub-sub/结果去重 | ✅ | 单实例闭环 ✅ |
 | OpenAPI | 39 路径 / 52 操作、双鉴权、成功与错误响应契约 | ✅ | 生成期完整性断言 |
 | 代码质量 | 完整变量名、复杂度/嵌套/函数长度门禁 | ✅ | `pnpm lint:check` |
-| 管理前端 | Next.js + shadcn，完整后台公开面 | ✅ | Playwright 12 项 + HTTP |
+| 管理前端 | Next.js + shadcn，完整后台公开面 | ✅ | Playwright 13 项 + HTTP |
 | 前端质量 | 页面/组件/E2E 完整变量名门禁、ESLint、生产构建 | ✅ | `frontend/pnpm lint` |
 | 配置与部署 | 前后端统一 YAML、API/Worker/frontend 镜像、完整 Compose | ✅ | loader 单测 + Compose/build |
 | 部署安全 | 运行时 OpenAPI 开关、Swagger 无关 TCP 健康检查、生产配置基线 | ✅ | config + Compose |
@@ -346,14 +346,14 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 `test/assert-blackbox-e2e.js` 会静态拒绝 E2E 或性能执行器导入持久层客户端或应用内部服务。
 
-前端 `test/assert-blackbox-e2e.cjs` 使用同一口径，Playwright 当前 12 项，只操作浏览器和公开
+前端 `test/assert-blackbox-e2e.cjs` 使用同一口径，Playwright 当前 13 项，只操作浏览器和公开
 HTTP API；覆盖全部管理页、手动 RPC 调试、字段筛选与分页、两类令牌作用域编辑、Access
 Token 时间/次数策略编辑、非安全上下文复制回退、日志详情抽屉、账号改密入口、移动导航、
-慢接口下的非阻塞切页、局部加载状态和未登录跳转。测试不会导入后端、
+慢接口下的非阻塞切页、表格切回/重置/定时刷新、局部加载状态和未登录跳转。测试不会导入后端、
 数据库或 Redis。
 前端 `test/assert-readable-source.cjs` 覆盖页面、组件和 E2E。
 
-Jest 当前为 10 个 suite、35 个测试，包含统一配置加载、公共 Redis cache-aside、系统审计
+Jest 当前为 11 个 suite、40 个测试，包含统一配置加载、公共 Redis cache-aside、系统审计
 推导、登录/读取/拒绝访问、摘要/白名单/失败结果/无请求体回归、管理员策略分支以及
 RootGuard 的 root、非 root `manage/rbac` 和缺失身份分支。
 

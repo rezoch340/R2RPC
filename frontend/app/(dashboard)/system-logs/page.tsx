@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Eye } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
@@ -22,6 +22,7 @@ import {
 import { buildQueryString, requestApi } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import type { PaginatedResponse, SystemLogRecord } from '@/lib/models';
+import { refreshTableData, useTableQuery } from '@/lib/table-query';
 
 interface SystemLogFilters {
   name: string;
@@ -76,6 +77,7 @@ export default function SystemLogsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selectedLog, setSelectedLog] = useState<SystemLogRecord | null>(null);
+  const queryClient = useQueryClient();
 
   const queryString = buildQueryString({
     ...appliedFilters,
@@ -88,13 +90,12 @@ export default function SystemLogsPage() {
     page,
     pageSize,
   });
-  const systemLogsQuery = useQuery({
+  const systemLogsQuery = useTableQuery({
     queryKey: ['system-logs', appliedFilters, page, pageSize],
-    queryFn: () =>
+    queryFunction: () =>
       requestApi<PaginatedResponse<SystemLogRecord>>(
         `/system-logs${queryString}`,
       ),
-    placeholderData: keepPreviousData,
   });
 
   function updateFilter(key: keyof SystemLogFilters, value: string) {
@@ -224,6 +225,7 @@ export default function SystemLogsPage() {
           setDraftFilters(EMPTY_FILTERS);
           setAppliedFilters(EMPTY_FILTERS);
           setPage(1);
+          void refreshTableData(queryClient, ['system-logs']);
         }}
       />
       {systemLogsQuery.isError ? <QueryErrorState /> : null}
@@ -238,7 +240,7 @@ export default function SystemLogsPage() {
             page={systemLogsQuery.data?.page ?? page}
             pageSize={systemLogsQuery.data?.pageSize ?? pageSize}
             total={systemLogsQuery.data?.total ?? 0}
-            isFetching={systemLogsQuery.isFetching}
+            isPageTransitioning={systemLogsQuery.isPlaceholderData}
             onPageChange={setPage}
             onPageSizeChange={(newPageSize) => {
               setPageSize(newPageSize);

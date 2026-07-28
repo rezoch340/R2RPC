@@ -243,6 +243,82 @@ test('全部数据列表提供字段筛选和分页', async ({ page }) => {
   }
 });
 
+test('表格切回、重置和定时刷新都重新请求数据', async ({ page }) => {
+  await page.clock.install();
+  const backendPort = new URL(backendBaseUrl).port;
+  let accessTokenRequestCount = 0;
+  let holdNextAccessTokenRequest = false;
+  let releaseHeldRequest: (() => void) | undefined;
+  let markHeldRequestStarted: (() => void) | undefined;
+  const heldRequestStarted = new Promise<void>((resolve) => {
+    markHeldRequestStarted = resolve;
+  });
+  const heldRequestCanContinue = new Promise<void>((resolve) => {
+    releaseHeldRequest = resolve;
+  });
+
+  function isAccessTokenApiResponse(response: {
+    url(): string;
+    request(): { method(): string };
+  }) {
+    const responseUrl = new URL(response.url());
+    return (
+      responseUrl.port === backendPort &&
+      responseUrl.pathname === '/access-tokens' &&
+      response.request().method() === 'GET'
+    );
+  }
+
+  await page.route('**/access-tokens*', async (route) => {
+    const interceptedRequest = route.request();
+    const interceptedRequestUrl = new URL(interceptedRequest.url());
+    if (
+      interceptedRequestUrl.port !== backendPort ||
+      interceptedRequestUrl.pathname !== '/access-tokens' ||
+      interceptedRequest.method() !== 'GET' ||
+      interceptedRequest.resourceType() !== 'fetch'
+    ) {
+      await route.continue();
+      return;
+    }
+    accessTokenRequestCount += 1;
+    if (holdNextAccessTokenRequest) {
+      holdNextAccessTokenRequest = false;
+      markHeldRequestStarted?.();
+      await heldRequestCanContinue;
+    }
+    await route.continue();
+  });
+
+  const initialResponse = page.waitForResponse(isAccessTokenApiResponse);
+  await page.getByRole('link', { name: '访问令牌', exact: true }).click();
+  await initialResponse;
+  expect(accessTokenRequestCount).toBe(1);
+
+  await page.getByRole('link', { name: '功能组', exact: true }).click();
+  const returnResponse = page.waitForResponse(isAccessTokenApiResponse);
+  await page.getByRole('link', { name: '访问令牌', exact: true }).click();
+  await returnResponse;
+  expect(accessTokenRequestCount).toBe(2);
+
+  const resetResponse = page.waitForResponse(isAccessTokenApiResponse);
+  await page.getByRole('button', { name: '重置' }).click();
+  await resetResponse;
+  expect(accessTokenRequestCount).toBe(3);
+
+  holdNextAccessTokenRequest = true;
+  await page.clock.fastForward(15_000);
+  await heldRequestStarted;
+  expect(accessTokenRequestCount).toBe(4);
+  await expect(
+    page
+      .locator('[data-slot="table-body"] [data-slot="table-row"]')
+      .first(),
+  ).toBeVisible();
+  await expect(page.getByLabel('每页条数')).toBeEnabled();
+  releaseHeldRequest?.();
+});
+
 test('分页器支持页码、每页上限和跳页', async ({ page }) => {
   await page.goto('/system-logs');
   await expect(page.getByText(/第 1-10 条 \/ 共 \d+ 条/)).toBeVisible();
