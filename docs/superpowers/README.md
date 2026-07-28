@@ -22,7 +22,7 @@
 - 当前 HTTP 契约：`../openapi.yaml`
 
 当前基线为 OpenAPI 39 个路径模板、后端 HTTP/WebSocket 黑盒 209 passed、Jest
-10 suites / 36 tests、前端 Playwright 12 passed；受限 Compose 性能基线为
+11 suites / 40 tests、前端 Playwright 12 passed；受限 Compose 性能基线为
 4 devices / 1600 requests / 0 failures / 80.03 req/s / P95 7.50 ms。
 
 当前容器性能设计：

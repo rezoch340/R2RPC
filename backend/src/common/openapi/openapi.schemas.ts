@@ -349,7 +349,14 @@ export const OPEN_API_RESPONSE_SCHEMAS = {
       platform: nullableStringSchema,
       lastIp: nullableStringSchema,
       extra: nullableStringSchema,
-      maxInFlight: { type: 'integer', nullable: true, minimum: 1 },
+      maxInFlight: {
+        type: 'integer',
+        nullable: true,
+        minimum: 1,
+        maximum: 1024,
+        description:
+          '设备上报并由服务端执行的在途 RPC 上限；未上报或非法时默认 16，超过 1024 时限制为 1024。',
+      },
       description: nullableStringSchema,
       lastSeenAt: nullableDateTimeSchema,
       deletedAt: nullableDateTimeSchema,

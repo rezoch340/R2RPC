@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -25,6 +26,18 @@ class R2RpcDeviceTest {
 
     @Test
     fun `通过真实 WebSocket 处理 Job 并返回 Result`() {
+        for (invalidMaximumInFlight in listOf(0, 1025)) {
+            assertFailsWith<IllegalArgumentException> {
+                R2RpcDevice(
+                    R2RpcDeviceOptions(
+                        baseUrl = "http://127.0.0.1:3000",
+                        deviceToken = "dk_fixture",
+                        clientId = "device-1",
+                        maxInFlight = invalidMaximumInFlight,
+                    ),
+                )
+            }
+        }
         assertEquals(
             "000fa5ff",
             AndroidDeviceIdentifier.encodeAsLowercaseHexadecimal(
@@ -92,6 +105,7 @@ class R2RpcDeviceTest {
                     deviceToken = "dk_fixture",
                     clientId = "device-1",
                     platform = "android",
+                    maxInFlight = 4,
                     heartbeatIntervalMilliseconds = 60_000,
                 ),
             )
@@ -124,6 +138,7 @@ class R2RpcDeviceTest {
         assertEquals("dk_fixture", request.requestUrl?.queryParameter("token"))
         assertEquals("device-1", request.requestUrl?.queryParameter("clientId"))
         assertEquals("android", request.requestUrl?.queryParameter("platform"))
+        assertEquals("4", request.requestUrl?.queryParameter("maxInFlight"))
         device.close()
     }
 
@@ -195,6 +210,8 @@ class R2RpcDeviceTest {
         assertEquals(JsonPrimitive("timeout"), receivedResult?.get("status"))
         assertEquals(JsonPrimitive(false), receivedResult?.get("is_ok"))
         assertEquals(JsonPrimitive(408), receivedResult?.get("httpCode"))
+        val request = server.takeRequest()
+        assertEquals("16", request.requestUrl?.queryParameter("maxInFlight"))
         device.close()
     }
 }

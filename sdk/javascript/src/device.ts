@@ -49,6 +49,9 @@ export interface R2RpcDeviceOptions {
 }
 
 const WEB_SOCKET_OPEN_STATE = 1;
+const DEFAULT_IN_FLIGHT_CAPACITY = 16;
+const MINIMUM_IN_FLIGHT_CAPACITY = 1;
+const MAXIMUM_IN_FLIGHT_CAPACITY = 1024;
 
 export class R2RpcDevice {
   private readonly actionHandlers = new Map<string, DeviceActionHandler>();
@@ -60,6 +63,7 @@ export class R2RpcDevice {
   private reconnectAttempt = 0;
   private shouldRun = false;
   private defaultHandler: DeviceActionHandler | undefined;
+  private readonly maximumInFlight: number;
 
   constructor(private readonly options: R2RpcDeviceOptions) {
     if (!options.baseUrl.trim()) {
@@ -71,6 +75,13 @@ export class R2RpcDevice {
     if (!options.clientId.trim()) {
       throw new TypeError('clientId 不能为空');
     }
+    this.maximumInFlight = options.maxInFlight ?? DEFAULT_IN_FLIGHT_CAPACITY;
+    ensureIntegerInRange(
+      'maxInFlight',
+      this.maximumInFlight,
+      MINIMUM_IN_FLIGHT_CAPACITY,
+      MAXIMUM_IN_FLIGHT_CAPACITY,
+    );
     ensurePositive(
       'heartbeatIntervalMilliseconds',
       options.heartbeatIntervalMilliseconds,
@@ -152,12 +163,7 @@ export class R2RpcDevice {
         JSON.stringify(this.options.extra),
       );
     }
-    if (this.options.maxInFlight !== undefined) {
-      webSocketUrl.searchParams.set(
-        'maxInFlight',
-        String(this.options.maxInFlight),
-      );
-    }
+    webSocketUrl.searchParams.set('maxInFlight', String(this.maximumInFlight));
     return webSocketUrl.toString();
   }
 
@@ -409,5 +415,16 @@ export class R2RpcDevice {
 function ensurePositive(name: string, value: number | undefined): void {
   if (value !== undefined && value <= 0) {
     throw new RangeError(`${name} 必须大于 0`);
+  }
+}
+
+function ensureIntegerInRange(
+  name: string,
+  value: number,
+  minimum: number,
+  maximum: number,
+): void {
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new RangeError(`${name} 必须是 ${minimum}～${maximum} 的整数`);
   }
 }

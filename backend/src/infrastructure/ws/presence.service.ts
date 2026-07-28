@@ -3,9 +3,9 @@ import { RedisService } from '../redis/redis.service';
 
 // 在线镜像 TTL(秒);手机端心跳刷新
 const PRESENCE_TIME_TO_LIVE_SECONDS = 30;
-const MAX_IN_FLIGHT_DEFAULT = 512;
-const MAX_IN_FLIGHT_MIN = 256;
-const MAX_IN_FLIGHT_MAX = 1024;
+const DEFAULT_IN_FLIGHT_CAPACITY = 16;
+const MINIMUM_IN_FLIGHT_CAPACITY = 1;
+const MAXIMUM_IN_FLIGHT_CAPACITY = 1024;
 // 原子占槽:INCR 后若超上限同一脚本内 DECR 回退,防非原子两步在 redis 抖动时半失败泄漏(照 ConnectionRegistry 的内联 CAS 脚本)
 const ACQUIRE_SLOT_LUA = `local n = redis.call('incr', KEYS[1]); if n > tonumber(ARGV[1]) then redis.call('decr', KEYS[1]); return 0 else return 1 end`;
 
@@ -48,23 +48,23 @@ export class PresenceService {
     }
   }
 
-  // 夹取自报值到 [256,1024];缺省(?maxInFlight 缺失 → null/''）或非数 → 512
+  // 尊重设备声明的正整数容量；缺失、非法或非正数使用保守默认值，只限制异常高值。
   clampMaxInFlight(reportedMaximum: unknown): number {
     if (
       reportedMaximum === null ||
       reportedMaximum === undefined ||
       reportedMaximum === ''
     ) {
-      return MAX_IN_FLIGHT_DEFAULT;
+      return DEFAULT_IN_FLIGHT_CAPACITY;
     }
-    const normalizedMaximum = Math.floor(Number(reportedMaximum));
-    if (!Number.isFinite(normalizedMaximum)) {
-      return MAX_IN_FLIGHT_DEFAULT;
+    const normalizedMaximum = Number(reportedMaximum);
+    if (
+      !Number.isInteger(normalizedMaximum) ||
+      normalizedMaximum < MINIMUM_IN_FLIGHT_CAPACITY
+    ) {
+      return DEFAULT_IN_FLIGHT_CAPACITY;
     }
-    return Math.min(
-      MAX_IN_FLIGHT_MAX,
-      Math.max(MAX_IN_FLIGHT_MIN, normalizedMaximum),
-    );
+    return Math.min(MAXIMUM_IN_FLIGHT_CAPACITY, normalizedMaximum);
   }
 
   // 写/刷设备 maxInFlight(TTL 随 presence)
@@ -80,11 +80,7 @@ export class PresenceService {
     const storedMaximum = await this.redisClient.get(
       `device:maxinflight:${clientId}`,
     );
-    const maximumInFlight = Number(storedMaximum);
-    if (!Number.isFinite(maximumInFlight) || maximumInFlight <= 0) {
-      return MAX_IN_FLIGHT_DEFAULT;
-    }
-    return maximumInFlight;
+    return this.clampMaxInFlight(storedMaximum);
   }
 
   // 连接时清在途计数(限泄漏在一次 session 内)
