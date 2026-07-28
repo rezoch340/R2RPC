@@ -40,7 +40,11 @@ class FakeWebSocket implements WebSocketLike {
 describe('R2RpcDevice', () => {
   testCase('处理真实 Job 并返回 Result', async () => {
     const webSocket = new FakeWebSocket();
-    const webSocketFactory: WebSocketFactory = () => webSocket;
+    let requestedWebSocketUrl = '';
+    const webSocketFactory: WebSocketFactory = (webSocketUrl) => {
+      requestedWebSocketUrl = webSocketUrl;
+      return webSocket;
+    };
     const stateChanges: string[] = [];
     const device = new R2RpcDevice({
       baseUrl: 'http://127.0.0.1:3000',
@@ -57,6 +61,9 @@ describe('R2RpcDevice', () => {
     }));
 
     device.start();
+    expect(new URL(requestedWebSocketUrl).searchParams.get('maxInFlight')).toBe(
+      '16',
+    );
     webSocket.receive({
       type: 'welcome',
       clientId: 'device-1',
@@ -89,13 +96,21 @@ describe('R2RpcDevice', () => {
 
   testCase('没有处理器时返回可诊断错误', async () => {
     const webSocket = new FakeWebSocket();
+    let requestedWebSocketUrl = '';
     const device = new R2RpcDevice({
       baseUrl: 'http://127.0.0.1:3000',
       deviceToken: 'dk_fixture',
       clientId: 'device-1',
-      webSocketFactory: () => webSocket,
+      maxInFlight: 4,
+      webSocketFactory: (webSocketUrl) => {
+        requestedWebSocketUrl = webSocketUrl;
+        return webSocket;
+      },
     });
     device.start();
+    expect(new URL(requestedWebSocketUrl).searchParams.get('maxInFlight')).toBe(
+      '4',
+    );
     webSocket.receive({
       type: 'job',
       requestId: 'request-2',
@@ -115,6 +130,24 @@ describe('R2RpcDevice', () => {
       );
     });
     device.stop();
+  });
+
+  testCase('拒绝非整数或超出范围的并发容量', () => {
+    const baseOptions = {
+      baseUrl: 'http://127.0.0.1:3000',
+      deviceToken: 'dk_fixture',
+      clientId: 'device-1',
+    };
+
+    for (const invalidMaximumInFlight of [0, 1.5, 1025]) {
+      expect(
+        () =>
+          new R2RpcDevice({
+            ...baseOptions,
+            maxInFlight: invalidMaximumInFlight,
+          }),
+      ).toThrow('maxInFlight 必须是 1～1024 的整数');
+    }
   });
 
   testCase('Action 超时后只返回一次 timeout 结果', async () => {

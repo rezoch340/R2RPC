@@ -41,7 +41,7 @@ const device = new R2RpcDevice({
   clientId: 'android-installation-8e3412',
   platform: 'android-frida',
   extra: { applicationVersion: '1.4.0' },
-  maxInFlight: 512,
+  maxInFlight: 16,
   onStateChange: ({ state, reconnectAttempt }) => {
     console.log('R2RPC state', state, reconnectAttempt);
   },
@@ -87,6 +87,10 @@ device.start();
 // 进程退出或页面卸载时调用。
 device.stop();
 ```
+
+`maxInFlight` 应填写该设备实际能够同时执行的 Action 数量，SDK 默认为 `16`
+并在建立连接时主动上报。有效范围为 `1～1024`，非整数或超出范围会在 SDK 初始化时
+被拒绝；服务端不会把合法低值向上抬高。
 
 同名 Action 后注册的处理器会替换旧处理器；`registerAction()` 返回注销函数。未注册 Action
 会自动返回 `404/error`。处理器抛错会返回 `500/error`，超过 Job 超时会返回

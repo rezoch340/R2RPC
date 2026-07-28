@@ -431,9 +431,9 @@ Redis、JWT 或管理员配置。
 | 验证层 | 基线 |
 |---|---:|
 | HTTP/WebSocket 黑盒冒烟 | 209 passed |
-| 后端 Jest | 10 suites / 36 tests |
+| 后端 Jest | 11 suites / 40 tests |
 | 前端 Playwright | 12 passed |
-| JavaScript SDK | 3 files / 10 tests |
+| JavaScript SDK | 3 files / 11 tests |
 | Android SDK | 3 classes / 8 tests |
 | OpenAPI | 39 paths |
 | 受限 Compose 性能测试 | 4 devices / 1600 requests / 0 failures / 80.03 req/s / P95 7.50 ms |

@@ -2730,6 +2730,8 @@ components:
           type: integer
           nullable: true
           minimum: 1
+          maximum: 1024
+          description: 设备上报并由服务端执行的在途 RPC 上限；未上报或非法时默认 16，超过 1024 时限制为 1024。
         description:
           type: string
           nullable: true

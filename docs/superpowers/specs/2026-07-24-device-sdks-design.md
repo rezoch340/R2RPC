@@ -21,6 +21,9 @@
 
 1. 根据 `baseUrl` 构造 `/api/client/ws`，编码 token、clientId、platform、extra 和
    maxInFlight。
+   `maxInFlight` 表示设备实际可同时执行的 Action 数量，SDK 默认为 `16` 并主动上报，
+   有效范围为 `1～1024`。SDK 拒绝非法配置，服务端仍对非 SDK 连接的缺失或非法值使用
+   默认值 `16`，合法低值不得被服务端向上抬高。
 2. 收到 clientId 一致的 `welcome` 后进入 online。
 3. 定时发送 heartbeat；服务端 ping 由底层 WebSocket 实现响应。
 4. 异常断线按 500 ms 起步、30 s 封顶指数退避；鉴权关闭码 4001 停止重连。

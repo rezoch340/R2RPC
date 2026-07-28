@@ -63,7 +63,7 @@ val device =
                 buildJsonObject {
                     put("applicationVersion", BuildConfig.VERSION_NAME)
                 },
-            maxInFlight = 512,
+            maxInFlight = 16,
             onConnectionEvent = { event ->
                 Log.i("R2RPC", "${event.state}: ${event.reconnectAttempt}")
             },
@@ -105,6 +105,10 @@ device.registerAction("hello") { job ->
 
 device.start()
 ```
+
+`maxInFlight` 应与应用实际允许同时运行的协程 Action 数量一致，SDK 默认为 `16`
+并在建立连接时主动上报。有效范围为 `1～1024`，超出范围会在 SDK 初始化时被拒绝；服务端不会
+把合法低值向上抬高。
 
 - `start()` 可重复调用，不会建立重复连接。
 - `stop()` 停止并允许后续再次 `start()`。

@@ -2,6 +2,10 @@
 
 > 状态：✅ 已完成，本文保留实施时任务顺序，不作为当前进度或测试命令真源。
 
+> 2026-07-28 修订：本文中的 `[256,1024]` 和默认 `512` 是历史实施参数，现行规则已改为
+> 尊重设备上报的 `[1,1024]` 整数容量、缺失/非法/非正数默认 `16`，服务端只限制异常高值。
+> 当前实现与验证结果以 `docs/后端进度.md` 和 `docs/R2RPC-核心功能统计.md` 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development(推荐)。Steps 用 `- [ ]`。
 
 **Goal:** 单设备在途任务上限:设备 WS 连接自报 `?maxInFlight`(夹 [256,1024]),invoke 派发前查该设备在途数,满则返 `rejected`/429。在途计数走 Redis(跨实例),acquire/release 精确配对。捎带交付 #10 的 `rejected` 状态。

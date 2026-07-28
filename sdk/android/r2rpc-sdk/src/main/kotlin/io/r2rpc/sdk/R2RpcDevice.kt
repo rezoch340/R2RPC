@@ -39,7 +39,7 @@ data class R2RpcDeviceOptions(
     val clientId: String = AndroidDeviceIdentifier.fromWidevineMediaDrm(),
     val platform: String? = null,
     val extra: JsonElement? = null,
-    val maxInFlight: Int? = null,
+    val maxInFlight: Int = 16,
     val heartbeatIntervalMilliseconds: Long = 10_000,
     val reconnectInitialDelayMilliseconds: Long = 500,
     val reconnectMaximumDelayMilliseconds: Long = 30_000,
@@ -55,6 +55,9 @@ class R2RpcDevice(
         require(options.baseUrl.isNotBlank()) { "baseUrl 不能为空" }
         require(options.deviceToken.isNotBlank()) { "deviceToken 不能为空" }
         require(options.clientId.isNotBlank()) { "clientId 不能为空" }
+        require(options.maxInFlight in 1..1024) {
+            "maxInFlight 必须是 1～1024 的整数"
+        }
         require(options.heartbeatIntervalMilliseconds > 0) {
             "heartbeatIntervalMilliseconds 必须大于 0"
         }
@@ -157,15 +160,13 @@ class R2RpcDevice(
             .query(null)
             .addQueryParameter("token", options.deviceToken)
             .addQueryParameter("clientId", options.clientId)
+            .addQueryParameter("maxInFlight", options.maxInFlight.toString())
             .apply {
                 options.platform?.let { platform ->
                     addQueryParameter("platform", platform)
                 }
                 options.extra?.let { extra ->
                     addQueryParameter("extra", extra.toString())
-                }
-                options.maxInFlight?.let { maximumInFlight ->
-                    addQueryParameter("maxInFlight", maximumInFlight.toString())
                 }
             }.build()
             .toString()

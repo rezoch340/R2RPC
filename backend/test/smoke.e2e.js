@@ -2234,7 +2234,7 @@ async function main() {
       clientId,
       platform,
       extra,
-      maxInFlight: 600,
+      maxInFlight: 8,
     });
     const welcome = await mainDevice.waitMessage(
       (message) => message.type === 'welcome',
@@ -2245,7 +2245,7 @@ async function main() {
         welcome.projects.length === 1,
       'WS welcome 返回鉴权 clientId 与继承的 project',
     );
-    assert(welcome.maxInFlight === 600, 'WS welcome 返回夹取后的 maxInFlight');
+    assert(welcome.maxInFlight === 8, 'WS welcome 尊重设备上报的低并发容量');
 
     mainDevice.sendRaw('not-json');
     mainDevice.send({ type: 'unknown-message' });
@@ -2325,7 +2325,7 @@ async function main() {
         deviceRow.status === 'online' &&
         deviceRow.platform === platform &&
         deviceRow.extra === extra &&
-        deviceRow.maxInFlight === 600 &&
+        deviceRow.maxInFlight === 8 &&
         typeof deviceRow.lastIp === 'string',
       '设备持久态包含 online/platform/extra/maxInFlight/IP',
     );
@@ -2437,7 +2437,7 @@ async function main() {
       token: deviceToken,
       clientId,
       platform,
-      maxInFlight: 600,
+      maxInFlight: 8,
     });
     await replacementDevice.waitMessage(
       (message) => message.type === 'welcome',
@@ -2933,12 +2933,12 @@ async function main() {
     const saturationA = connectDevice({
       token: saturationDeviceToken.json.token,
       clientId: saturationAId,
-      maxInFlight: 256,
+      maxInFlight: 4,
     });
     const saturationB = connectDevice({
       token: saturationDeviceToken.json.token,
       clientId: saturationBId,
-      maxInFlight: 256,
+      maxInFlight: 4,
     });
     await Promise.all([
       saturationA.waitMessage((message) => message.type === 'welcome'),
@@ -2970,7 +2970,7 @@ async function main() {
       });
     };
 
-    const heldInvokes = Array.from({ length: 256 }, (unusedValue, index) =>
+    const heldInvokes = Array.from({ length: 4 }, (unusedValue, index) =>
       httpRequest(
         'POST',
         `/rpc/invoke/${projectNames.saturation}/hold?clientId=${encodeURIComponent(saturationAId)}`,
@@ -2979,12 +2979,12 @@ async function main() {
       ),
     );
     await waitFor(
-      '256 个 HTTP invoke 全部通过 WS 下发到饱和探针',
-      () => heldJobs.length === 256,
+      '4 个 HTTP invoke 全部通过 WS 下发到低并发饱和探针',
+      () => heldJobs.length === 4,
       10000,
       25,
     );
-    assert(heldJobs.length === 256, '仅通过 HTTP+WS 占满设备 256 个在途槽');
+    assert(heldJobs.length === 4, '仅通过 HTTP+WS 占满设备上报的 4 个在途槽');
 
     const skipSaturated = await httpRequest(
       'POST',
@@ -3039,7 +3039,7 @@ async function main() {
 
     const heldResults = await Promise.all(heldInvokes);
     assert(
-      heldResults.length === 256 &&
+      heldResults.length === 4 &&
         heldResults.every(
           (response) =>
             response.json.status === 'timeout' &&

@@ -153,6 +153,14 @@ docker compose up -d --build
 
 完整设计见 `../docs/superpowers/specs/2026-07-24-manual-rpc-debugger-design.md`。
 
+## 设备在途并发
+
+- 设备在 WebSocket 连接参数中通过 `maxInFlight` 声明实际可同时执行的 Action 数量。
+- `1～1024` 的合法整数原样采用；服务端只把超过 `1024` 的整数声明限制为 `1024`，不会向上抬高
+  低性能设备的容量。
+- 缺失、非法或非正数使用保守默认值 `16`。最终值写入设备持久态和 Redis 在线镜像，并由
+  原子占槽、组内跳过饱和设备和 `rejected/429` 共同执行。
+
 ## 令牌作用域与过期策略
 
 - Device Token 是设备长期凭证，不接受过期时间；其生命周期只由撤销或软删除控制。Access
@@ -223,8 +231,9 @@ cat performance-results/latest.json
 pnpm test
 ```
 
-当前为 Jest **10 suites / 36 tests**，覆盖统一配置文件查找/显式选择/schema 默认值/非法配置，
-以及公共 Redis cache-aside 的命中、PostgreSQL fallback 回写、负缓存、脏数据失效、写后删除
+当前为 Jest **11 suites / 40 tests**，覆盖统一配置文件查找/显式选择/schema 默认值/非法配置、
+设备上报并发容量的默认值/低值保留/异常值回退/服务端上限，以及公共 Redis cache-aside 的
+命中、PostgreSQL fallback 回写、负缓存、脏数据失效、写后删除
 和写失败不删缓存。
 
 ### 黑盒 E2E / 完整性冒烟

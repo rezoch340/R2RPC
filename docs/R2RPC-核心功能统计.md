@@ -21,7 +21,7 @@
 | Device token | `dk_`、无过期时间、project 作用域二次编辑、旧连接断开、撤销/软删 | ✅ | ✅ |
 | 设备 | WS 自注册、持久态、列表/详情、stale | ✅ | 公开面 ✅ |
 | RPC | 公开调用、后台手动调试、轮询、指定设备、成功/失败/超时/无设备/离线 | ✅ | ✅ |
-| 限流 | `[256,1024]` maxInFlight、跳过满设备、rejected | ✅ | ✅ |
+| 限流 | `[1,1024]` maxInFlight、默认 16、跳过满设备、rejected | ✅ | ✅ |
 | WS 健壮性 | ping、20 秒读超时、4 MiB、拒分片、deadline | ✅ | ✅ |
 | 日志 | PG 脊柱、Access Token 编号、Manticore payload/AppAudit、筛选、详情 | ✅ | ✅ |
 | 设备审计 | AppAudit V1 metadata、成功/失败 Step、输入隔离 | ✅ | ✅ |
@@ -194,7 +194,7 @@ GET /api/client/ws?token=<dk_...>&clientId=<device-id>&platform=<optional>&extra
   "type": "welcome",
   "clientId": "device-001",
   "projects": [1],
-  "maxInFlight": 512
+  "maxInFlight": 16
 }
 ```
 
@@ -253,7 +253,8 @@ GET /api/client/ws?token=<dk_...>&clientId=<device-id>&platform=<optional>&extra
 - 数据分片 `FIN=0`：close `1009`
 - 每 5 秒服务端 ping
 - 20 秒无 message/pong：terminate
-- `maxInFlight` 默认 512，夹取到 `[256,1024]`
+- `maxInFlight` 合法上报整数范围为 `[1,1024]`，低值原样保留；缺失、非法或非正数默认 `16`，
+  超过 `1024` 时只执行上限保护
 - `appAudit` 最大 512 KiB、64 metadata、128 Step，sequence 必须从 1 连续递增
 - 非法 `appAudit` 整体丢弃，但 RPC 结果继续处理
 
@@ -318,7 +319,7 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 ### 单元测试
 
-- Jest 10 suites / 36 tests。
+- Jest 11 suites / 40 tests。
 - 统一配置 loader 覆盖父目录查找、`CONFIG_FILE` 显式选择、schema 默认值和非法配置拒绝。
 - 公共 Redis cache-aside 覆盖命中、持久层 fallback 与回写、负缓存、契约异常失效、
   写后删除和写失败不删缓存。
@@ -338,7 +339,7 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 - 覆盖全部内置权限说明、手动 RPC 权限拒绝/放行、上下文、真实 WS 往返、系统审计和后台
   发起人溯源。
 - 覆盖 WS 鉴权、心跳、ping、读超时、分片/超大帧拒绝。
-- 使用 256 个并发 HTTP invoke 真实占满 WS 设备在途槽。
+- 使用上报容量为 `4` 的设备和 4 个并发 HTTP invoke 真实占满 WS 设备在途槽。
 - 覆盖目标设备 result 身份匹配与重复结果去重。
 - 覆盖设备上报成功/失败 Step、非法 sequence 隔离和 Monitor API 读取。
 - 通过 monitor/metrics API 验证 Worker 冷路径结果。
