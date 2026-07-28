@@ -24,7 +24,7 @@ Cloudflare
 - 已安装 Docker、Docker Compose、1Panel 和 1Panel 应用商店中的 OpenResty。
 - Cloudflare 中准备两个指向同一源站的 Proxied DNS 记录。
 - 服务器安全组允许 Cloudflare 访问 80/443，运维来源允许访问 SSH 和 1Panel。
-- 已推送的 GHCR Release 镜像；本文示例使用 `v0.1.0`。
+- 已推送的 GHCR Release 镜像；本文示例使用 `v0.1.1`。
 
 Compose 声明的服务 CPU 上限合计为 4.00 核，内存上限合计为 3840 MiB。该限制不包含
 Docker daemon、BuildKit、1Panel 和宿主机 OpenResty。
@@ -35,7 +35,7 @@ Docker daemon、BuildKit、1Panel 和宿主机 OpenResty。
 
 ```bash
 sudo -i
-git clone --branch v0.1.0 --depth 1 \
+git clone --branch v0.1.1 --depth 1 \
   https://github.com/rezoch340/R2RPC.git \
   /opt/r2rpc
 cd /opt/r2rpc
@@ -129,7 +129,7 @@ chmod 600 deploy/config.yaml deploy/compose.production.yaml
 ```bash
 docker run --rm \
   -v "$PWD/deploy/config.yaml:/app/config.yaml:ro" \
-  ghcr.io/rezoch340/r2rpc-backend:v0.1.0 \
+  ghcr.io/rezoch340/r2rpc-backend:v0.1.1 \
   node dist/scripts/check-production-config.js
 ```
 

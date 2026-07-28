@@ -4,14 +4,24 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-28
+
+### 部署与运维
+- 新增可直接执行的 1Panel 生产部署文档、OpenResty 配置片段与生产 Compose 单文件生成脚本，
+  避免面板将多个 Compose 路径误判为一个不存在的文件。
+- 新增 `deploy/compose.production.example.yaml`，确保 Backend、Migration、Seed、Worker 与
+  Frontend 使用同一版本镜像，并显式同步 PostgreSQL 首次初始化密码。
+
+### 性能与可靠性
+- 功能组、设备、两类令牌、后台账号及 RBAC 列表改为服务端分页，统一分页参数和响应边界；
+  消除 Access Token、Device Token 列表的功能组查询 N+1。
+- 非法实体 ID、分页及筛选参数统一返回 HTTP `400`，避免错误穿透至数据库层成为 `500`。
+- 修复系统日志读取审计的重复记录与 metadata 污染；分页查询不再记录无意义的分页参数，
+  系统日志读取仍保留可追溯审计。
+
+## [0.1.0] - 2026-07-25
+
 ### Cloudflare 与反向代理发布基线
-- 修正 1Panel 编排路径：新增生产 Compose 单文件生成脚本，避免面板将逗号分隔的两个路径
-  误判为一个不存在的文件。
-- 新增可直接照做的 1Panel 生产部署文档与 OpenResty 片段，覆盖 GHCR Release 镜像、
-  双反向代理网站、证书 SAN 核对、WebSocket 专用 location、Cloudflare 真实 IP 定时刷新、
-  1Panel 容器观测及生产验收。
-- 新增 `deploy/compose.production.example.yaml`，让生产服务器用同一版本的 Backend、
-  Migration、Seed、Worker 与 Frontend 镜像启动，并显式同步 PostgreSQL 首次初始化密码。
 - 新增 `deploy/config.production.example.yaml`，覆盖控制台/API 双域名、WSS、精确 CORS、
   关闭运行时 OpenAPI 和可信单跳反向代理。
 - 新增 Nginx/OpenResty 生产配置，区分 Frontend、API 与设备 WebSocket，规范
