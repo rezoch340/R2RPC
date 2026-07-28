@@ -33,6 +33,7 @@ const EMPTY_REQUEST_LOG_FILTERS = {
   project: "",
   action: "",
   clientId: "",
+  accessTokenId: "",
   status: "",
   payloadState: "",
   minimumLatencyMs: "",
@@ -49,6 +50,7 @@ const EMPTY_DEVICE_FILTERS = {
 };
 
 const EMPTY_TOKEN_FILTERS = {
+  id: "",
   name: "",
   project: "",
   status: "",

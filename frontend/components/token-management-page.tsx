@@ -47,6 +47,7 @@ interface TokenAction {
 }
 
 interface TokenFilters {
+  id: string;
   name: string;
   project: string;
   status: string;
@@ -59,6 +60,7 @@ interface UpdateTokenProjectsInput {
 }
 
 const EMPTY_FILTERS: TokenFilters = {
+  id: '',
   name: '',
   project: '',
   status: '',
@@ -169,6 +171,12 @@ export function TokenManagementPage({
     Array<FilterFieldDefinition<keyof TokenFilters>>
   >(
     () => [
+      {
+        key: 'id',
+        label: '令牌编号',
+        type: 'number',
+        placeholder: '精确编号',
+      },
       { key: 'name', label: '名称', placeholder: '令牌名称' },
       {
         key: 'project',
@@ -202,6 +210,14 @@ export function TokenManagementPage({
   }
 
   const columns: Array<DataTableColumn<TokenRecord>> = [
+    {
+      key: 'id',
+      header: '令牌编号',
+      className: 'w-24',
+      render: (token) => (
+        <code className="whitespace-nowrap font-mono text-xs">#{token.id}</code>
+      ),
+    },
     {
       key: 'name',
       header: '名称',

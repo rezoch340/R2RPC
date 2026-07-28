@@ -50,6 +50,12 @@ paths:
             maximum: 100
             default: 10
             type: integer
+        - name: id
+          required: false
+          in: query
+          description: 令牌数据库编号精确匹配
+          schema:
+            type: number
         - name: name
           required: false
           in: query
@@ -1403,6 +1409,12 @@ paths:
             maximum: 100
             default: 10
             type: integer
+        - name: id
+          required: false
+          in: query
+          description: 令牌数据库编号精确匹配
+          schema:
+            type: number
         - name: name
           required: false
           in: query
@@ -1781,6 +1793,12 @@ paths:
           in: query
           schema:
             type: string
+        - name: accessTokenId
+          required: false
+          in: query
+          description: Access Token 数据库编号精确匹配
+          schema:
+            type: number
         - name: status
           required: false
           in: query

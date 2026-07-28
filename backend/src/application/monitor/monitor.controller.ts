@@ -30,6 +30,7 @@ export class MonitorController {
       project: query.project,
       action: query.action,
       clientId: query.clientId,
+      accessTokenId: query.accessTokenId,
       status: query.status,
       payloadState: query.payloadState,
       minimumLatencyMs: query.minimumLatencyMs,
