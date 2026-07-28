@@ -1,5 +1,8 @@
 # 使用 1Panel 部署 R2RPC
 
+已有生产环境从旧标签升级到新标签时，使用独立的
+[`UPDATE.md`](UPDATE.md)，不要重复执行首次安装步骤或覆盖真实生产配置。
+
 本文档描述已验证的生产链路：
 
 ```text
@@ -343,6 +346,9 @@ deploy/reverse-proxy/check-production.sh \
 
 ## 9. 更新、日志与回滚
 
+完整的备份、标签切换、镜像替换、配置门禁、更新验收、回滚命令和实机记录见
+[`R2RPC 1Panel 生产更新`](UPDATE.md)。本节只保留日常日志入口。
+
 查看日志：
 
 ```bash
@@ -352,13 +358,8 @@ docker compose \
   logs --tail=200 api worker frontend
 ```
 
-更新版本时先备份 PostgreSQL 和三个命名卷，再检出目标标签，更新
-`deploy/compose.production.yaml` 中所有 R2RPC 镜像标签，重新运行
-`./deploy/1panel/generate-compose-file.sh`，然后执行 `pull` 与 `up -d --no-build`。不能只
-更新 API，Migration、Seed、Worker 和 Frontend 必须使用同一版本。
-
-回滚时恢复数据库备份并把全部 R2RPC 镜像标签恢复为上一版本。数据库迁移不保证向后兼容，
-不能只回退镜像而保留不兼容的新 schema。
+Seed 日志可能包含初始管理员密码，不应未经处理后复制到公开记录。更新不能只处理 API，
+Migration、Seed、Worker 和 Frontend 必须使用同一发布版本。
 
 ## 10. 官方参考
 
