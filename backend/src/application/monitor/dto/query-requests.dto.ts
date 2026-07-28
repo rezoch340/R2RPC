@@ -5,6 +5,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Max,
   Min,
 } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
@@ -14,6 +15,13 @@ export class QueryRequestsDto extends PaginationQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() project?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() action?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() clientId?: string;
+  @ApiPropertyOptional({ description: 'Access Token 数据库编号精确匹配' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(2_147_483_647)
+  accessTokenId?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() payloadState?: string;
   @ApiPropertyOptional()

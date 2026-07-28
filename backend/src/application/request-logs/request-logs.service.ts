@@ -14,6 +14,7 @@ export interface ListFilter {
   project?: string;
   action?: string;
   clientId?: string;
+  accessTokenId?: number;
   status?: string;
   payloadState?: string;
   minimumLatencyMs?: number;
@@ -22,6 +23,13 @@ export interface ListFilter {
   to?: Date;
   page?: number;
   pageSize?: number;
+}
+
+function accessTokenIdConditions(accessTokenId?: number): SQL[] {
+  if (accessTokenId === undefined) {
+    return [];
+  }
+  return [eq(requestLogs.accessTokenId, accessTokenId)];
 }
 
 // 只存标量字段;list/detail 走 PG 脊柱,payload 原文在 Manticore。
@@ -114,6 +122,7 @@ export class RequestLogsService {
     if (filter.clientId) {
       conditions.push(eq(requestLogs.clientId, filter.clientId));
     }
+    conditions.push(...accessTokenIdConditions(filter.accessTokenId));
     if (filter.status) {
       conditions.push(eq(requestLogs.status, filter.status));
     }

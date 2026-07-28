@@ -1527,6 +1527,18 @@ async function main() {
         ),
       'GET /access-tokens 返回 token 与 project 作用域',
     );
+    const accessTokenIdFilteredList = await httpRequest(
+      'GET',
+      `/access-tokens?id=${createMainAccess.json.id}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      accessTokenIdFilteredList.status === 200 &&
+        accessTokenIdFilteredList.json.rows.length === 1 &&
+        accessTokenIdFilteredList.json.rows[0].id === createMainAccess.json.id,
+      'GET /access-tokens 支持令牌编号精确筛选',
+    );
 
     const firstAccessTokenPage = await httpRequest(
       'GET',
@@ -1952,6 +1964,19 @@ async function main() {
             token.onlineDeviceCount === 0,
         ),
       'GET /device-tokens 返回作用域和在线设备数',
+    );
+    const deviceTokenIdFilteredList = await httpRequest(
+      'GET',
+      `/device-tokens?id=${createMainDeviceToken.json.id}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      deviceTokenIdFilteredList.status === 200 &&
+        deviceTokenIdFilteredList.json.rows.length === 1 &&
+        deviceTokenIdFilteredList.json.rows[0].id ===
+          createMainDeviceToken.json.id,
+      'GET /device-tokens 支持令牌编号精确筛选',
     );
 
     const firstDeviceTokenPage = await httpRequest(
@@ -3078,6 +3103,22 @@ async function main() {
           (row) => typeof row.accessTokenId === 'number',
         ),
       'monitor 列表返回 OpenAPI 声明的 accessTokenId 调用方身份',
+    );
+    const accessTokenFilteredRequests = await httpRequest(
+      'GET',
+      `/monitor/requests?project=${encodeURIComponent(projectNames.main)}&accessTokenId=${createMainAccess.json.id}&pageSize=100`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      accessTokenFilteredRequests.status === 200 &&
+        accessTokenFilteredRequests.json.rows.some(
+          (row) => row.requestId === invokeEcho.json.requestId,
+        ) &&
+        accessTokenFilteredRequests.json.rows.every(
+          (row) => row.accessTokenId === createMainAccess.json.id,
+        ),
+      'monitor 支持 Access Token 编号精确筛选',
     );
     assert(
       requestList.json.rows.some(

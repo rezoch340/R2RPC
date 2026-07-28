@@ -107,6 +107,7 @@ export interface RequestLogRecord {
   actionName: string;
   clientId: string | null;
   requesterUserId: number | null;
+  accessTokenId: number | null;
   status: string;
   httpCode: number | null;
   latencyMs: number | null;

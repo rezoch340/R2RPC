@@ -186,12 +186,12 @@ test('全部数据列表提供字段筛选和分页', async ({ page }) => {
     },
     {
       route: '/device-tokens',
-      filters: ['名称', '功能组', '状态'],
+      filters: ['令牌编号', '名称', '功能组', '状态'],
       pagers: 1,
     },
     {
       route: '/access-tokens',
-      filters: ['名称', '功能组', '状态'],
+      filters: ['令牌编号', '名称', '功能组', '状态'],
       pagers: 1,
     },
     {
@@ -206,7 +206,13 @@ test('全部数据列表提供字段筛选和分页', async ({ page }) => {
     },
     {
       route: '/request-logs',
-      filters: ['功能组', '动作', '设备编号', '载荷索引'],
+      filters: [
+        '功能组',
+        '动作',
+        '设备编号',
+        '访问令牌编号',
+        '载荷索引',
+      ],
       pagers: 1,
     },
     {
@@ -265,7 +271,7 @@ test('系统日志长事件描述不会覆盖其他列', async ({ page }) => {
   await expect(eventDescription).toHaveCSS('white-space', 'nowrap');
 });
 
-test('两类令牌可编辑功能组且访问令牌可编辑过期策略', async ({ page }) => {
+test('两类令牌显示编号并可编辑功能组', async ({ page }) => {
   const tokenPages = [
     {
       route: '/access-tokens',
@@ -282,6 +288,33 @@ test('两类令牌可编辑功能组且访问令牌可编辑过期策略', async
   ];
   for (const tokenPage of tokenPages) {
     await page.goto(tokenPage.route);
+    await expect(
+      page.getByRole('columnheader', { name: '令牌编号' }),
+    ).toBeVisible();
+    await expect(
+      page
+        .locator('[data-slot="table-body"] [data-slot="table-row"]')
+        .first()
+        .locator('[data-slot="table-cell"]')
+        .first(),
+    ).toHaveText(/^#\d+$/);
+    const visibleTokenIdentifier = await page
+      .locator('[data-slot="table-body"] [data-slot="table-row"]')
+      .first()
+      .locator('[data-slot="table-cell"]')
+      .first()
+      .innerText();
+    await page.getByLabel('令牌编号', { exact: true }).fill(
+      visibleTokenIdentifier.replace('#', ''),
+    );
+    await page.getByRole('button', { name: '查询' }).click();
+    await expect(
+      page
+        .locator('[data-slot="table-body"] [data-slot="table-row"]')
+        .first()
+        .locator('[data-slot="table-cell"]')
+        .first(),
+    ).toHaveText(visibleTokenIdentifier);
     await expect(
       page.getByRole('columnheader', { name: '过期时间' }),
     ).toHaveCount(tokenPage.showsExpiration ? 1 : 0);
@@ -324,8 +357,35 @@ test('非安全上下文缺少 Clipboard API 时仍可复制令牌', async ({ pa
   expect(runtimeErrors).toEqual([]);
 });
 
-test('请求日志详情从右侧打开且 AppAudit Step 默认收起', async ({ page }) => {
+test('请求日志显示访问令牌编号且详情从右侧打开', async ({ page }) => {
   await page.goto('/request-logs');
+  await expect(
+    page.getByRole('columnheader', { name: '访问令牌编号' }),
+  ).toBeVisible();
+  await expect(
+    page
+      .locator('[data-slot="table-body"] [data-slot="table-row"]')
+      .first()
+      .locator('[data-slot="table-cell"]')
+      .nth(3),
+  ).toHaveText(/^(#\d+|后台调用|未记录)$/);
+  const visibleAccessTokenCell = page
+    .locator('[data-slot="table-body"] [data-slot="table-row"]')
+    .locator('[data-slot="table-cell"]')
+    .filter({ hasText: /^#\d+$/ })
+    .first();
+  const visibleAccessTokenIdentifier = await visibleAccessTokenCell.innerText();
+  await page.getByLabel('访问令牌编号', { exact: true }).fill(
+    visibleAccessTokenIdentifier.replace('#', ''),
+  );
+  await page.getByRole('button', { name: '查询' }).click();
+  await expect(
+    page
+      .locator('[data-slot="table-body"] [data-slot="table-row"]')
+      .first()
+      .locator('[data-slot="table-cell"]')
+      .nth(3),
+  ).toHaveText(visibleAccessTokenIdentifier);
   const detailButtons = page.getByRole('button', { name: '查看请求详情' });
   await expect(detailButtons.first()).toBeVisible();
   await detailButtons.first().click();

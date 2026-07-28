@@ -430,8 +430,8 @@ Redis、JWT 或管理员配置。
 
 | 验证层 | 基线 |
 |---|---:|
-| HTTP/WebSocket 黑盒冒烟 | 180 passed |
-| 后端 Jest | 10 suites / 35 tests |
+| HTTP/WebSocket 黑盒冒烟 | 209 passed |
+| 后端 Jest | 10 suites / 36 tests |
 | 前端 Playwright | 12 passed |
 | JavaScript SDK | 3 files / 10 tests |
 | Android SDK | 3 classes / 8 tests |

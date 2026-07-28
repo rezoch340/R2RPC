@@ -181,6 +181,9 @@ export class AccessTokenService {
 
   private buildConditions(query: QueryTokensDto): SQL[] {
     const conditions: SQL[] = [];
+    if (query.id !== undefined) {
+      conditions.push(eq(accessTokens.id, query.id));
+    }
     if (query.name) {
       conditions.push(ilike(accessTokens.name, containsPattern(query.name)));
     }

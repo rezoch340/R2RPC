@@ -223,7 +223,7 @@ cat performance-results/latest.json
 pnpm test
 ```
 
-当前为 Jest **10 suites / 35 tests**，覆盖统一配置文件查找/显式选择/schema 默认值/非法配置，
+当前为 Jest **10 suites / 36 tests**，覆盖统一配置文件查找/显式选择/schema 默认值/非法配置，
 以及公共 Redis cache-aside 的命中、PostgreSQL fallback 回写、负缓存、脏数据失效、写后删除
 和写失败不删缓存。
 
@@ -259,7 +259,7 @@ BASE_URL=http://127.0.0.1:3000 pnpm smoke
   `requesterUserId` 溯源
 - 覆盖登录成功/失败、控制面读取、Guard 拒绝、业务写入、筛选和密码不泄露
 - 通过 monitor/metrics API 观察 Worker 冷路径
-- 当前为 180 项运行时检查
+- 当前为 209 项运行时检查
 
 `test/assert-blackbox-e2e.js` 会拒绝 E2E 或性能执行器导入持久层客户端或应用内部服务。
 

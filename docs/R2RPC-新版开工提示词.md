@@ -30,8 +30,8 @@
   #19、容器性能验收 #20、Android/JavaScript SDK #21 已全部完成。
 - 管理前端 #16 已完成，覆盖全部后台管理公开面；默认端口 3001。
 - 当前基线：OpenAPI 39 个路径模板 / 52 个操作 / 54 个 schema、后端 HTTP/WebSocket 黑盒
-  180 passed、前端 Playwright
-  12 passed、Jest 10 suites / 35 tests、JavaScript SDK 10 tests、Android SDK 8 tests。
+  209 passed、前端 Playwright
+  12 passed、Jest 10 suites / 36 tests、JavaScript SDK 10 tests、Android SDK 8 tests。
 - API、Worker、迁移、种子和前端共用根目录 `config.yaml` schema；根目录 `compose.yaml`
   提供 PostgreSQL、Redis、Manticore 和全部应用服务编排。
 - 运行时 Swagger 由 `app.openApiEnabled` 控制，默认开启、生产关闭；静态

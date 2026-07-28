@@ -1,6 +1,6 @@
 # R2RPC 当前核心功能统计
 
-> 更新日期：2026-07-25。本文统计当前 NestJS/PostgreSQL 实现。旧 Go 系统语义基线见 `docs/archive/旧版-Go-核心功能统计.md`。
+> 更新日期：2026-07-28。本文统计当前 NestJS/PostgreSQL 实现。旧 Go 系统语义基线见 `docs/archive/旧版-Go-核心功能统计.md`。
 
 ## 1. 完成度
 
@@ -23,7 +23,7 @@
 | RPC | 公开调用、后台手动调试、轮询、指定设备、成功/失败/超时/无设备/离线 | ✅ | ✅ |
 | 限流 | `[256,1024]` maxInFlight、跳过满设备、rejected | ✅ | ✅ |
 | WS 健壮性 | ping、20 秒读超时、4 MiB、拒分片、deadline | ✅ | ✅ |
-| 日志 | PG 脊柱、Manticore payload/AppAudit、筛选、详情 | ✅ | ✅ |
+| 日志 | PG 脊柱、Access Token 编号、Manticore payload/AppAudit、筛选、详情 | ✅ | ✅ |
 | 设备审计 | AppAudit V1 metadata、成功/失败 Step、输入隔离 | ✅ | ✅ |
 | 日志保留 | 按天清理、每 scope 留最新 N 条 | ✅ | 内部集成 |
 | 指标 | 日聚合、重建、清理、overview/weekly/trend | ✅ | 公开读面 ✅ |
@@ -107,6 +107,8 @@ metadata 只包含安全白名单字段，不保存密码或 token 明文。RPC/
 - `POST /device-tokens/:id/revoke`
 - `DELETE /device-tokens/:id`
 
+两类令牌列表均支持 `id` 精确筛选、`name` 模糊筛选以及 `project/status` 精确筛选。
+
 Access Token 的新建与完整编辑接口支持可选 `expiresAt` 和 `maximumUsageCount`；`null` 表示
 取消对应限制，修改不会重置 `usageCount`。只有通过鉴权与参数校验的公开 RPC invoke 消耗
 一次次数，clientQueue 不消耗；进入业务层后无论最终成功、无设备、设备错误或超时都计数。
@@ -136,7 +138,7 @@ Access Token 的新建与完整编辑接口支持可选 `expiresAt` 和 `maximum
 - `GET /metrics/trend`
 
 请求列表支持
-`project/action/clientId/status/payloadState/minimumLatencyMs/maximumLatencyMs/from/to/page/pageSize`；
+`project/action/clientId/accessTokenId/status/payloadState/minimumLatencyMs/maximumLatencyMs/from/to/page/pageSize`；
 系统日志与请求日志的 `pageSize` 都默认 10、最大 100。
 
 完整 schema 见 `docs/openapi.yaml`。
@@ -316,7 +318,7 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 ### 单元测试
 
-- Jest 10 suites / 35 tests。
+- Jest 10 suites / 36 tests。
 - 统一配置 loader 覆盖父目录查找、`CONFIG_FILE` 显式选择、schema 默认值和非法配置拒绝。
 - 公共 Redis cache-aside 覆盖命中、持久层 fallback 与回写、负缓存、契约异常失效、
   写后删除和写失败不删缓存。
@@ -325,7 +327,7 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 
 `pnpm smoke` 与 `pnpm test:e2e` 执行同一套完整性测试：
 
-- 180 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
+- 209 项运行时检查，0 项直接访问数据库、Redis 或 Manticore。
 - 覆盖全部 HTTP controller 方法。
 - 覆盖系统操作日志、筛选、普通用户权限委派和密码不泄露。
 - 覆盖权限组编辑、嵌套权限、用户已分配组、新旧关联入口和 root-only 写隔离。

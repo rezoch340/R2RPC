@@ -161,6 +161,9 @@ export class DeviceTokenService {
 
   private buildConditions(query: QueryTokensDto): SQL[] {
     const conditions: SQL[] = [];
+    if (query.id !== undefined) {
+      conditions.push(eq(deviceTokens.id, query.id));
+    }
     if (query.name) {
       conditions.push(ilike(deviceTokens.name, containsPattern(query.name)));
     }

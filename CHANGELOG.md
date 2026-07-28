@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+- Access Token 与 Device Token 管理表新增可精确筛选的令牌编号列；请求日志表展示并支持筛选
+  已落库的 Access Token 编号，后台手动调用与无身份历史记录使用明确占位，不重复记录 Device
+  Token 编号。
 - 修正 1Panel 文档中的 root shell 操作：已是 root 时不再重复执行 `sudo -i`，避免嵌套登录
   shell 把工作目录重置为 `/root` 并导致后续相对路径失效。
 - 新增 1Panel 无限资源 Compose 生成脚本，完整保留 9 个服务和 PID 上限，同时移除全部 CPU、

@@ -1,9 +1,18 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { PaginationQueryDto } from './pagination-query.dto';
 
 // 两类令牌列表共用的查询参数:字段与筛选语义完全一致,只有底层表不同。
 export class QueryTokensDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ description: '令牌数据库编号精确匹配' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(2_147_483_647)
+  id?: number;
+
   @ApiPropertyOptional({ description: '令牌名称模糊匹配' })
   @IsOptional()
   @IsString()

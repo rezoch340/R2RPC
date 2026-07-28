@@ -27,6 +27,7 @@ interface RequestFilters {
   project: string;
   action: string;
   clientId: string;
+  accessTokenId: string;
   status: string;
   payloadState: string;
   minimumLatencyMs: string;
@@ -39,6 +40,7 @@ const EMPTY_FILTERS: RequestFilters = {
   project: '',
   action: '',
   clientId: '',
+  accessTokenId: '',
   status: '',
   payloadState: '',
   minimumLatencyMs: '',
@@ -51,6 +53,12 @@ const FILTER_FIELDS: Array<FilterFieldDefinition<keyof RequestFilters>> = [
   { key: 'project', label: '功能组', placeholder: '功能组名称' },
   { key: 'action', label: '动作', placeholder: '动作名称' },
   { key: 'clientId', label: '设备编号', placeholder: '客户端编号' },
+  {
+    key: 'accessTokenId',
+    label: '访问令牌编号',
+    type: 'number',
+    placeholder: '精确编号',
+  },
   {
     key: 'status',
     label: '状态',
@@ -169,6 +177,21 @@ export default function RequestLogsPage() {
           {requestLog.clientId ?? '未分配'}
         </code>
       ),
+    },
+    {
+      key: 'access-token',
+      header: '访问令牌编号',
+      className: 'w-28',
+      render: (requestLog) =>
+        requestLog.accessTokenId !== null ? (
+          <code className="whitespace-nowrap font-mono text-xs">
+            #{requestLog.accessTokenId}
+          </code>
+        ) : (
+          <span className="whitespace-nowrap text-xs text-muted-foreground">
+            {requestLog.requesterUserId !== null ? '后台调用' : '未记录'}
+          </span>
+        ),
     },
     {
       key: 'status',
