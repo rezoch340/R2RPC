@@ -348,7 +348,7 @@ Controller 当前以正常 JSON 响应返回业务结果，业务 HTTP 码位于
 前端 `test/assert-blackbox-e2e.cjs` 使用同一口径，Playwright 当前 12 项，只操作浏览器和公开
 HTTP API；覆盖全部管理页、手动 RPC 调试、字段筛选与分页、两类令牌作用域编辑、Access
 Token 时间/次数策略编辑、非安全上下文复制回退、日志详情抽屉、账号改密入口、移动导航、
-导航预取和未登录跳转。测试不会导入后端、
+慢接口下的非阻塞切页、局部加载状态和未登录跳转。测试不会导入后端、
 数据库或 Redis。
 前端 `test/assert-readable-source.cjs` 覆盖页面、组件和 E2E。
 
