@@ -24,6 +24,10 @@
 - TanStack Query 管理服务端状态和 mutation 后精确失效。
 - 服务端分页切换时保留上一页数据；侧栏使用标准客户端导航立即提交路由，不等待目标页面的
   业务接口。已有缓存时先展示缓存并后台刷新，首次无缓存时只在内容区显示尺寸稳定的加载状态。
+- 所有数据表格共用 `useTableQuery`，统一每 15 秒刷新，并在页面重新进入、窗口重新获得焦点
+  或网络恢复时后台获取最新数据；筛选重置通过公共 `refreshTableData` 刷新对应 query key。
+- 后台刷新期间保留当前表格和分页可操作状态；只有服务端分页切换且正在使用上一页占位数据时
+  短暂锁定分页，客户端分页不受后台请求影响。
 - 所有实体表都有字段筛选和分页；长载荷、说明、令牌明文及高变化扩展字段不作为筛选项。
 - 所有分页默认 10 条/页、最大 100 条/页；分页器作为表格页脚，展示记录区间、数字页码、每页条数和指定页跳转。
 - 表格统一使用无衬线正文、轻量表头、舒展行距、隔行底色和悬停反馈，技术标识符单独使用等宽字体。
@@ -53,7 +57,8 @@
 ## 5. 组件边界
 
 复用 `PageHeader`、`DataTable`、`FilterBar`、`PermissionBoundary`、`FormDialog`、
-`ConfirmDialog`、`Pagination`、`RowActions`、`JsonBlock`、`CopyButton`。
+`ConfirmDialog`、`Pagination`、`RowActions`、`JsonBlock`、`CopyButton`；表格查询和刷新策略
+由公共 `useTableQuery` 与 `refreshTableData` 管理，页面不得各自重复声明轮询或旧数据保留逻辑。
 两类令牌共用同一个领域组件；功能组权限矩阵、用户分组和 AppAudit Step 保持专用组件，
 不抽象为充满条件分支的通用 CRUD 配置层。
 
@@ -69,6 +74,8 @@ HTTP 等非安全上下文中自动回退到隐藏文本框复制，不允许页
 - Playwright 通过 `/rpc/debug/*` 真实接口发起手动 RPC，不使用数据库或浏览器路由 mock。
 - Playwright 延迟真实用户列表接口，验证路由和页面标题立即切换，等待期间只在目标页内容区
   显示加载状态，接口完成后原位展示数据。
+- Playwright 验证返回已访问表格、重置筛选和 15 秒定时刷新都会重新请求公开 API，并在刷新
+  请求未完成时继续展示旧数据和可操作分页。
 - `test/assert-blackbox-e2e.cjs`：静态拒绝后端内部导入、持久层客户端和 SQL。
 - 后端 162 项 HTTP/WebSocket 黑盒继续复跑，确认 CORS、访问审计、手动 RPC 与令牌作用域更新
   不影响设备 WS 和 Worker 冷路径。
@@ -76,3 +83,5 @@ HTTP 等非安全上下文中自动回退到隐藏文本框复制，不允许页
 验证结果：前端变量名门禁与 ESLint 通过、Next.js 生产构建通过、Playwright
 **11 passed**；后端 Jest **8 suites / 24 tests passed**，HTTP/WebSocket 黑盒
 **162 passed, 0 failed**。
+
+以上数字是该规格首次落地时的阶段快照；当前回归基线见 `../README.md`。

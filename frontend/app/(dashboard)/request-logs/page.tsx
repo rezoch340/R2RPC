@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Eye } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
@@ -21,6 +21,7 @@ import {
 import { buildQueryString, requestApi } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import type { PaginatedResponse, RequestLogRecord } from '@/lib/models';
+import { refreshTableData, useTableQuery } from '@/lib/table-query';
 import { RequestLogDetailContent } from './request-log-detail';
 
 interface RequestFilters {
@@ -108,6 +109,7 @@ export default function RequestLogsPage() {
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(
     null,
   );
+  const queryClient = useQueryClient();
 
   const queryString = buildQueryString({
     ...appliedFilters,
@@ -120,13 +122,12 @@ export default function RequestLogsPage() {
     page,
     pageSize,
   });
-  const requestsQuery = useQuery({
+  const requestsQuery = useTableQuery({
     queryKey: ['request-logs', appliedFilters, page, pageSize],
-    queryFn: () =>
+    queryFunction: () =>
       requestApi<PaginatedResponse<RequestLogRecord>>(
         `/monitor/requests${queryString}`,
       ),
-    placeholderData: keepPreviousData,
   });
 
   function updateDraftFilter(key: keyof RequestFilters, value: string) {
@@ -145,6 +146,7 @@ export default function RequestLogsPage() {
     setDraftFilters(EMPTY_FILTERS);
     setAppliedFilters(EMPTY_FILTERS);
     setPage(1);
+    void refreshTableData(queryClient, ['request-logs']);
   }
 
   const columns: Array<DataTableColumn<RequestLogRecord>> = [
@@ -259,7 +261,7 @@ export default function RequestLogsPage() {
             page={requestsQuery.data?.page ?? page}
             pageSize={requestsQuery.data?.pageSize ?? pageSize}
             total={requestsQuery.data?.total ?? 0}
-            isFetching={requestsQuery.isFetching}
+            isPageTransitioning={requestsQuery.isPlaceholderData}
             onPageChange={setPage}
             onPageSizeChange={(newPageSize) => {
               setPageSize(newPageSize);

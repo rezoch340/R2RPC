@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Eye } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
@@ -22,6 +22,7 @@ import {
 import { buildQueryString, requestApi } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import type { DeviceRecord, PaginatedResponse } from '@/lib/models';
+import { refreshTableData, useTableQuery } from '@/lib/table-query';
 
 interface DeviceFilters {
   clientId: string;
@@ -64,18 +65,17 @@ export default function DevicesPage() {
   );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const queryClient = useQueryClient();
 
   const queryString = buildQueryString({
     ...appliedFilters,
     page,
     pageSize,
   });
-  const devicesQuery = useQuery({
+  const devicesQuery = useTableQuery({
     queryKey: ['devices', appliedFilters, page, pageSize],
-    queryFn: () =>
+    queryFunction: () =>
       requestApi<PaginatedResponse<DeviceRecord>>(`/devices${queryString}`),
-    refetchInterval: 15_000,
-    placeholderData: keepPreviousData,
   });
 
   function updateDraftFilter(key: keyof DeviceFilters, value: string) {
@@ -160,6 +160,7 @@ export default function DevicesPage() {
           setDraftFilters(EMPTY_FILTERS);
           setAppliedFilters(EMPTY_FILTERS);
           setPage(1);
+          void refreshTableData(queryClient, ['devices']);
         }}
       />
       <DataTable
@@ -173,7 +174,7 @@ export default function DevicesPage() {
             page={devicesQuery.data?.page ?? page}
             pageSize={devicesQuery.data?.pageSize ?? pageSize}
             total={devicesQuery.data?.total ?? 0}
-            isFetching={devicesQuery.isFetching}
+            isPageTransitioning={devicesQuery.isPlaceholderData}
             onPageChange={setPage}
             onPageSizeChange={(newPageSize) => {
               setPageSize(newPageSize);

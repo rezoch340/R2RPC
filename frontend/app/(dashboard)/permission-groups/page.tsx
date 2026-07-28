@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { getRequestErrorMessage, requestApi } from '@/lib/api-client';
 import { useAuthentication } from '@/lib/auth';
 import type { CatalogPermission, PermissionGroup } from '@/lib/models';
+import { refreshTableData, useTableQuery } from '@/lib/table-query';
 import { useClientPagination } from '@/lib/use-client-pagination';
 import { PermissionCreateDialog } from './permission-create-dialog';
 import {
@@ -82,13 +83,13 @@ export default function PermissionGroupsPage() {
   const { isRoot } = useAuthentication();
   const queryClient = useQueryClient();
 
-  const permissionGroupsQuery = useQuery({
+  const permissionGroupsQuery = useTableQuery({
     queryKey: ['permission-groups'],
-    queryFn: () => requestApi<PermissionGroup[]>('/rbac/roles'),
+    queryFunction: () => requestApi<PermissionGroup[]>('/rbac/roles'),
   });
-  const permissionsQuery = useQuery({
+  const permissionsQuery = useTableQuery({
     queryKey: ['permissions'],
-    queryFn: () => requestApi<CatalogPermission[]>('/rbac/permissions'),
+    queryFunction: () => requestApi<CatalogPermission[]>('/rbac/permissions'),
   });
 
   const saveGroupMutation = useMutation({
@@ -390,6 +391,7 @@ export default function PermissionGroupsPage() {
             setDraftGroupFilters(EMPTY_GROUP_FILTERS);
             setAppliedGroupFilters(EMPTY_GROUP_FILTERS);
             groupPagination.resetPage();
+            void refreshTableData(queryClient, ['permission-groups']);
           }}
         />
         <DataTable
@@ -403,7 +405,6 @@ export default function PermissionGroupsPage() {
               page={groupPagination.page}
               pageSize={groupPagination.pageSize}
               total={groupPagination.total}
-              isFetching={permissionGroupsQuery.isFetching}
               onPageChange={groupPagination.setPage}
               onPageSizeChange={groupPagination.setPageSize}
             />
@@ -429,6 +430,7 @@ export default function PermissionGroupsPage() {
             setDraftPermissionFilters(EMPTY_PERMISSION_FILTERS);
             setAppliedPermissionFilters(EMPTY_PERMISSION_FILTERS);
             permissionPagination.resetPage();
+            void refreshTableData(queryClient, ['permissions']);
           }}
         />
         <DataTable
@@ -442,7 +444,6 @@ export default function PermissionGroupsPage() {
               page={permissionPagination.page}
               pageSize={permissionPagination.pageSize}
               total={permissionPagination.total}
-              isFetching={permissionsQuery.isFetching}
               onPageChange={permissionPagination.setPage}
               onPageSizeChange={permissionPagination.setPageSize}
             />

@@ -31,7 +31,7 @@
 - 管理前端 #16 已完成，覆盖全部后台管理公开面；默认端口 3001。
 - 当前基线：OpenAPI 39 个路径模板 / 52 个操作 / 54 个 schema、后端 HTTP/WebSocket 黑盒
   209 passed、前端 Playwright
-  12 passed、Jest 11 suites / 40 tests、JavaScript SDK 10 tests、Android SDK 8 tests。
+  13 passed、Jest 11 suites / 40 tests、JavaScript SDK 11 tests、Android SDK 8 tests。
 - API、Worker、迁移、种子和前端共用根目录 `config.yaml` schema；根目录 `compose.yaml`
   提供 PostgreSQL、Redis、Manticore 和全部应用服务编排。
 - 运行时 Swagger 由 `app.openApiEnabled` 控制，默认开启、生产关闭；静态
@@ -42,6 +42,8 @@
   `performance` profile 默认挂 4 台虚拟 WS 设备，压测自动/随机设备 Hello 并生成 JSON 报告。
 - 全部列表默认 10 条/页、最大 100 条/页；运行概览使用折线趋势图，请求详情使用宽版右侧
   抽屉，AppAudit Step 默认收起。
+- 所有数据表格使用公共 `useTableQuery` 每 15 秒刷新；切回页面和重置筛选立即取新，
+  后台刷新不清空表格或锁定分页。
 - 两类令牌均支持二次编辑 project；Access Token 还可二次编辑绝对过期时间与最大调用次数，
   且不会清零累计次数。更新立即失效鉴权缓存；次数受限的 invoke 以 PostgreSQL 原子计数，
   达到上限返回 `429`。
@@ -119,7 +121,7 @@ pnpm test:e2e
 ```
 
 前端 Playwright 也只能通过浏览器与公开 HTTP API 验证，边界由
-`test/assert-blackbox-e2e.cjs` 强制；当前基线为 12 passed。
+`test/assert-blackbox-e2e.cjs` 强制；当前基线为 13 passed。
 
 在 `sdk/`：
 

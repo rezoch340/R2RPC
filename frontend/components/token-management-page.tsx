@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react';
 import {
-  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
@@ -40,6 +39,7 @@ import type {
   ProjectRecord,
   TokenRecord,
 } from '@/lib/models';
+import { refreshTableData, useTableQuery } from '@/lib/table-query';
 
 interface TokenAction {
   type: 'revoke' | 'delete';
@@ -95,9 +95,9 @@ export function TokenManagementPage({
   const queryClient = useQueryClient();
   const allowsExpiration = resourcePath === '/access-tokens';
 
-  const tokensQuery = useQuery({
+  const tokensQuery = useTableQuery({
     queryKey: [resourceQueryKey, appliedFilters, page, pageSize],
-    queryFn: () =>
+    queryFunction: () =>
       requestApi<PaginatedResponse<TokenRecord>>(
         `${resourcePath}${buildQueryString({
           ...appliedFilters,
@@ -105,7 +105,6 @@ export function TokenManagementPage({
           pageSize,
         })}`,
       ),
-    placeholderData: keepPreviousData,
   });
   const projectsQuery = useQuery({
     queryKey: ['projects'],
@@ -386,6 +385,7 @@ export function TokenManagementPage({
           setDraftFilters(EMPTY_FILTERS);
           setAppliedFilters(EMPTY_FILTERS);
           setPage(1);
+          void refreshTableData(queryClient, [resourceQueryKey]);
         }}
       />
       <DataTable
@@ -404,7 +404,7 @@ export function TokenManagementPage({
             page={tokensQuery.data?.page ?? page}
             pageSize={tokensQuery.data?.pageSize ?? pageSize}
             total={tokensQuery.data?.total ?? 0}
-            isFetching={tokensQuery.isFetching}
+            isPageTransitioning={tokensQuery.isPlaceholderData}
             onPageChange={setPage}
             onPageSizeChange={(newPageSize) => {
               setPageSize(newPageSize);

@@ -422,7 +422,8 @@ Redis、JWT 或管理员配置。
 - 后台账号、权限组与权限目录
 - 系统操作审计
 
-全部表格默认 **10 条/页**、最大 **100 条/页**，支持适合该实体的字段筛选。
+全部表格默认 **10 条/页**、最大 **100 条/页**，支持适合该实体的字段筛选；
+每 15 秒自动刷新，切回页面或重置筛选也会立即重新请求，后台刷新不清空当前表格。
 
 ## 验证与测试
 
@@ -432,7 +433,7 @@ Redis、JWT 或管理员配置。
 |---|---:|
 | HTTP/WebSocket 黑盒冒烟 | 209 passed |
 | 后端 Jest | 11 suites / 40 tests |
-| 前端 Playwright | 12 passed |
+| 前端 Playwright | 13 passed |
 | JavaScript SDK | 3 files / 11 tests |
 | Android SDK | 3 classes / 8 tests |
 | OpenAPI | 39 paths |

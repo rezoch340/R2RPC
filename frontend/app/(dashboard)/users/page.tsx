@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import {
-  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
@@ -37,6 +36,7 @@ import type {
   PermissionGroup,
   UserRecord,
 } from '@/lib/models';
+import { refreshTableData, useTableQuery } from '@/lib/table-query';
 import {
   UserCreateDialog,
   UserDescriptionDialog,
@@ -93,13 +93,12 @@ export default function UsersPage() {
   const queryClient = useQueryClient();
   const { user: authenticatedUser, can, isRoot } = useAuthentication();
 
-  const usersQuery = useQuery({
+  const usersQuery = useTableQuery({
     queryKey: ['users', appliedFilters, page, pageSize],
-    queryFn: () =>
+    queryFunction: () =>
       requestApi<PaginatedResponse<UserRecord>>(
         `/users${buildQueryString({ ...appliedFilters, page, pageSize })}`,
       ),
-    placeholderData: keepPreviousData,
   });
   const permissionGroupsQuery = useQuery({
     queryKey: ['permission-groups'],
@@ -338,6 +337,7 @@ export default function UsersPage() {
           setDraftFilters(EMPTY_FILTERS);
           setAppliedFilters(EMPTY_FILTERS);
           setPage(1);
+          void refreshTableData(queryClient, ['users']);
         }}
       />
       <DataTable
@@ -351,7 +351,7 @@ export default function UsersPage() {
             page={usersQuery.data?.page ?? page}
             pageSize={usersQuery.data?.pageSize ?? pageSize}
             total={usersQuery.data?.total ?? 0}
-            isFetching={usersQuery.isFetching}
+            isPageTransitioning={usersQuery.isPlaceholderData}
             onPageChange={setPage}
             onPageSizeChange={(newPageSize) => {
               setPageSize(newPageSize);

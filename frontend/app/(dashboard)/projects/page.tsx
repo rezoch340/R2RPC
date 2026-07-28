@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Power, PowerOff, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -17,6 +17,7 @@ import { getRequestErrorMessage, requestApi } from '@/lib/api-client';
 import { useAuthentication } from '@/lib/auth';
 import { formatDateTime, formatNumber } from '@/lib/format';
 import type { ProjectRecord } from '@/lib/models';
+import { refreshTableData, useTableQuery } from '@/lib/table-query';
 import { useClientPagination } from '@/lib/use-client-pagination';
 import { ProjectCreateDialog } from './project-create-dialog';
 
@@ -72,9 +73,9 @@ export default function ProjectsPage() {
   const queryClient = useQueryClient();
   const { can } = useAuthentication();
 
-  const projectsQuery = useQuery({
+  const projectsQuery = useTableQuery({
     queryKey: ['projects', 'info'],
-    queryFn: () => requestApi<ProjectRecord[]>('/projects/info'),
+    queryFunction: () => requestApi<ProjectRecord[]>('/projects/info'),
   });
 
   const createMutation = useMutation({
@@ -249,6 +250,7 @@ export default function ProjectsPage() {
           setDraftFilters(EMPTY_FILTERS);
           setAppliedFilters(EMPTY_FILTERS);
           pagination.resetPage();
+          void refreshTableData(queryClient, ['projects', 'info']);
         }}
       />
       <DataTable
@@ -262,7 +264,6 @@ export default function ProjectsPage() {
             page={pagination.page}
             pageSize={pagination.pageSize}
             total={pagination.total}
-            isFetching={projectsQuery.isFetching}
             onPageChange={pagination.setPage}
             onPageSizeChange={pagination.setPageSize}
           />
