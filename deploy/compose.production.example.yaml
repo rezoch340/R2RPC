@@ -7,19 +7,19 @@ services:
       POSTGRES_PASSWORD: REPLACE_WITH_SAME_DATABASE_PASSWORD_AS_CONFIG
 
   migration:
-    image: ghcr.io/rezoch340/r2rpc-backend:v0.1.1
+    image: ghcr.io/rezoch340/r2rpc-backend:v0.1.2
 
   seed:
-    image: ghcr.io/rezoch340/r2rpc-backend:v0.1.1
+    image: ghcr.io/rezoch340/r2rpc-backend:v0.1.2
 
   api:
-    image: ghcr.io/rezoch340/r2rpc-backend:v0.1.1
+    image: ghcr.io/rezoch340/r2rpc-backend:v0.1.2
 
   worker:
-    image: ghcr.io/rezoch340/r2rpc-backend:v0.1.1
+    image: ghcr.io/rezoch340/r2rpc-backend:v0.1.2
 
   frontend:
-    image: ghcr.io/rezoch340/r2rpc-frontend:v0.1.1
+    image: ghcr.io/rezoch340/r2rpc-frontend:v0.1.2
 
   performance:
-    image: ghcr.io/rezoch340/r2rpc-backend:v0.1.1
+    image: ghcr.io/rezoch340/r2rpc-backend:v0.1.2
