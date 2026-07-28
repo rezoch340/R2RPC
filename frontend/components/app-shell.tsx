@@ -2,8 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useQueryClient } from '@tanstack/react-query';
+import { usePathname } from 'next/navigation';
 import {
   Activity,
   Blocks,
@@ -13,7 +12,6 @@ import {
   KeyRound,
   LogOut,
   KeySquare,
-  LoaderCircle,
   Menu,
   Play,
   RadioTower,
@@ -38,7 +36,6 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { useAuthentication } from '@/lib/auth';
-import { prefetchNavigationDestination } from '@/lib/navigation-prefetch';
 import { combineClassNames } from '@/lib/utils';
 
 interface NavigationItem {
@@ -152,31 +149,7 @@ function Navigation({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const queryClient = useQueryClient();
   const { can } = useAuthentication();
-  const [pendingDestination, setPendingDestination] = useState<
-    string | null
-  >(null);
-
-  async function navigate(destination: string) {
-    if (pendingDestination !== null) {
-      return;
-    }
-    if (destination === pathname) {
-      onNavigate?.();
-      return;
-    }
-    setPendingDestination(destination);
-    await prefetchNavigationDestination({
-      destination,
-      queryClient,
-      can,
-    });
-    router.push(destination);
-    onNavigate?.();
-    setPendingDestination(null);
-  }
 
   return (
     <nav className="flex flex-1 flex-col gap-5 overflow-y-auto p-3">
@@ -208,10 +181,7 @@ function Navigation({
                   key={navigationItem.href}
                   href={navigationItem.href}
                   prefetch
-                  onNavigate={(navigationEvent) => {
-                    navigationEvent.preventDefault();
-                    void navigate(navigationItem.href);
-                  }}
+                  onNavigate={() => onNavigate?.()}
                   className={combineClassNames(
                     'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
                     isActive
@@ -221,9 +191,6 @@ function Navigation({
                 >
                   <NavigationIcon className="size-4" />
                   {navigationItem.label}
-                  {pendingDestination === navigationItem.href ? (
-                    <LoaderCircle className="ml-auto size-3.5 animate-spin" />
-                  ) : null}
                 </Link>
               );
             })}

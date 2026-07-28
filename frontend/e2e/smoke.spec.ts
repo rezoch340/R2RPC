@@ -429,7 +429,7 @@ test('移动端导航可以打开并进入管理页面', async ({ page }) => {
   ).toBeVisible();
 });
 
-test('页面切换等待接口预取完成且不闪加载骨架', async ({ page }) => {
+test('页面切换不等待业务接口且只在内容区显示加载状态', async ({ page }) => {
   let releaseUsersRequest: (() => void) | undefined;
   let markUsersRequestStarted: (() => void) | undefined;
   const usersRequestStarted = new Promise<void>((resolve) => {
@@ -439,8 +439,7 @@ test('页面切换等待接口预取完成且不闪加载骨架', async ({ page 
     releaseUsersRequest = resolve;
   });
 
-  // 用户列表已改为服务端分页，请求恒带 page/pageSize，拦截模式必须覆盖 query string
-  await page.route('**/users?*', async (route) => {
+  await page.route(`${backendBaseUrl}/users?*`, async (route) => {
     markUsersRequestStarted?.();
     await usersRequestCanContinue;
     await route.continue();
@@ -448,14 +447,14 @@ test('页面切换等待接口预取完成且不闪加载骨架', async ({ page 
 
   await page.getByRole('link', { name: '后台账号' }).click();
   await usersRequestStarted;
-  await expect(page.getByRole('heading', { name: '运行概览' })).toBeVisible();
-  await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0);
-
-  releaseUsersRequest?.();
   await expect(page).toHaveURL('/users');
   await expect(
     page.getByRole('heading', { name: '后台账号', exact: true }),
   ).toBeVisible();
+  await expect(page.getByRole('heading', { name: '运行概览' })).toHaveCount(0);
+  await expect(page.locator('[data-slot="skeleton"]').first()).toBeVisible();
+
+  releaseUsersRequest?.();
   await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0);
 });
 
