@@ -19,10 +19,11 @@ OpenResty、Cloudflare 和证书配置仍以部署文档为准。
 
 ## 1. 更新前检查
 
-进入 root shell，定义本次目标版本：
+1Panel 的“终端”提示符以 `root@` 开头时已经是 root shell，不要再次执行 `sudo -i`，否则会
+启动嵌套登录 shell 并回到 `/root`。只有当前用户不是 root 时，才先单独执行 `sudo -i`，等待
+出现 root 提示符后再继续。定义本次目标版本：
 
 ```bash
-sudo -i
 cd /opt/r2rpc
 
 target_version=v0.1.1
