@@ -9,7 +9,7 @@ export function buildOpenApiConfiguration() {
     .setDescription(
       'R2RPC 管理控制面、调用方 RPC 与监控查询的 HTTP API。设备长连接协议使用 WebSocket，另见项目协议文档。',
     )
-    .setVersion('0.1.2')
+    .setVersion('0.1.3')
     .setContact('R2RPC Contributors', 'https://github.com/rezoch340/R2RPC', '')
     .setLicense(
       'UNLICENSED',
