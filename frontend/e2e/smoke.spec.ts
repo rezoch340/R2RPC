@@ -1,7 +1,79 @@
-import { expect, test } from '@playwright/test';
+import {
+  expect,
+  request,
+  test,
+  type APIRequestContext,
+} from '@playwright/test';
+import { randomUUID } from 'node:crypto';
 
 const username = process.env.E2E_USERNAME ?? 'admin';
 const password = process.env.E2E_PASSWORD ?? 'admin123456';
+const backendBaseUrl = process.env.E2E_API_URL ?? 'http://127.0.0.1:3000';
+const browserFixtureCleanupActions: Array<() => Promise<void>> = [];
+let browserFixtureRequestContext: APIRequestContext;
+
+test.beforeAll(async () => {
+  browserFixtureRequestContext = await request.newContext();
+  const loginResponse = await browserFixtureRequestContext.post(
+    `${backendBaseUrl}/auth/login`,
+    { data: { username, password } },
+  );
+  await expect(loginResponse).toBeOK();
+  const loginResponseBody = (await loginResponse.json()) as { token: string };
+  const administratorAuthorizationHeaders = {
+    authorization: `Bearer ${loginResponseBody.token}`,
+  };
+
+  const fixtureProjectName = `playwright-${randomUUID()}`;
+  const projectResponse = await browserFixtureRequestContext.post(
+    `${backendBaseUrl}/projects`,
+    {
+      headers: administratorAuthorizationHeaders,
+      data: {
+        name: fixtureProjectName,
+        description: 'Playwright browser smoke fixture',
+      },
+    },
+  );
+  await expect(projectResponse).toBeOK();
+  const projectResponseBody = (await projectResponse.json()) as { id: number };
+  browserFixtureCleanupActions.push(async () => {
+    const cleanupResponse = await browserFixtureRequestContext.delete(
+      `${backendBaseUrl}/projects/${projectResponseBody.id}`,
+      { headers: administratorAuthorizationHeaders },
+    );
+    await expect(cleanupResponse).toBeOK();
+  });
+
+  for (const tokenResourcePath of ['access-tokens', 'device-tokens']) {
+    const tokenResponse = await browserFixtureRequestContext.post(
+      `${backendBaseUrl}/${tokenResourcePath}`,
+      {
+        headers: administratorAuthorizationHeaders,
+        data: {
+          name: `${fixtureProjectName}-${tokenResourcePath}`,
+          projects: [fixtureProjectName],
+        },
+      },
+    );
+    await expect(tokenResponse).toBeOK();
+    const tokenResponseBody = (await tokenResponse.json()) as { id: number };
+    browserFixtureCleanupActions.push(async () => {
+      const cleanupResponse = await browserFixtureRequestContext.delete(
+        `${backendBaseUrl}/${tokenResourcePath}/${tokenResponseBody.id}`,
+        { headers: administratorAuthorizationHeaders },
+      );
+      await expect(cleanupResponse).toBeOK();
+    });
+  }
+});
+
+test.afterAll(async () => {
+  for (const cleanupAction of [...browserFixtureCleanupActions].reverse()) {
+    await cleanupAction();
+  }
+  await browserFixtureRequestContext.dispose();
+});
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/login');
