@@ -14,6 +14,7 @@
 - `../frontend/README.md`：管理前端页面、运行时配置、交互规则和浏览器黑盒
 - `../deploy/README.md`：本地基础设施、容器、通用反向代理和完整性验证
 - `../deploy/1panel/README.md`：1Panel、GHCR Release、OpenResty、Cloudflare 与生产验收
+- `../deploy/1panel/UPDATE.md`：1Panel 生产备份、标签更新、验收、回滚与脱敏实机记录
 - `../sdk/README.md`：Android/Kotlin 与 JavaScript/TypeScript SDK 总览
 - `../sdk/android/README.md`：Android SDK 安装、设备与调用方示例
 - `../sdk/javascript/README.md`：JavaScript SDK 安装、设备与调用方示例

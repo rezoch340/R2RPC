@@ -506,6 +506,7 @@ R2RPC/
 - [Android 与 JavaScript SDK](sdk/README.md)
 - [部署与 Docker Compose](deploy/README.md)
 - [1Panel + OpenResty + Cloudflare 生产部署](deploy/1panel/README.md)
+- [1Panel 生产更新与回滚](deploy/1panel/UPDATE.md)
 - [工程规范](docs/design-conventions.md)
 - [OpenAPI](docs/openapi.yaml)
 - [Changelog](CHANGELOG.md)

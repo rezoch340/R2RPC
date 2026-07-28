@@ -25,6 +25,8 @@ Nginx/OpenResty + Cloudflare 双域名生产样例。Compose 项目名固定为 
 使用 1Panel 管理宿主机 OpenResty 时，不要直接套用系统 Nginx 文件；完整的站点表单、
 Release 镜像、证书、WebSocket、Cloudflare 真实 IP、计划任务和验收步骤见
 [`deploy/1panel/README.md`](1panel/README.md)。
+已有 1Panel 生产环境更新标签时使用
+[`deploy/1panel/UPDATE.md`](1panel/UPDATE.md)，其中包含备份、更新、验收、回滚和脱敏实机记录。
 
 配置段：
 
