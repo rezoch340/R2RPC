@@ -33,6 +33,8 @@ export class MaintenanceProcessor extends WorkerHost {
         return this.markDevicesStale();
       case 'metrics-cleanup':
         return this.metricsCleanup();
+      case 'sweep-idle-devices':
+        return this.sweepIdleDevices();
       default:
         return undefined;
     }
@@ -77,6 +79,19 @@ export class MaintenanceProcessor extends WorkerHost {
       );
     }
     return { stale: staleDeviceCount };
+  }
+
+  // 长期没再上线的设备软删;设备重新连回来时 registerOnline 会复用原行回滚软删
+  private async sweepIdleDevices() {
+    const { deviceIdleDeleteDays } = this.config.retention;
+    const deletedDeviceCount =
+      await this.devices.softDeleteIdle(deviceIdleDeleteDays);
+    if (deletedDeviceCount) {
+      this.logger.log(
+        `idle-sweep: 软删 ${deletedDeviceCount} 台设备(>${deviceIdleDeleteDays}天未上线)`,
+      );
+    }
+    return { deleted: deletedDeviceCount };
   }
 
   // 按天清理聚合表(device_daily_metrics/rpc_daily_metrics)

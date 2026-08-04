@@ -80,6 +80,8 @@ export const configSchema = z.object({
       rawRetentionDays: z.number().int().positive().default(3),
       keepLatestPerScope: z.number().int().positive().default(100),
       aggregateRetentionDays: z.number().int().positive().default(30),
+      // 设备连续多少天没再上线即自动软删;重新连回来会复用原行回滚软删
+      deviceIdleDeleteDays: z.number().int().positive().default(3),
     })
     .prefault({}),
 });

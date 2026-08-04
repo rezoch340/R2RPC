@@ -40,14 +40,19 @@ export class DevicesService {
       maxInFlight: metadata.maxInFlight ?? null,
       lastSeenAt: new Date(),
     };
+    // 不过滤 alive:设备闲置超期会被软删,重连必须复用原行(回滚软删)而不是插新行。
+    // 活行优先、其次取最新软删行——历史遗留可能存在多条软删行,且活行在时绝不复活
+    // 另一行,否则撞 client_id 的 partial unique。
     const [existing] = await this.database
-      .select({ id: devices.id })
+      .select({ id: devices.id, deletedAt: devices.deletedAt })
       .from(devices)
-      .where(alive(devices, eq(devices.clientId, clientId)))
+      .where(eq(devices.clientId, clientId))
+      .orderBy(sql`${devices.deletedAt} IS NOT NULL`, desc(devices.id))
       .limit(1);
     if (existing) {
       const patch = {
         ...base,
+        ...(existing.deletedAt ? { deletedAt: null } : {}),
         ...(metadata.platform != null ? { platform: metadata.platform } : {}),
         ...(metadata.extra != null ? { extra: metadata.extra } : {}),
       };
@@ -107,6 +112,26 @@ export class DevicesService {
     }
     await this.refreshLastSeen(presentDeviceIds);
     return staleDeviceCount;
+  }
+
+  // 闲置清扫:连续 idleDays 天没再上线的设备软删。返回软删条数。
+  // online=false 是谓词语义的一部分——标着在线的设备按定义就不是闲置;它同时兜住
+  // lastSeenAt 刷新链路中断(Worker 停摆/调度丢失)时误删在线设备。
+  // lastSeenAt 为 NULL 时比较结果为 NULL,行自然不匹配,无需额外分支。
+  async softDeleteIdle(idleDays: number): Promise<number> {
+    const deleteResult = await this.database
+      .update(devices)
+      .set({ deletedAt: new Date() })
+      .where(
+        alive(
+          devices,
+          and(
+            eq(devices.online, false),
+            sql`${devices.lastSeenAt} < now() - make_interval(days => ${idleDays})`,
+          ),
+        ),
+      );
+    return deleteResult.rowCount ?? 0;
   }
 
   // 批量刷新仍在线设备的 lastSeenAt。WS 心跳每 10s 一次且落在 API 热路径,不能每次写库,
