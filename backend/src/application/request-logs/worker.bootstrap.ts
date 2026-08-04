@@ -59,5 +59,15 @@ export class WorkerBootstrap implements OnModuleInit {
         removeOnFail: true,
       },
     );
+    // 闲置软删按天计,半小时扫一次足够,不必跟着分钟级任务空转
+    await this.maintenance.add(
+      'sweep-idle-devices',
+      {},
+      {
+        repeat: { every: 30 * 60 * 1000 },
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
+    );
   }
 }

@@ -37,6 +37,7 @@
     "test:integration:metrics": "ts-node -r tsconfig-paths/register src/scripts/metrics.integration.ts",
     "test:integration:max-inflight": "ts-node -r tsconfig-paths/register src/scripts/max-inflight.integration.ts",
     "test:integration:session-cas": "ts-node -r tsconfig-paths/register src/scripts/session-cas.integration.ts",
+    "test:integration:device-idle-sweep": "ts-node -r tsconfig-paths/register src/scripts/device-idle-sweep.integration.ts",
     "config:check:production": "ts-node -r tsconfig-paths/register src/scripts/check-production-config.ts",
     "openapi:gen": "ts-node -r tsconfig-paths/register src/scripts/gen-openapi.ts"
   },
