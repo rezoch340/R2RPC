@@ -25,9 +25,12 @@ interface Waiter {
 const SESSION_TIME_TO_LIVE_SECONDS = 30; // client:session 秒(心跳刷新)
 const COMPLETED_TIME_TO_LIVE_SECONDS = 60; // rpc:completed 秒(跨实例去重窗口)
 
-// 仅当 key 值等于本连接 token 才删(避免误删已迁移到别连接/别实例的会话)
+// 判定本连接是否仍是该会话的 owner:值等于本连接 token 则删并认领;
+// 键不存在(TTL 到期,无人接手)同样认领——此时没有更新的会话会被误伤,
+// 而漏认领会让 handleDisconnect 整个跳过下线清理,把正确性押给 60s 的 stale 对账。
+// 只有键存在但属于别的连接/实例时才不认领(避免误删已迁移的会话)。
 // ponytail: 直接 eval 内联脚本,单一调用点不值得 defineCommand;第二个 CAS 场景出现时再抽
-const COMPARE_AND_DELETE_SCRIPT = `local value = redis.call('get', KEYS[1]); if value == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end`;
+const COMPARE_AND_DELETE_SCRIPT = `local value = redis.call('get', KEYS[1]); if value == false then return 1 elseif value == ARGV[1] then redis.call('del', KEYS[1]); return 1 else return 0 end`;
 
 // 本实例持有的 socket + 在等的 waiter;跨实例路由/去重走 Redis + ClusterBus。
 // 分布式:本地 Map 只放本实例状态,权威协调在 Redis(client:session / rpc:waiter / rpc:completed)。
