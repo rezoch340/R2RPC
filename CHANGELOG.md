@@ -4,6 +4,35 @@
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-08-04
+
+### 设备生命周期
+- 新增 `retention.deviceIdleDeleteDays`(默认 `3`):连续超过该天数没再上线的设备由 Worker
+  的 `sweep-idle-devices` 任务自动软删,30 分钟扫一次。设备重新连回来时自动回滚软删。
+  该键有默认值,现有部署不加也能正常启动。
+- 清扫条件带 `online = false` 守卫。标着在线的设备按定义就不是闲置;该守卫同时兜住
+  `lastSeenAt` 刷新链路中断(Worker 停摆、调度丢失、副本缩到 0)时批量误删在线设备。
+- 修复 `registerOnline` 在设备被软删后重连时插入重复行的缺陷。原实现按 `alive()` 查设备,
+  软删行查不到便走 insert,而 `client_id` 唯一索引是 partial 的(`WHERE deleted_at IS NULL`),
+  旧行不占约束,于是每次重连都多一条重复行、设备历史被劈开。现改为活行优先查找,命中软删行
+  则复用原行并置回 `deleted_at`。
+
+### 设备在线态
+- 修复 `ConnectionRegistry` 会话 CAS 在键因 TTL 到期而不存在时判定失败的缺陷。原脚本
+  `if value == ARGV[1]` 在键缺失时落进 else 返回 0,`handleDisconnect` 因此整个跳过
+  `presence.offline()` 和 `markOffline()`,Redis 集合成员与 PG `online=true` 一并残留。
+  `client:session` 与 `presence` 均为 30 秒 TTL 且只由应用层心跳续期,而读超时在拔线后
+  20~25 秒触发,两个时间窗重叠,硬断网时相当比例会漏认领。脚本改为三分支:键不存在同样
+  认领,值匹配则删并认领,键属于别的连接/实例才不认领。
+- 设备列表「最后在线」改为反映真实活跃时间。`lastSeenAt` 原先只在 `registerOnline` 写入,
+  心跳不刷新,显示的实际是本次连接建立的时刻;设备长时间连着不动时该时间戳永不变化,
+  容易被误判为已掉线。现由 `mark-devices-stale` 对账循环批量刷新,精度 60 秒。心跳每 10 秒
+  一次且落在 API 热路径,不写库。
+
+### 内部检查
+- 新增 `test:integration:device-idle-sweep`(8 项)与 `test:integration:session-cas`(4 项)。
+  两者均先复现缺陷再修复:撤掉对应改动会使目标断言 FAIL,其余断言保持 PASS。
+
 ## [0.1.4] - 2026-07-28
 
 ### 管理前端
