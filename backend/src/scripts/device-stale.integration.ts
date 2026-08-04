@@ -34,6 +34,18 @@ async function main() {
     .insert(devices)
     .values({ clientId: CLIENT_ID, online: true, status: 'online' });
 
+  // 第二台探针:presence 键在(= 设备真在线),用于验证 lastSeenAt 被对账刷新
+  const LIVE_CLIENT_ID = 'stale-smoke-probe-live';
+  const STALE_LAST_SEEN_AT = new Date(Date.now() - 3600_000);
+  await database.delete(devices).where(eq(devices.clientId, LIVE_CLIENT_ID));
+  await redisClient.set(`presence:${LIVE_CLIENT_ID}`, '[1]', 'EX', 30);
+  await database.insert(devices).values({
+    clientId: LIVE_CLIENT_ID,
+    online: true,
+    status: 'online',
+    lastSeenAt: STALE_LAST_SEEN_AT,
+  });
+
   let allChecksPassed = true;
   const check = (condition: boolean, message: string) => {
     console.log((condition ? 'PASS' : 'FAIL') + ': ' + message);
@@ -60,7 +72,27 @@ async function main() {
     'probe 设备被置 online=false status=stale',
   );
 
+  const [liveDeviceRecord] = await database
+    .select()
+    .from(devices)
+    .where(eq(devices.clientId, LIVE_CLIENT_ID))
+    .limit(1);
+  check(
+    !!liveDeviceRecord &&
+      liveDeviceRecord.online === true &&
+      liveDeviceRecord.status === 'online',
+    'presence 仍在的设备不被误标 stale',
+  );
+  check(
+    !!liveDeviceRecord &&
+      !!liveDeviceRecord.lastSeenAt &&
+      liveDeviceRecord.lastSeenAt.getTime() > STALE_LAST_SEEN_AT.getTime(),
+    '在线设备的 lastSeenAt 被对账刷新',
+  );
+
   await database.delete(devices).where(eq(devices.clientId, CLIENT_ID)); // 清种子
+  await database.delete(devices).where(eq(devices.clientId, LIVE_CLIENT_ID));
+  await redisClient.del(`presence:${LIVE_CLIENT_ID}`);
   await redisClient.quit();
   await connectionPool.end();
   console.log(
