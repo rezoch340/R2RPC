@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, desc, eq, ilike, SQL, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, SQL, sql } from 'drizzle-orm';
 import { containsPattern } from '../../common/db/like-pattern';
 import { pageBounds } from '../../common/db/page-bounds';
 import { alive } from '../../common/db/soft-delete';
@@ -74,6 +74,7 @@ export class DevicesService {
   }
 
   // stale 对账:PG online=true 但 Redis presence 已过期(设备实际掉线)→ 置 offline/stale。返回置 stale 条数。
+  // 顺带刷新本轮确认仍在线设备的 lastSeenAt,让「最后在线」反映真实活跃时间而非上次连接时刻。
   // ponytail: 逐设备 EXISTS,设备量大再改 pipeline。presence 键约定同 PresenceService(presence:{clientId})。
   async markStaleOffline(): Promise<number> {
     const onlineDevices = await this.database
@@ -81,11 +82,13 @@ export class DevicesService {
       .from(devices)
       .where(alive(devices, eq(devices.online, true)));
     let staleDeviceCount = 0;
+    const presentDeviceIds: number[] = [];
     for (const device of onlineDevices) {
       const present = await this.redis.client.exists(
         `presence:${device.clientId}`,
       );
       if (present !== 0) {
+        presentDeviceIds.push(device.id);
         continue;
       }
       // 仍带 online=true 守卫:若期间设备已优雅下线(online 翻 false),本次写成 no-op,不把 offline 误标 stale
@@ -102,7 +105,20 @@ export class DevicesService {
         staleDeviceCount += 1;
       }
     }
+    await this.refreshLastSeen(presentDeviceIds);
     return staleDeviceCount;
+  }
+
+  // 批量刷新仍在线设备的 lastSeenAt。WS 心跳每 10s 一次且落在 API 热路径,不能每次写库,
+  // 因此「最后在线」按对账周期(60s)更新——精度对展示足够,且不拖慢 invoke。
+  private async refreshLastSeen(deviceIds: number[]): Promise<void> {
+    if (deviceIds.length === 0) {
+      return;
+    }
+    await this.database
+      .update(devices)
+      .set({ lastSeenAt: new Date() })
+      .where(alive(devices, inArray(devices.id, deviceIds)));
   }
 
   // 列表:alive 设备按 id 倒序(新设备在前),筛选与分页都在服务端执行,不整表返回
