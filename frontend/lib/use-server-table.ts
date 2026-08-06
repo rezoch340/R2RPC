@@ -39,6 +39,8 @@ export interface ServerTable<Row, Filters> {
   tableProps: {
     rows: Row[];
     isLoading: boolean;
+    transitionKey: string;
+    transitionDirection: 'forward' | 'backward';
   };
   paginationProps: {
     page: number;
@@ -65,10 +67,18 @@ export function useServerTable<Row, Filters extends object>({
 }): ServerTable<Row, Filters> {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  // 翻页方向:往后翻表体从右侧进,往回翻从左侧进
+  const [transitionDirection, setTransitionDirection] = useState<
+    'forward' | 'backward'
+  >('forward');
   const queryClient = useQueryClient();
   const filters = useFilterState(emptyFilters, {
-    onApply: () => setPage(1),
+    onApply: () => {
+      setTransitionDirection('forward');
+      setPage(1);
+    },
     onReset: () => {
+      setTransitionDirection('forward');
       setPage(1);
       void refreshTableData(queryClient, [resourceKey]);
     },
@@ -86,6 +96,8 @@ export function useServerTable<Row, Filters extends object>({
   });
 
   const rows = tableQuery.data?.rows ?? [];
+  const resolvedPage = tableQuery.data?.page ?? page;
+
   return {
     filters,
     rows,
@@ -97,13 +109,23 @@ export function useServerTable<Row, Filters extends object>({
       onSubmit: filters.apply,
       onReset: filters.reset,
     },
-    tableProps: { rows, isLoading: tableQuery.isLoading },
+    tableProps: {
+      rows,
+      isLoading: tableQuery.isLoading,
+      // 只在真正切页或换筛选时变;后台轮询拿到同一页不会重放动画
+      transitionKey: `${resolvedPage}-${JSON.stringify(filters.applied)}`,
+      transitionDirection,
+    },
     paginationProps: {
       page: tableQuery.data?.page ?? page,
       pageSize: tableQuery.data?.pageSize ?? pageSize,
       total: tableQuery.data?.total ?? 0,
       isPageTransitioning: tableQuery.isPlaceholderData,
-      onPageChange: setPage,
+      onPageChange: (nextPage: number) => {
+        // 方向在点击那一刻就定了,不必等数据回来再比对
+        setTransitionDirection(nextPage >= page ? 'forward' : 'backward');
+        setPage(nextPage);
+      },
       onPageSizeChange: (newPageSize: number) => {
         setPageSize(newPageSize);
         setPage(1);

@@ -25,6 +25,8 @@ export function DataTable<RowType>({
   rowKey,
   footer,
   tableClassName,
+  transitionKey,
+  transitionDirection = 'forward',
 }: {
   columns: Array<DataTableColumn<RowType>>;
   rows: RowType[];
@@ -33,6 +35,10 @@ export function DataTable<RowType>({
   rowKey: (row: RowType) => string | number;
   footer?: ReactNode;
   tableClassName?: string;
+  // 变化即重挂表体、重放入场动画。只在真正切页/换筛选时变，
+  // 15 秒的后台轮询拿到同一页不会触发，避免表格自己闪
+  transitionKey?: string | number;
+  transitionDirection?: 'forward' | 'backward';
 }) {
   return (
     <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
@@ -52,7 +58,16 @@ export function DataTable<RowType>({
             ))}
           </TableRow>
         </TableHeader>
-        <TableBody>
+        <TableBody
+          key={transitionKey}
+          className={combineClassNames(
+            'motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200 motion-safe:ease-out',
+            // 往后翻从右侧进,往回翻从左侧进,方向跟翻页一致
+            transitionDirection === 'backward'
+              ? 'motion-safe:slide-in-from-left-6'
+              : 'motion-safe:slide-in-from-right-6',
+          )}
+        >
           {isLoading ? (
             <TableLoadingState columns={columns.length} />
           ) : rows.length === 0 ? (
