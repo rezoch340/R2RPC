@@ -183,13 +183,19 @@ function Navigation({
                   prefetch
                   onNavigate={() => onNavigate?.()}
                   className={combineClassNames(
-                    'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
+                    // 悬停时整项右移一点点,配合颜色过渡,点击有去处的感觉
+                    'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 ease-out',
                     isActive
                       ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground',
+                      : 'text-sidebar-foreground hover:translate-x-0.5 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground',
                   )}
                 >
-                  <NavigationIcon className="size-4" />
+                  <NavigationIcon
+                    className={combineClassNames(
+                      'size-4 transition-transform duration-200',
+                      isActive ? 'scale-110' : '',
+                    )}
+                  />
                   {navigationItem.label}
                 </Link>
               );
@@ -205,6 +211,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [isMobileNavigationOpen, setIsMobileNavigationOpen] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const { user, logout, isRoot, can } = useAuthentication();
+  const pathname = usePathname();
   return (
     <div className="grid h-svh overflow-hidden lg:grid-cols-[230px_1fr]">
       <aside className="hidden flex-col bg-sidebar text-sidebar-foreground lg:flex">
@@ -277,7 +284,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           </DropdownMenu>
         </header>
         <main className="min-w-0 flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6">
+          {/* key 绑路由:路径一变就重挂,入场动画随之重放。
+              motion-safe 让开启「减少动态效果」的系统直接跳过 */}
+          <div
+            key={pathname}
+            className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-300 motion-safe:ease-out"
+          >
             {children}
           </div>
         </main>
