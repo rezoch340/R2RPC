@@ -23,6 +23,9 @@ export const accessTokens = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }),
     maximumUsageCount: integer('maximum_usage_count'),
     usageCount: integer('usage_count').notNull().default(0),
+    // 当月调用计数,只用于展示,不参与限流判断;usagePeriod 存 YYYY-MM(UTC),跨月懒清零
+    monthlyUsageCount: integer('monthly_usage_count').notNull().default(0),
+    usagePeriod: varchar('usage_period', { length: 7 }),
     description: varchar('description', { length: 255 }),
     createdBy: integer('created_by').references(() => users.id),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -39,6 +42,10 @@ export const accessTokens = pgTable(
       sql`${table.maximumUsageCount} IS NULL OR ${table.maximumUsageCount} > 0`,
     ),
     check('access_tokens_usage_count_ck', sql`${table.usageCount} >= 0`),
+    check(
+      'access_tokens_monthly_usage_count_ck',
+      sql`${table.monthlyUsageCount} >= 0`,
+    ),
   ],
 );
 

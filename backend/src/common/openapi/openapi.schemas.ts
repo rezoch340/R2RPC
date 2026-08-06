@@ -270,7 +270,30 @@ export const OPEN_API_RESPONSE_SCHEMAS = {
       usageCount: {
         type: 'integer',
         minimum: 0,
-        description: '已消耗的 RPC 调用次数。',
+        description:
+          '已消耗的 RPC 调用次数（累计，受 maximumUsageCount 限制）。',
+      },
+      monthlyUsageCount: {
+        type: 'integer',
+        minimum: 0,
+        description:
+          '当月（UTC）已消耗的 RPC 调用次数，跨月自动归零；仅用于展示，不参与限流。',
+      },
+    },
+  },
+  AccessTokenUsageReset: {
+    type: 'object',
+    required: ['usageCount', 'monthlyUsageCount'],
+    properties: {
+      usageCount: {
+        type: 'integer',
+        minimum: 0,
+        description: '重置后的累计次数。',
+      },
+      monthlyUsageCount: {
+        type: 'integer',
+        minimum: 0,
+        description: '重置后的当月次数。',
       },
     },
   },

@@ -50,6 +50,8 @@ export interface TokenRecord {
   expiresAt?: string | null;
   maximumUsageCount?: number | null;
   usageCount?: number;
+  // 当月调用计数，跨月自动归零；只用于展示，不参与限流
+  monthlyUsageCount?: number;
   description: string | null;
   createdBy: number | null;
   createdAt: string;

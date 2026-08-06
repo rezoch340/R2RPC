@@ -49,6 +49,7 @@ export const OPEN_API_SUCCESS_SCHEMAS: Record<string, SchemaDefinition> = {
   AccessTokenController_update: schemaReference('AccessTokenRecord'),
   AccessTokenController_updateProjects: schemaReference('AccessTokenRecord'),
   AccessTokenController_revoke: schemaReference('AccessTokenRecord'),
+  AccessTokenController_resetUsage: schemaReference('AccessTokenUsageReset'),
   AccessTokenController_delete: schemaReference('DeletedResult'),
   RpcController_debugOptions: schemaReference('RpcDebugOptions'),
   RpcController_debugInvoke: schemaReference('InvokeResponse'),
@@ -84,6 +85,7 @@ export const NOT_FOUND_OPERATION_IDS = new Set([
   'AccessTokenController_updateProjects',
   'AccessTokenController_update',
   'AccessTokenController_revoke',
+  'AccessTokenController_resetUsage',
   'AccessTokenController_delete',
   'MonitorController_detail',
 ]);

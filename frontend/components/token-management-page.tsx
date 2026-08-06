@@ -6,7 +6,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { Pencil, ShieldX, Trash2 } from 'lucide-react';
+import { Pencil, RotateCcw, ShieldX, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { CopyButton } from '@/components/copy-button';
@@ -41,10 +41,52 @@ import type {
 } from '@/lib/models';
 import { refreshTableData, useTableQuery } from '@/lib/table-query';
 
+type TokenActionType = 'revoke' | 'delete' | 'reset-usage';
+
 interface TokenAction {
-  type: 'revoke' | 'delete';
+  type: TokenActionType;
   token: TokenRecord;
 }
+
+// 三种操作的请求方式与文案集中在一处，避免在 JSX 里叠三元
+const TOKEN_ACTIONS: Record<
+  TokenActionType,
+  {
+    method: 'POST' | 'DELETE';
+    pathSuffix: string;
+    successMessage: string;
+    title: string;
+    confirmLabel: string;
+    describe: (tokenName: string) => string;
+  }
+> = {
+  revoke: {
+    method: 'POST',
+    pathSuffix: '/revoke',
+    successMessage: '令牌已撤销',
+    title: '撤销令牌',
+    confirmLabel: '撤销',
+    describe: (tokenName) =>
+      `撤销 ${tokenName} 后，调用或设备连接将立即失效。`,
+  },
+  delete: {
+    method: 'DELETE',
+    pathSuffix: '',
+    successMessage: '令牌已删除',
+    title: '删除令牌',
+    confirmLabel: '删除',
+    describe: (tokenName) => `删除 ${tokenName} 后将不再出现在列表中。`,
+  },
+  'reset-usage': {
+    method: 'POST',
+    pathSuffix: '/reset-usage',
+    successMessage: '调用次数已重置',
+    title: '重置调用次数',
+    confirmLabel: '重置',
+    describe: (tokenName) =>
+      `将 ${tokenName} 的总调用次数与当月调用一并清零，该令牌可继续调用。`,
+  },
+};
 
 interface TokenFilters {
   id: string;
@@ -128,14 +170,12 @@ export function TokenManagementPage({
   const actionMutation = useMutation({
     mutationFn: (action: TokenAction) =>
       requestApi(
-        action.type === 'revoke'
-          ? `${resourcePath}/${action.token.id}/revoke`
-          : `${resourcePath}/${action.token.id}`,
-        { method: action.type === 'revoke' ? 'POST' : 'DELETE' },
+        `${resourcePath}/${action.token.id}${TOKEN_ACTIONS[action.type].pathSuffix}`,
+        { method: TOKEN_ACTIONS[action.type].method },
       ),
     onSuccess: async (unusedResponse, action) => {
       void unusedResponse;
-      toast.success(action.type === 'revoke' ? '令牌已撤销' : '令牌已删除');
+      toast.success(TOKEN_ACTIONS[action.type].successMessage);
       setPendingAction(null);
       await queryClient.invalidateQueries({ queryKey: [resourceQueryKey] });
     },
@@ -292,7 +332,7 @@ export function TokenManagementPage({
       ? [
           {
             key: 'usage-count',
-            header: '调用次数',
+            header: '总调用次数',
             className: 'w-28',
             render: (token: TokenRecord) => (
               <span className="whitespace-nowrap text-xs text-muted-foreground">
@@ -300,6 +340,16 @@ export function TokenManagementPage({
                 token.maximumUsageCount === undefined
                   ? `${token.usageCount ?? 0} / 不限`
                   : `${token.usageCount ?? 0} / ${token.maximumUsageCount}`}
+              </span>
+            ),
+          },
+          {
+            key: 'monthly-usage-count',
+            header: '当月调用',
+            className: 'w-24',
+            render: (token: TokenRecord) => (
+              <span className="whitespace-nowrap text-xs text-muted-foreground">
+                {token.monthlyUsageCount ?? 0}
               </span>
             ),
           },
@@ -318,7 +368,7 @@ export function TokenManagementPage({
     {
       key: 'actions',
       header: '操作',
-      className: 'w-28',
+      className: 'w-36',
       render: (token) => (
         <div className="flex gap-1">
           <Button
@@ -329,6 +379,16 @@ export function TokenManagementPage({
           >
             <Pencil />
           </Button>
+          {allowsExpiration ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="重置调用次数"
+              onClick={() => setPendingAction({ type: 'reset-usage', token })}
+            >
+              <RotateCcw />
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -453,13 +513,15 @@ export function TokenManagementPage({
             setPendingAction(null);
           }
         }}
-        title={pendingAction?.type === 'revoke' ? '撤销令牌' : '删除令牌'}
+        title={pendingAction ? TOKEN_ACTIONS[pendingAction.type].title : ''}
         description={
-          pendingAction?.type === 'revoke'
-            ? `撤销 ${pendingAction.token.name} 后，调用或设备连接将立即失效。`
-            : `删除 ${pendingAction?.token.name ?? ''} 后将不再出现在列表中。`
+          pendingAction
+            ? TOKEN_ACTIONS[pendingAction.type].describe(pendingAction.token.name)
+            : ''
         }
-        confirmLabel={pendingAction?.type === 'revoke' ? '撤销' : '删除'}
+        confirmLabel={
+          pendingAction ? TOKEN_ACTIONS[pendingAction.type].confirmLabel : ''
+        }
         isPending={actionMutation.isPending}
         onConfirm={() => {
           if (pendingAction) {

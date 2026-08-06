@@ -20,6 +20,24 @@ import { projects } from '../projects/projects.schema';
 import { ProjectsService } from '../projects/projects.service';
 import { accessTokenProjects, accessTokens } from './access-token.schema';
 
+// 当月周期键(YYYY-MM,固定 UTC);服务器时区变动不会让计数错月
+const CURRENT_USAGE_PERIOD = sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM')`;
+
+// 与上面 SQL 同口径的 JS 版:toISOString 本身就是 UTC,截前 7 位即 YYYY-MM
+function currentUsagePeriodKey(): string {
+  return new Date().toISOString().slice(0, 7);
+}
+
+// 库里的当月计数是懒清零的,周期对不上说明是上个月遗留,对外一律按 0 呈现
+function currentMonthlyUsage(tokenRecord: {
+  monthlyUsageCount: number;
+  usagePeriod: string | null;
+}): number {
+  return tokenRecord.usagePeriod === currentUsagePeriodKey()
+    ? tokenRecord.monthlyUsageCount
+    : 0;
+}
+
 interface AccessTokenUpdateInput {
   projects?: string[];
   expiresAt?: Date | null;
@@ -174,6 +192,8 @@ export class AccessTokenService {
 
     const rows = tokenRecords.map((tokenRecord) => ({
       ...tokenRecord,
+      // 清零是懒执行的:跨月后到下一次调用之前库里还留着上月计数,展示要按周期归零
+      monthlyUsageCount: currentMonthlyUsage(tokenRecord),
       projects: projectNamesByTokenId.get(tokenRecord.id) ?? [],
     }));
     return { rows, page, pageSize, total };
@@ -259,16 +279,22 @@ export class AccessTokenService {
     const accessTokenRecord =
       await this.redisCacheAsideService.writeAndInvalidate(
         async () => {
+          // 总次数只在设了上限时累加(不限量 token 保持 0,与现有展示一致);
+          // 当月计数对所有 token 都记,周期变了就从 1 重新开始——跨月懒清零,
+          // 不依赖任何定时任务,Worker 停摆也不会漏。
           const [consumedTokenRecord] = await this.database
             .update(accessTokens)
-            .set({ usageCount: sql`${accessTokens.usageCount} + 1` })
+            .set({
+              usageCount: sql`CASE WHEN ${accessTokens.maximumUsageCount} IS NOT NULL THEN ${accessTokens.usageCount} + 1 ELSE ${accessTokens.usageCount} END`,
+              monthlyUsageCount: sql`CASE WHEN ${accessTokens.usagePeriod} = ${CURRENT_USAGE_PERIOD} THEN ${accessTokens.monthlyUsageCount} + 1 ELSE 1 END`,
+              usagePeriod: sql`${CURRENT_USAGE_PERIOD}`,
+            })
             .where(
               alive(
                 accessTokens,
                 eq(accessTokens.id, accessTokenId),
                 eq(accessTokens.status, 'active'),
-                sql`${accessTokens.maximumUsageCount} IS NOT NULL`,
-                sql`${accessTokens.usageCount} < ${accessTokens.maximumUsageCount}`,
+                sql`(${accessTokens.maximumUsageCount} IS NULL OR ${accessTokens.usageCount} < ${accessTokens.maximumUsageCount})`,
                 sql`(${accessTokens.expiresAt} IS NULL OR ${accessTokens.expiresAt} > NOW())`,
               ),
             )
@@ -283,6 +309,36 @@ export class AccessTokenService {
     return accessTokenRecord.maximumUsageCount === null
       ? null
       : accessTokenRecord.usageCount;
+  }
+
+  /**
+   * 手动重置调用计数:总次数与当月计数一并清零,周期归位到当月。
+   * 必须走 writeAndInvalidate 清鉴权缓存,否则缓存 TTL 内仍按旧计数拒绝调用。
+   */
+  async resetUsage(accessTokenId: number) {
+    const accessTokenRecord =
+      await this.redisCacheAsideService.writeAndInvalidate(
+        async () => {
+          const [resetTokenRecord] = await this.database
+            .update(accessTokens)
+            .set({
+              usageCount: 0,
+              monthlyUsageCount: 0,
+              usagePeriod: sql`${CURRENT_USAGE_PERIOD}`,
+            })
+            .where(alive(accessTokens, eq(accessTokens.id, accessTokenId)))
+            .returning();
+          if (!resetTokenRecord) {
+            throw new NotFoundException('Token 不存在');
+          }
+          return resetTokenRecord;
+        },
+        (resetTokenRecord) => accessTokenCacheKey(resetTokenRecord.token),
+      );
+    return {
+      usageCount: accessTokenRecord.usageCount,
+      monthlyUsageCount: accessTokenRecord.monthlyUsageCount,
+    };
   }
 
   /**
