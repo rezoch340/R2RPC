@@ -16,13 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { requestApi } from '@/lib/api-client';
 import { useAuthentication } from '@/lib/auth';
 import { formatNumber } from '@/lib/format';
-import type {
-  DailyTrendPoint,
-  DeviceRecord,
-  MetricsOverview,
-  PaginatedResponse,
-  ProjectRecord,
-} from '@/lib/models';
+import type { DashboardOverview } from '@/lib/models';
 
 export default function OverviewPage() {
   const { can } = useAuthentication();
@@ -30,42 +24,16 @@ export default function OverviewPage() {
   const canReadProjects = can('read', 'project');
   const canReadDevices = can('read', 'device');
 
-  const metricsQuery = useQuery({
-    queryKey: ['metrics', 'overview'],
-    queryFn: () => requestApi<MetricsOverview>('/metrics/overview'),
+  // 概览走专用接口:一次拿到两组计数、请求指标与趋势。
+  // 此前拼四个列表接口来凑,其中两次靠 ?pageSize=1 偷 total、一次跑全量设备聚合只用了 length。
+  const overviewQuery = useQuery({
+    queryKey: ['dashboard', 'overview'],
+    queryFn: () => requestApi<DashboardOverview>('/dashboard/overview'),
     enabled: canReadMetrics,
-    refetchInterval: 30_000,
-  });
-  const trendQuery = useQuery({
-    queryKey: ['metrics', 'trend', 7],
-    queryFn: () =>
-      requestApi<DailyTrendPoint[]>('/metrics/trend?days=7'),
-    enabled: canReadMetrics,
-    refetchInterval: 30_000,
-  });
-  const projectsQuery = useQuery({
-    queryKey: ['projects', 'info'],
-    queryFn: () => requestApi<ProjectRecord[]>('/projects/info'),
-    enabled: canReadProjects,
-  });
-  // 概览只要两个计数,取 pageSize=1 的 total,不把设备整表拉到浏览器
-  const deviceCountQuery = useQuery({
-    queryKey: ['devices', 'count'],
-    queryFn: () =>
-      requestApi<PaginatedResponse<DeviceRecord>>('/devices?page=1&pageSize=1'),
-    enabled: canReadDevices,
     refetchInterval: 15_000,
   });
-  const onlineDeviceCountQuery = useQuery({
-    queryKey: ['devices', 'count', 'online'],
-    queryFn: () =>
-      requestApi<PaginatedResponse<DeviceRecord>>(
-        '/devices?page=1&pageSize=1&status=online',
-      ),
-    enabled: canReadDevices,
-    refetchInterval: 15_000,
-  });
-  const requestTotals = metricsQuery.data?.totals;
+  const overview = overviewQuery.data;
+  const requestTotals = overview?.requests.totals;
 
   return (
     <>
@@ -99,7 +67,7 @@ export default function OverviewPage() {
         </div>
       </section>
 
-      {metricsQuery.isError ? (
+      {overviewQuery.isError ? (
         <QueryErrorState message="指标接口加载失败，请确认 API 与 Worker 正常运行。" />
       ) : null}
 
@@ -117,21 +85,21 @@ export default function OverviewPage() {
         <StatCard
           label="在线设备"
           value={
-            canReadDevices && onlineDeviceCountQuery.data
-              ? formatNumber(onlineDeviceCountQuery.data.total)
+            canReadDevices && overview
+              ? formatNumber(overview.devices.online)
               : '—'
           }
-          hint={`登记设备 ${formatNumber(deviceCountQuery.data?.total)}`}
+          hint={`登记设备 ${formatNumber(overview?.devices.total)}`}
           icon={Cpu}
         />
         <StatCard
           label="功能组"
           value={
-            canReadProjects && projectsQuery.data
-              ? formatNumber(projectsQuery.data.length)
+            canReadProjects && overview
+              ? formatNumber(overview.projects.total)
               : '—'
           }
-          hint={`运行中 ${formatNumber(projectsQuery.data?.filter((project) => project.enabled).length)}`}
+          hint={`运行中 ${formatNumber(overview?.projects.enabled)}`}
           icon={FolderKanban}
         />
         <StatCard
@@ -152,10 +120,10 @@ export default function OverviewPage() {
             <CardTitle>近 7 天请求趋势</CardTitle>
           </CardHeader>
           <CardContent>
-            {trendQuery.isLoading ? (
+            {overviewQuery.isLoading ? (
               <Skeleton className="h-56 w-full" />
-            ) : trendQuery.data && trendQuery.data.length > 0 ? (
-              <TrendChart points={trendQuery.data} />
+            ) : overview && overview.trend.length > 0 ? (
+              <TrendChart points={overview.trend} />
             ) : (
               <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">
                 暂无趋势数据
@@ -169,10 +137,10 @@ export default function OverviewPage() {
             <CardTitle>状态分布</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {metricsQuery.data?.byStatus.map((statusMetric) => {
+            {overview?.requests.byStatus.map((statusMetric) => {
               const totalRequests = Math.max(
                 1,
-                metricsQuery.data?.totals.total ?? 1,
+                overview?.requests.totals.total ?? 1,
               );
               const widthPercentage =
                 (statusMetric.count / totalRequests) * 100;
@@ -193,8 +161,8 @@ export default function OverviewPage() {
                 </div>
               );
             })}
-            {!metricsQuery.isLoading &&
-            (metricsQuery.data?.byStatus.length ?? 0) === 0 ? (
+            {!overviewQuery.isLoading &&
+            (overview?.requests.byStatus.length ?? 0) === 0 ? (
               <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
                 暂无状态数据
               </div>

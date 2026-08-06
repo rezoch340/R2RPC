@@ -205,7 +205,7 @@ paths:
       parameters: []
       responses:
         '200':
-          description: 功能组列表成功。
+          description: 功能组下拉选项(全量,不分页)成功。
           content:
             application/json:
               schema:
@@ -222,10 +222,10 @@ paths:
           $ref: '#/components/responses/InternalServerError'
       security:
         - adminJwt: []
-      summary: 功能组列表
+      summary: 功能组下拉选项(全量,不分页)
       tags:
         - projects
-      description: 功能组列表。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+      description: 功能组下拉选项(全量,不分页)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     post:
       operationId: ProjectsController_create
       parameters: []
@@ -261,16 +261,57 @@ paths:
   /projects/info:
     get:
       operationId: ProjectsController_info
-      parameters: []
+      parameters:
+        - name: page
+          required: false
+          in: query
+          schema:
+            minimum: 1
+            maximum: 1000000
+            default: 1
+            type: integer
+        - name: pageSize
+          required: false
+          in: query
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 10
+            type: integer
+        - name: name
+          required: false
+          in: query
+          description: 功能组名称模糊匹配
+          schema:
+            type: string
+        - name: status
+          required: false
+          in: query
+          description: 运行态;派生自设备聚合,筛选与分页在同一条查询内完成
+          schema:
+            type: string
+            enum:
+              - online
+              - offline
+              - stale
+              - no_device
+              - disabled
+        - name: enabled
+          required: false
+          in: query
+          description: 启用状态
+          schema:
+            type: string
+            enum:
+              - enabled
+              - disabled
       responses:
         '200':
-          description: 功能组派生统计(设备数/在线/近7天/成功率/运行态)成功。
+          description: 功能组列表(分页);派生统计另见 GET /projects/stats成功。
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ProjectInfo'
+                $ref: '#/components/schemas/ProjectInfoPage'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -281,10 +322,69 @@ paths:
           $ref: '#/components/responses/InternalServerError'
       security:
         - adminJwt: []
-      summary: 功能组派生统计(设备数/在线/近7天/成功率/运行态)
+      summary: 功能组列表(分页);派生统计另见 GET /projects/stats
       tags:
         - projects
-      description: 功能组派生统计(设备数/在线/近7天/成功率/运行态)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+      description: 功能组列表(分页);派生统计另见 GET /projects/stats。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+  /projects/stats:
+    get:
+      operationId: ProjectsController_stats
+      parameters:
+        - name: ids
+          required: true
+          in: query
+          description: 功能组编号,逗号分隔,例如 1,2,3
+          schema:
+            example: 1,2,3
+            type: string
+      responses:
+        '200':
+          description: 按功能组编号取派生统计成功。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectStats'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - adminJwt: []
+      summary: 按功能组编号取派生统计
+      tags:
+        - projects
+      description: 按功能组编号取派生统计。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+  /projects/summary:
+    get:
+      operationId: ProjectsController_summary
+      parameters: []
+      responses:
+        '200':
+          description: 功能组计数(总数/启用数),供仪表盘成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - adminJwt: []
+      summary: 功能组计数(总数/启用数),供仪表盘
+      tags:
+        - projects
+      description: 功能组计数(总数/启用数),供仪表盘。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /projects/{id}:
     delete:
       operationId: ProjectsController_remove
@@ -586,16 +686,42 @@ paths:
       description: 创建权限组(仅种子管理员)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     get:
       operationId: RbacController_listRoles
-      parameters: []
+      parameters:
+        - name: page
+          required: false
+          in: query
+          schema:
+            minimum: 1
+            maximum: 1000000
+            default: 1
+            type: integer
+        - name: pageSize
+          required: false
+          in: query
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 10
+            type: integer
+        - name: name
+          required: false
+          in: query
+          description: 权限组名称模糊匹配
+          schema:
+            type: string
+        - name: permission
+          required: false
+          in: query
+          description: 所含权限模糊匹配,匹配 action 或 subject
+          schema:
+            type: string
       responses:
         '200':
-          description: 权限组列表(包含权限)成功。
+          description: 权限组列表(分页,包含权限)成功。
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/PermissionGroup'
+                $ref: '#/components/schemas/PermissionGroupPage'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -606,10 +732,10 @@ paths:
           $ref: '#/components/responses/InternalServerError'
       security:
         - adminJwt: []
-      summary: 权限组列表(包含权限)
+      summary: 权限组列表(分页,包含权限)
       tags:
         - rbac
-      description: 权限组列表(包含权限)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+      description: 权限组列表(分页,包含权限)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rbac/roles/{id}:
     patch:
       operationId: RbacController_updateRole
@@ -681,6 +807,33 @@ paths:
       tags:
         - rbac
       description: 删除权限组(仅种子管理员)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+  /rbac/roles/options:
+    get:
+      operationId: RbacController_listRoleOptions
+      parameters: []
+      responses:
+        '200':
+          description: 权限组下拉选项(全量,不分页)成功。
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PermissionGroup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - adminJwt: []
+      summary: 权限组下拉选项(全量,不分页)
+      tags:
+        - rbac
+      description: 权限组下拉选项(全量,不分页)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rbac/permissions:
     post:
       operationId: RbacController_createPermission
@@ -716,10 +869,63 @@ paths:
       description: 创建权限(仅种子管理员)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
     get:
       operationId: RbacController_listPermissions
+      parameters:
+        - name: page
+          required: false
+          in: query
+          schema:
+            minimum: 1
+            maximum: 1000000
+            default: 1
+            type: integer
+        - name: pageSize
+          required: false
+          in: query
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 10
+            type: integer
+        - name: action
+          required: false
+          in: query
+          description: 动作模糊匹配
+          schema:
+            type: string
+        - name: subject
+          required: false
+          in: query
+          description: 资源模糊匹配
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 权限目录列表(分页)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - adminJwt: []
+      summary: 权限目录列表(分页)
+      tags:
+        - rbac
+      description: 权限目录列表(分页)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+  /rbac/permissions/options:
+    get:
+      operationId: RbacController_listPermissionOptions
       parameters: []
       responses:
         '200':
-          description: 列表:所有权限成功。
+          description: 权限目录全量(不分页,供勾选)成功。
           content:
             application/json:
               schema:
@@ -736,10 +942,10 @@ paths:
           $ref: '#/components/responses/InternalServerError'
       security:
         - adminJwt: []
-      summary: 列表:所有权限
+      summary: 权限目录全量(不分页,供勾选)
       tags:
         - rbac
-      description: 列表:所有权限。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+      description: 权限目录全量(不分页,供勾选)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rbac/permissions/{id}:
     delete:
       operationId: RbacController_deletePermission
@@ -2047,6 +2253,31 @@ paths:
       tags:
         - system-logs
       description: 系统操作审计日志列表。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+  /dashboard/overview:
+    get:
+      operationId: DashboardController_overview
+      parameters: []
+      responses:
+        '200':
+          description: 仪表盘概览(功能组/设备计数 + 请求指标 + 7 天趋势)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardOverview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - adminJwt: []
+      summary: 仪表盘概览(功能组/设备计数 + 请求指标 + 7 天趋势)
+      tags:
+        - dashboard
+      description: 仪表盘概览(功能组/设备计数 + 请求指标 + 7 天趋势)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
 info:
   title: R2RPC API
   description: R2RPC 管理控制面、调用方 RPC 与监控查询的 HTTP API。设备长连接协议使用 WebSocket，另见项目协议文档。
@@ -2700,12 +2931,7 @@ components:
         - id
         - name
         - enabled
-        - totalDevices
-        - onlineDevices
-        - requests7d
-        - success7d
-        - successRate
-        - status
+      description: 功能组列表行,只含库里的基础字段;派生统计见 ProjectStats。
       properties:
         id:
           type: integer
@@ -2716,6 +2942,20 @@ components:
           nullable: true
         enabled:
           type: boolean
+    ProjectStats:
+      type: object
+      required:
+        - projectId
+        - totalDevices
+        - onlineDevices
+        - requests7d
+        - success7d
+        - successRate
+        - status
+      description: 功能组派生统计。运行态由设备聚合推导,不是库里的列,故不可作为筛选条件。
+      properties:
+        projectId:
+          type: integer
         totalDevices:
           type: integer
           minimum: 0
@@ -2744,6 +2984,49 @@ components:
             - stale
             - disabled
             - no_device
+    ProjectSummary:
+      type: object
+      required:
+        - total
+        - enabled
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        enabled:
+          type: integer
+          minimum: 0
+    DeviceSummary:
+      type: object
+      required:
+        - total
+        - online
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        online:
+          type: integer
+          minimum: 0
+    DashboardOverview:
+      type: object
+      required:
+        - projects
+        - devices
+        - requests
+        - trend
+      description: 仪表盘一次取全:两组计数 + 请求指标 + 近 7 天趋势。
+      properties:
+        projects:
+          $ref: '#/components/schemas/ProjectSummary'
+        devices:
+          $ref: '#/components/schemas/DeviceSummary'
+        requests:
+          $ref: '#/components/schemas/MetricsOverview'
+        trend:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyTrendPoint'
     Device:
       type: object
       required:
@@ -3473,6 +3756,72 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/DeviceTokenRecord'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    ProjectInfoPage:
+      type: object
+      required:
+        - rows
+        - page
+        - pageSize
+        - total
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectInfo'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    PermissionGroupPage:
+      type: object
+      required:
+        - rows
+        - page
+        - pageSize
+        - total
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/PermissionGroup'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    PermissionPage:
+      type: object
+      required:
+        - rows
+        - page
+        - pageSize
+        - total
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
         page:
           type: integer
           minimum: 1

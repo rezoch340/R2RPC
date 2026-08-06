@@ -32,13 +32,18 @@ export interface ProjectRecord {
   description: string | null;
   enabled: boolean;
   createdAt?: string;
-  totalDevices?: number;
-  onlineDevices?: number;
-  lastSeenAt?: string | null;
-  requests7d?: number;
-  success7d?: number;
-  successRate?: number;
-  status?: string;
+}
+
+// 派生统计单列返回:运行态由设备聚合推导，不是库里的列，因此不能作为筛选条件
+export interface ProjectStats {
+  projectId: number;
+  totalDevices: number;
+  onlineDevices: number;
+  lastSeenAt: string | null;
+  requests7d: number;
+  success7d: number;
+  successRate: number;
+  status: string;
 }
 
 export interface TokenRecord {
@@ -194,4 +199,12 @@ export interface RpcInvokeResponse {
   latencyMs: number;
   payload?: unknown;
   error?: string;
+}
+
+// 仪表盘专用聚合：一次返回两组计数、请求指标与近 7 天趋势
+export interface DashboardOverview {
+  projects: { total: number; enabled: number };
+  devices: { total: number; online: number };
+  requests: MetricsOverview;
+  trend: DailyTrendPoint[];
 }

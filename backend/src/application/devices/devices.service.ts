@@ -178,6 +178,18 @@ export class DevicesService {
     );
   }
 
+  /** 仪表盘计数:设备总数与在线数,一条查询;此前前端靠 ?pageSize=1 偷 total 凑两个数字。 */
+  async summary() {
+    const [summaryRow] = await this.database
+      .select({
+        total: sql<number>`count(*)::int`,
+        online: sql<number>`count(*) filter (where ${devices.online})::int`,
+      })
+      .from(devices)
+      .where(alive(devices));
+    return { total: summaryRow?.total ?? 0, online: summaryRow?.online ?? 0 };
+  }
+
   // 详情:单台(alive),不存在返回 null
   async get(deviceId: number) {
     const [deviceRecord] = await this.database

@@ -178,7 +178,8 @@ test('手动 RPC 调试通过受权限保护的公开接口发起调用', async 
 
 test('全部数据列表提供字段筛选和分页', async ({ page }) => {
   const listPages = [
-    { route: '/projects', filters: ['名称', '运行态', '启用状态'], pagers: 1 },
+    // 运行态由设备聚合派生、不在库里,进不了 WHERE,故不作为筛选条件
+    { route: '/projects', filters: ['名称', '启用状态'], pagers: 1 },
     {
       route: '/devices',
       filters: ['设备编号', '平台', '最后 IP', '状态'],

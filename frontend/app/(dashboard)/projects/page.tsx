@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Power, PowerOff, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -16,10 +16,8 @@ import { StatusBadge } from '@/components/status-badge';
 import { getRequestErrorMessage, requestApi } from '@/lib/api-client';
 import { useAuthentication } from '@/lib/auth';
 import { formatDateTime, formatNumber } from '@/lib/format';
-import type { ProjectRecord } from '@/lib/models';
-import { refreshTableData, useTableQuery } from '@/lib/table-query';
-import { useFilterState, type FilterState } from '@/lib/use-filter-state';
-import { useClientPagination } from '@/lib/use-client-pagination';
+import type { ProjectRecord, ProjectStats } from '@/lib/models';
+import { useServerTable } from '@/lib/use-server-table';
 import { ProjectCreateDialog } from './project-create-dialog';
 
 interface ProjectAction {
@@ -29,28 +27,16 @@ interface ProjectAction {
 
 interface ProjectFilters {
   name: string;
-  status: string;
   enabled: string;
 }
 
 const EMPTY_FILTERS: ProjectFilters = {
   name: '',
-  status: '',
   enabled: '',
 };
 
 const FILTER_FIELDS: Array<FilterFieldDefinition<keyof ProjectFilters>> = [
   { key: 'name', label: '名称', placeholder: '功能组名称' },
-  {
-    key: 'status',
-    label: '运行态',
-    type: 'select',
-    placeholder: '全部运行态',
-    options: [
-      { value: 'online', label: '在线' },
-      { value: 'offline', label: '离线' },
-    ],
-  },
   {
     key: 'enabled',
     label: '启用状态',
@@ -68,20 +54,25 @@ export default function ProjectsPage() {
     null,
   );
   const queryClient = useQueryClient();
-  // 显式标注打断循环推导:filters -> pagination -> filteredProjects -> filters.applied
-  const filters: FilterState<ProjectFilters> = useFilterState(EMPTY_FILTERS, {
-    onApply: () => pagination.resetPage(),
-    onReset: () => {
-      pagination.resetPage();
-      void refreshTableData(queryClient, ['projects', 'info']);
-    },
-  });
   const { can } = useAuthentication();
-
-  const projectsQuery = useTableQuery({
-    queryKey: ['projects', 'info'],
-    queryFunction: () => requestApi<ProjectRecord[]>('/projects/info'),
+  const table = useServerTable<ProjectRecord, ProjectFilters>({
+    resourceKey: 'projects-info',
+    endpoint: '/projects/info',
+    emptyFilters: EMPTY_FILTERS,
   });
+  // 设备数、近 7 天请求、成功率、运行态都是派生值,进不了 WHERE,由当页 id 二次请求
+  const projectIds = table.rows.map((project) => project.id);
+  const statsQuery = useQuery({
+    queryKey: ['projects', 'stats', projectIds],
+    queryFn: () =>
+      requestApi<ProjectStats[]>(
+        `/projects/stats?ids=${projectIds.join(',')}`,
+      ),
+    enabled: projectIds.length > 0,
+  });
+  const statsByProjectId = new Map(
+    (statsQuery.data ?? []).map((stats) => [stats.projectId, stats]),
+  );
 
   const createMutation = useMutation({
     mutationFn: (values: { name: string; description: string }) =>
@@ -125,20 +116,6 @@ export default function ProjectsPage() {
       toast.error(getRequestErrorMessage(error, '操作功能组失败')),
   });
 
-  const filteredProjects = useMemo(() => {
-    const normalizedName = filters.applied.name.trim().toLowerCase();
-    return (projectsQuery.data ?? []).filter((project) => {
-      const matchesName =
-        !normalizedName || project.name.toLowerCase().includes(normalizedName);
-      const matchesStatus =
-        !filters.applied.status || project.status === filters.applied.status;
-      const enabledStatus = project.enabled ? 'enabled' : 'disabled';
-      const matchesEnabled =
-        !filters.applied.enabled || enabledStatus === filters.applied.enabled;
-      return matchesName && matchesStatus && matchesEnabled;
-    });
-  }, [filters.applied, projectsQuery.data]);
-  const pagination = useClientPagination(filteredProjects);
 
   const columns: Array<DataTableColumn<ProjectRecord>> = [
     {
@@ -156,34 +133,40 @@ export default function ProjectsPage() {
     {
       key: 'status',
       header: '运行态',
-      render: (project) => <StatusBadge status={project.status ?? 'offline'} />,
+      render: (project) => (
+        <StatusBadge
+          status={statsByProjectId.get(project.id)?.status ?? 'offline'}
+        />
+      ),
     },
     {
       key: 'devices',
       header: '设备',
       render: (project) => (
         <span className="font-mono text-xs">
-          {formatNumber(project.onlineDevices)} /{' '}
-          {formatNumber(project.totalDevices)}
+          {formatNumber(statsByProjectId.get(project.id)?.onlineDevices)} /{' '}
+          {formatNumber(statsByProjectId.get(project.id)?.totalDevices)}
         </span>
       ),
     },
     {
       key: 'requests',
       header: '近 7 天请求',
-      render: (project) => formatNumber(project.requests7d),
+      render: (project) =>
+        formatNumber(statsByProjectId.get(project.id)?.requests7d),
     },
     {
       key: 'success-rate',
       header: '成功率',
-      render: (project) => `${project.successRate ?? 0}%`,
+      render: (project) =>
+        `${statsByProjectId.get(project.id)?.successRate ?? 0}%`,
     },
     {
       key: 'last-seen',
       header: '最后在线',
       render: (project) => (
         <span className="whitespace-nowrap text-xs text-muted-foreground">
-          {formatDateTime(project.lastSeenAt)}
+          {formatDateTime(statsByProjectId.get(project.id)?.lastSeenAt)}
         </span>
       ),
     },
@@ -239,28 +222,18 @@ export default function ProjectsPage() {
           ) : undefined
         }
       />
-      {projectsQuery.isError ? <QueryErrorState /> : null}
+      {table.isError ? <QueryErrorState /> : null}
       <FilterBar
         fields={FILTER_FIELDS}
-        values={filters.draft}
-        onChange={filters.update}
-        onSubmit={filters.apply}
-        onReset={filters.reset}
+        {...table.filterBarProps}
       />
       <DataTable
         columns={columns}
-        rows={pagination.pageRows}
-        isLoading={projectsQuery.isLoading}
+        {...table.tableProps}
         emptyMessage="暂无功能组"
         rowKey={(project) => project.id}
         footer={
-          <Pagination
-            page={pagination.page}
-            pageSize={pagination.pageSize}
-            total={pagination.total}
-            onPageChange={pagination.setPage}
-            onPageSizeChange={pagination.setPageSize}
-          />
+          <Pagination {...table.paginationProps} />
         }
       />
       <ConfirmDialog

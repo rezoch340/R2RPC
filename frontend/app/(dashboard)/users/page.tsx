@@ -1,11 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   KeyRound,
   Pencil,
@@ -25,19 +21,16 @@ import { QueryErrorState } from '@/components/query-state';
 import { RowActions } from '@/components/row-actions';
 import { Badge } from '@/components/ui/badge';
 import {
-  buildQueryString,
   getRequestErrorMessage,
   requestApi,
 } from '@/lib/api-client';
 import { useAuthentication } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
 import type {
-  PaginatedResponse,
   PermissionGroup,
   UserRecord,
 } from '@/lib/models';
-import { refreshTableData, useTableQuery } from '@/lib/table-query';
-import { useFilterState } from '@/lib/use-filter-state';
+import { useServerTable } from '@/lib/use-server-table';
 import {
   UserCreateDialog,
   UserDescriptionDialog,
@@ -78,36 +71,26 @@ const FILTER_FIELDS: Array<FilterFieldDefinition<keyof UserFilters>> = [
 ];
 
 export default function UsersPage() {
+  const queryClient = useQueryClient();
   const [descriptionUser, setDescriptionUser] = useState<UserRecord | null>(
     null,
   );
   const [passwordUser, setPasswordUser] = useState<UserRecord | null>(null);
   const [roleUser, setRoleUser] = useState<UserRecord | null>(null);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [confirmation, setConfirmation] = useState<UserConfirmation | null>(
     null,
   );
-  const queryClient = useQueryClient();
-  const filters = useFilterState(EMPTY_FILTERS, {
-    onApply: () => setPage(1),
-    onReset: () => {
-      setPage(1);
-      void refreshTableData(queryClient, ['users']);
-    },
+  const table = useServerTable<UserRecord, UserFilters>({
+    resourceKey: 'users',
+    endpoint: '/users',
+    emptyFilters: EMPTY_FILTERS,
   });
   const { user: authenticatedUser, can, isRoot } = useAuthentication();
 
-  const usersQuery = useTableQuery({
-    queryKey: ['users', filters.applied, page, pageSize],
-    queryFunction: () =>
-      requestApi<PaginatedResponse<UserRecord>>(
-        `/users${buildQueryString({ ...filters.applied, page, pageSize })}`,
-      ),
-  });
   const permissionGroupsQuery = useQuery({
     queryKey: ['permission-groups'],
-    queryFn: () => requestApi<PermissionGroup[]>('/rbac/roles'),
+    // 选择器要能选到全部权限组,用不分页的 options 源
+    queryFn: () => requestApi<PermissionGroup[]>('/rbac/roles/options'),
     enabled: can('read', 'rbac'),
   });
 
@@ -322,32 +305,18 @@ export default function UsersPage() {
           ) : undefined
         }
       />
-      {usersQuery.isError ? <QueryErrorState /> : null}
+      {table.isError ? <QueryErrorState /> : null}
       <FilterBar
         fields={FILTER_FIELDS}
-        values={filters.draft}
-        onChange={filters.update}
-        onSubmit={filters.apply}
-        onReset={filters.reset}
+        {...table.filterBarProps}
       />
       <DataTable
         columns={columns}
-        rows={usersQuery.data?.rows ?? []}
-        isLoading={usersQuery.isLoading}
+        {...table.tableProps}
         emptyMessage="暂无后台账号"
         rowKey={(userRecord) => userRecord.id}
         footer={
-          <Pagination
-            page={usersQuery.data?.page ?? page}
-            pageSize={usersQuery.data?.pageSize ?? pageSize}
-            total={usersQuery.data?.total ?? 0}
-            isPageTransitioning={usersQuery.isPlaceholderData}
-            onPageChange={setPage}
-            onPageSizeChange={(newPageSize) => {
-              setPageSize(newPageSize);
-              setPage(1);
-            }}
-          />
+          <Pagination {...table.paginationProps} />
         }
       />
 

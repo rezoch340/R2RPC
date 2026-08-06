@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Eye } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
@@ -19,11 +18,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { buildQueryString, requestApi } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
-import type { PaginatedResponse, SystemLogRecord } from '@/lib/models';
-import { refreshTableData, useTableQuery } from '@/lib/table-query';
-import { useFilterState } from '@/lib/use-filter-state';
+import type { SystemLogRecord } from '@/lib/models';
+import { toIsoDateRange, useServerTable } from '@/lib/use-server-table';
 
 interface SystemLogFilters {
   name: string;
@@ -71,37 +68,13 @@ const FILTER_FIELDS: Array<FilterFieldDefinition<keyof SystemLogFilters>> = [
 ];
 
 export default function SystemLogsPage() {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [selectedLog, setSelectedLog] = useState<SystemLogRecord | null>(null);
-  const queryClient = useQueryClient();
-  const filters = useFilterState(EMPTY_FILTERS, {
-    onApply: () => setPage(1),
-    onReset: () => {
-      setPage(1);
-      void refreshTableData(queryClient, ['system-logs']);
-    },
+  const table = useServerTable<SystemLogRecord, SystemLogFilters>({
+    resourceKey: 'system-logs',
+    endpoint: '/system-logs',
+    emptyFilters: EMPTY_FILTERS,
+    transformFilters: toIsoDateRange,
   });
-
-  const queryString = buildQueryString({
-    ...filters.applied,
-    from: filters.applied.from
-      ? new Date(filters.applied.from).toISOString()
-      : undefined,
-    to: filters.applied.to
-      ? new Date(filters.applied.to).toISOString()
-      : undefined,
-    page,
-    pageSize,
-  });
-  const systemLogsQuery = useTableQuery({
-    queryKey: ['system-logs', filters.applied, page, pageSize],
-    queryFunction: () =>
-      requestApi<PaginatedResponse<SystemLogRecord>>(
-        `/system-logs${queryString}`,
-      ),
-  });
-
   const columns: Array<DataTableColumn<SystemLogRecord>> = [
     {
       key: 'event',
@@ -212,30 +185,16 @@ export default function SystemLogsPage() {
       />
       <FilterBar
         fields={FILTER_FIELDS}
-        values={filters.draft}
-        onChange={filters.update}
-        onSubmit={filters.apply}
-        onReset={filters.reset}
+        {...table.filterBarProps}
       />
-      {systemLogsQuery.isError ? <QueryErrorState /> : null}
+      {table.isError ? <QueryErrorState /> : null}
       <DataTable
         columns={columns}
-        rows={systemLogsQuery.data?.rows ?? []}
-        isLoading={systemLogsQuery.isLoading}
+        {...table.tableProps}
         emptyMessage="暂无系统访问日志"
         rowKey={(systemLog) => systemLog.id}
         footer={
-          <Pagination
-            page={systemLogsQuery.data?.page ?? page}
-            pageSize={systemLogsQuery.data?.pageSize ?? pageSize}
-            total={systemLogsQuery.data?.total ?? 0}
-            isPageTransitioning={systemLogsQuery.isPlaceholderData}
-            onPageChange={setPage}
-            onPageSizeChange={(newPageSize) => {
-              setPageSize(newPageSize);
-              setPage(1);
-            }}
-          />
+          <Pagination {...table.paginationProps} />
         }
         tableClassName="min-w-[1120px] table-fixed"
       />

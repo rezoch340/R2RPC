@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Eye } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
@@ -19,11 +18,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { buildQueryString, requestApi } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
-import type { DeviceRecord, PaginatedResponse } from '@/lib/models';
-import { refreshTableData, useTableQuery } from '@/lib/table-query';
-import { useFilterState } from '@/lib/use-filter-state';
+import type { DeviceRecord } from '@/lib/models';
+import { useServerTable } from '@/lib/use-server-table';
 
 interface DeviceFilters {
   clientId: string;
@@ -60,26 +57,10 @@ export default function DevicesPage() {
   const [selectedDevice, setSelectedDevice] = useState<DeviceRecord | null>(
     null,
   );
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const queryClient = useQueryClient();
-  const filters = useFilterState(EMPTY_FILTERS, {
-    onApply: () => setPage(1),
-    onReset: () => {
-      setPage(1);
-      void refreshTableData(queryClient, ['devices']);
-    },
-  });
-
-  const queryString = buildQueryString({
-    ...filters.applied,
-    page,
-    pageSize,
-  });
-  const devicesQuery = useTableQuery({
-    queryKey: ['devices', filters.applied, page, pageSize],
-    queryFunction: () =>
-      requestApi<PaginatedResponse<DeviceRecord>>(`/devices${queryString}`),
+  const table = useServerTable<DeviceRecord, DeviceFilters>({
+    resourceKey: 'devices',
+    endpoint: '/devices',
+    emptyFilters: EMPTY_FILTERS,
   });
 
   const columns: Array<DataTableColumn<DeviceRecord>> = [
@@ -144,33 +125,14 @@ export default function DevicesPage() {
         title="设备"
         description="查看设备持久态、实时在线状态和最近一次连接信息。"
       />
-      {devicesQuery.isError ? <QueryErrorState /> : null}
-      <FilterBar
-        fields={FILTER_FIELDS}
-        values={filters.draft}
-        onChange={filters.update}
-        onSubmit={filters.apply}
-        onReset={filters.reset}
-      />
+      {table.isError ? <QueryErrorState /> : null}
+      <FilterBar fields={FILTER_FIELDS} {...table.filterBarProps} />
       <DataTable
         columns={columns}
-        rows={devicesQuery.data?.rows ?? []}
-        isLoading={devicesQuery.isLoading}
+        {...table.tableProps}
         emptyMessage="暂无设备，设备首次通过 WebSocket 上线后会自动登记"
         rowKey={(device) => device.id}
-        footer={
-          <Pagination
-            page={devicesQuery.data?.page ?? page}
-            pageSize={devicesQuery.data?.pageSize ?? pageSize}
-            total={devicesQuery.data?.total ?? 0}
-            isPageTransitioning={devicesQuery.isPlaceholderData}
-            onPageChange={setPage}
-            onPageSizeChange={(newPageSize) => {
-              setPageSize(newPageSize);
-              setPage(1);
-            }}
-          />
-        }
+        footer={<Pagination {...table.paginationProps} />}
       />
 
       <Dialog

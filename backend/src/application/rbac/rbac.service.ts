@@ -9,12 +9,19 @@ import {
   createMongoAbility,
   MongoAbility,
 } from '@casl/ability';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, exists, inArray, SQL, sql } from 'drizzle-orm';
+import { compactConditions, likeIf } from '../../common/db/filter-conditions';
+import { containsPattern } from '../../common/db/like-pattern';
+import { paginate } from '../../common/db/paginate';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
 import { UserAuthorizationCacheService } from '../../infrastructure/redis/user-authorization-cache.service';
 import { AdministratorAccountPolicyService } from '../users/administrator-account-policy.service';
 import { users } from '../users/users.schema';
+import {
+  QueryPermissionGroupsDto,
+  QueryPermissionsDto,
+} from './dto/query-rbac.dto';
 import { permissions, rolePermissions, roles, userRoles } from './rbac.schema';
 import {
   PermissionGroup,
@@ -123,13 +130,63 @@ export class RbacService {
     return { ...createdRole, permissions: [] };
   }
 
-  async listRoles() {
+  // 下拉选项源:全量返回。用户页的权限组选择器要能选到全部,分页就只剩第一页。
+  // 仍带权限明细——选择器要显示每个组挂了几项权限,与列表接口保持同一形状。
+  async listRoleOptions() {
     const roleRecords = await this.database
       .select(permissionGroupSelection)
       .from(roles)
       .where(alive(roles))
       .orderBy(roles.id);
     return this.includePermissions(roleRecords);
+  }
+
+  async listRoles(query: QueryPermissionGroupsDto = {}) {
+    const whereClause = alive(roles, ...this.buildRoleConditions(query));
+    return paginate(
+      this.database,
+      roles,
+      whereClause,
+      query,
+      async (limit, offset) => {
+        const roleRecords = await this.database
+          .select(permissionGroupSelection)
+          .from(roles)
+          .where(whereClause)
+          .orderBy(roles.id)
+          .limit(limit)
+          .offset(offset);
+        return this.includePermissions(roleRecords);
+      },
+    );
+  }
+
+  private buildRoleConditions(query: QueryPermissionGroupsDto): SQL[] {
+    return compactConditions(
+      likeIf(roles.name, query.name),
+      // 「含某权限」是关联条件,用 EXISTS 而非 join:主查询行数不因一个组挂多条权限而翻倍,
+      // 分页与 count 都不需要去重
+      query.permission
+        ? exists(
+            this.database
+              .select({ matched: sql`1` })
+              .from(rolePermissions)
+              .innerJoin(
+                permissions,
+                alive(
+                  permissions,
+                  eq(rolePermissions.permissionId, permissions.id),
+                ),
+              )
+              .where(
+                and(
+                  eq(rolePermissions.roleId, roles.id),
+                  sql`${permissions.action} || '/' || ${permissions.subject} ILIKE ${containsPattern(query.permission)}`,
+                ),
+              ),
+          )
+        : null,
+    );
   }
 
   async updateRole(
@@ -188,12 +245,37 @@ export class RbacService {
     return createdPermission;
   }
 
-  async listPermissions() {
+  // 下拉/勾选源:全量返回。权限组编辑弹窗要列出整个权限目录供勾选,分页就选不全
+  async listPermissionOptions() {
     return this.database
       .select()
       .from(permissions)
       .where(alive(permissions))
       .orderBy(permissions.id);
+  }
+
+  async listPermissions(query: QueryPermissionsDto = {}) {
+    const whereClause = alive(
+      permissions,
+      ...compactConditions(
+        likeIf(permissions.action, query.action),
+        likeIf(permissions.subject, query.subject),
+      ),
+    );
+    return paginate(
+      this.database,
+      permissions,
+      whereClause,
+      query,
+      (limit, offset) =>
+        this.database
+          .select()
+          .from(permissions)
+          .where(whereClause)
+          .orderBy(permissions.id)
+          .limit(limit)
+          .offset(offset),
+    );
   }
 
   async deletePermission(permissionId: number) {

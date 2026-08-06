@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -17,9 +17,7 @@ import { Button } from '@/components/ui/button';
 import { getRequestErrorMessage, requestApi } from '@/lib/api-client';
 import { useAuthentication } from '@/lib/auth';
 import type { CatalogPermission, PermissionGroup } from '@/lib/models';
-import { refreshTableData, useTableQuery } from '@/lib/table-query';
-import { useFilterState, type FilterState } from '@/lib/use-filter-state';
-import { useClientPagination } from '@/lib/use-client-pagination';
+import { useServerTable } from '@/lib/use-server-table';
 import { PermissionCreateDialog } from './permission-create-dialog';
 import {
   PermissionGroupDialog,
@@ -76,35 +74,21 @@ export default function PermissionGroupsPage() {
     useState<CatalogPermission | null>(null);
   const { isRoot } = useAuthentication();
   const queryClient = useQueryClient();
-  // 回调在交互时才执行,此时下面的 pagination 已初始化
-  const groupFilters: FilterState<PermissionGroupFilters> = useFilterState(
-    EMPTY_GROUP_FILTERS,
-    {
-      onApply: () => groupPagination.resetPage(),
-      onReset: () => {
-        groupPagination.resetPage();
-        void refreshTableData(queryClient, ['permission-groups']);
-      },
-    },
-  );
-  const permissionFilters: FilterState<PermissionFilters> = useFilterState(
-    EMPTY_PERMISSION_FILTERS,
-    {
-      onApply: () => permissionPagination.resetPage(),
-      onReset: () => {
-        permissionPagination.resetPage();
-        void refreshTableData(queryClient, ['permissions']);
-      },
-    },
-  );
-
-  const permissionGroupsQuery = useTableQuery({
-    queryKey: ['permission-groups'],
-    queryFunction: () => requestApi<PermissionGroup[]>('/rbac/roles'),
+  const groupTable = useServerTable<PermissionGroup, PermissionGroupFilters>({
+    resourceKey: 'permission-groups',
+    endpoint: '/rbac/roles',
+    emptyFilters: EMPTY_GROUP_FILTERS,
   });
-  const permissionsQuery = useTableQuery({
-    queryKey: ['permissions'],
-    queryFunction: () => requestApi<CatalogPermission[]>('/rbac/permissions'),
+  const permissionTable = useServerTable<CatalogPermission, PermissionFilters>({
+    resourceKey: 'permissions',
+    endpoint: '/rbac/permissions',
+    emptyFilters: EMPTY_PERMISSION_FILTERS,
+  });
+
+  // 编辑弹窗要列出整个权限目录供勾选,分页会截断,改用不分页的 options 源
+  const permissionOptionsQuery = useQuery({
+    queryKey: ['permissions', 'options'],
+    queryFn: () => requestApi<CatalogPermission[]>('/rbac/permissions/options'),
   });
 
   const saveGroupMutation = useMutation({
@@ -213,44 +197,6 @@ export default function PermissionGroupsPage() {
       toast.error(getRequestErrorMessage(error, '删除权限失败')),
   });
 
-  const filteredPermissionGroups = useMemo(() => {
-    const normalizedName = groupFilters.applied.name.trim().toLowerCase();
-    const normalizedPermission = groupFilters.applied.permission
-      .trim()
-      .toLowerCase();
-    return (permissionGroupsQuery.data ?? []).filter((permissionGroup) => {
-      const matchesName =
-        !normalizedName ||
-        permissionGroup.name.toLowerCase().includes(normalizedName);
-      const matchesPermission =
-        !normalizedPermission ||
-        permissionGroup.permissions.some((permission) =>
-          `${permission.action}/${permission.subject}`
-            .toLowerCase()
-            .includes(normalizedPermission),
-        );
-      return matchesName && matchesPermission;
-    });
-  }, [groupFilters.applied, permissionGroupsQuery.data]);
-  const filteredPermissions = useMemo(() => {
-    const normalizedAction = permissionFilters.applied.action
-      .trim()
-      .toLowerCase();
-    const normalizedSubject = permissionFilters.applied.subject
-      .trim()
-      .toLowerCase();
-    return (permissionsQuery.data ?? []).filter((permission) => {
-      const matchesAction =
-        !normalizedAction ||
-        permission.action.toLowerCase().includes(normalizedAction);
-      const matchesSubject =
-        !normalizedSubject ||
-        permission.subject.toLowerCase().includes(normalizedSubject);
-      return matchesAction && matchesSubject;
-    });
-  }, [permissionFilters.applied, permissionsQuery.data]);
-  const groupPagination = useClientPagination(filteredPermissionGroups);
-  const permissionPagination = useClientPagination(filteredPermissions);
 
   const groupColumns: Array<DataTableColumn<PermissionGroup>> = [
     {
@@ -371,32 +317,22 @@ export default function PermissionGroupsPage() {
           ) : undefined
         }
       />
-      {permissionGroupsQuery.isError || permissionsQuery.isError ? (
+      {groupTable.isError || permissionTable.isError ? (
         <QueryErrorState />
       ) : null}
       <section className="space-y-3">
         <h2 className="font-heading text-lg font-semibold">权限组列表</h2>
         <FilterBar
           fields={GROUP_FILTER_FIELDS}
-          values={groupFilters.draft}
-          onChange={groupFilters.update}
-          onSubmit={groupFilters.apply}
-          onReset={groupFilters.reset}
+          {...groupTable.filterBarProps}
         />
         <DataTable
           columns={groupColumns}
-          rows={groupPagination.pageRows}
-          isLoading={permissionGroupsQuery.isLoading}
+          {...groupTable.tableProps}
           emptyMessage="暂无权限组"
           rowKey={(permissionGroup) => permissionGroup.id}
           footer={
-            <Pagination
-              page={groupPagination.page}
-              pageSize={groupPagination.pageSize}
-              total={groupPagination.total}
-              onPageChange={groupPagination.setPage}
-              onPageSizeChange={groupPagination.setPageSize}
-            />
+            <Pagination {...groupTable.paginationProps} />
           }
         />
       </section>
@@ -409,25 +345,15 @@ export default function PermissionGroupsPage() {
         </div>
         <FilterBar
           fields={PERMISSION_FILTER_FIELDS}
-          values={permissionFilters.draft}
-          onChange={permissionFilters.update}
-          onSubmit={permissionFilters.apply}
-          onReset={permissionFilters.reset}
+          {...permissionTable.filterBarProps}
         />
         <DataTable
           columns={permissionColumns}
-          rows={permissionPagination.pageRows}
-          isLoading={permissionsQuery.isLoading}
+          {...permissionTable.tableProps}
           emptyMessage="暂无权限"
           rowKey={(permission) => permission.id}
           footer={
-            <Pagination
-              page={permissionPagination.page}
-              pageSize={permissionPagination.pageSize}
-              total={permissionPagination.total}
-              onPageChange={permissionPagination.setPage}
-              onPageSizeChange={permissionPagination.setPageSize}
-            />
+            <Pagination {...permissionTable.paginationProps} />
           }
         />
       </section>
@@ -440,7 +366,7 @@ export default function PermissionGroupsPage() {
         }
         open={isCreatingGroup || editingGroup !== null}
         permissionGroup={editingGroup}
-        permissions={permissionsQuery.data ?? []}
+        permissions={permissionOptionsQuery.data ?? []}
         isSubmitting={saveGroupMutation.isPending}
         onClose={() => {
           setIsCreatingGroup(false);
