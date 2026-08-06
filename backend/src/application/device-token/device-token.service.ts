@@ -3,15 +3,19 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, desc, eq, ilike, inArray, SQL, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, SQL, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import {
   DEVICE_TOKEN_SCOPE_CHANGED_CHANNEL,
   type DeviceTokenScopeChangedEvent,
 } from '../../common/constants/device-token-events';
-import { containsPattern } from '../../common/db/like-pattern';
-import { pageBounds } from '../../common/db/page-bounds';
+import {
+  compactConditions,
+  eqIf,
+  likeIf,
+} from '../../common/db/filter-conditions';
+import { paginate } from '../../common/db/paginate';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { QueryTokensDto } from '../../common/dto/query-tokens.dto';
 import { DbService } from '../../infrastructure/db/db.service';
@@ -130,56 +134,49 @@ export class DeviceTokenService {
    */
   async list(query: QueryTokensDto = {}) {
     const whereClause = alive(deviceTokens, ...this.buildConditions(query));
-    const { page, pageSize, offset } = pageBounds(query);
-    const tokenRecords = await this.database
-      .select()
-      .from(deviceTokens)
-      .where(whereClause)
-      .orderBy(desc(deviceTokens.id))
-      .limit(pageSize)
-      .offset(offset);
-    const [{ total }] = await this.database
-      .select({ total: sql<number>`count(*)::int` })
-      .from(deviceTokens)
-      .where(whereClause);
-    const tokenIds = tokenRecords.map((tokenRecord) => tokenRecord.id);
-
-    const projectNamesByTokenId = await this.projects.namesByTokenIds(
-      deviceTokenProjects,
-      tokenIds,
+    return paginate(
+      this.database,
+      deviceTokens,
+      whereClause,
+      query,
+      async (limit, offset) => {
+        const tokenRecords = await this.database
+          .select()
+          .from(deviceTokens)
+          .where(whereClause)
+          .orderBy(desc(deviceTokens.id))
+          .limit(limit)
+          .offset(offset);
+        const tokenIds = tokenRecords.map((tokenRecord) => tokenRecord.id);
+        const projectNamesByTokenId = await this.projects.namesByTokenIds(
+          deviceTokenProjects,
+          tokenIds,
+        );
+        const onlineDeviceCountByTokenId =
+          await this.onlineDeviceCountByTokenId(tokenIds);
+        return tokenRecords.map((tokenRecord) => ({
+          ...tokenRecord,
+          projects: projectNamesByTokenId.get(tokenRecord.id) ?? [],
+          onlineDeviceCount:
+            onlineDeviceCountByTokenId.get(tokenRecord.id) ?? 0,
+        }));
+      },
     );
-    const onlineDeviceCountByTokenId =
-      await this.onlineDeviceCountByTokenId(tokenIds);
-
-    const rows = tokenRecords.map((tokenRecord) => ({
-      ...tokenRecord,
-      projects: projectNamesByTokenId.get(tokenRecord.id) ?? [],
-      onlineDeviceCount: onlineDeviceCountByTokenId.get(tokenRecord.id) ?? 0,
-    }));
-    return { rows, page, pageSize, total };
   }
 
   private buildConditions(query: QueryTokensDto): SQL[] {
-    const conditions: SQL[] = [];
-    if (query.id !== undefined) {
-      conditions.push(eq(deviceTokens.id, query.id));
-    }
-    if (query.name) {
-      conditions.push(ilike(deviceTokens.name, containsPattern(query.name)));
-    }
-    if (query.status) {
-      conditions.push(eq(deviceTokens.status, query.status));
-    }
-    if (query.project) {
-      conditions.push(
-        this.projects.hasProjectNameMatch(
-          deviceTokenProjects,
-          deviceTokens.id,
-          query.project,
-        ),
-      );
-    }
-    return conditions;
+    return compactConditions(
+      eqIf(deviceTokens.id, query.id),
+      likeIf(deviceTokens.name, query.name),
+      eqIf(deviceTokens.status, query.status),
+      query.project
+        ? this.projects.hasProjectNameMatch(
+            deviceTokenProjects,
+            deviceTokens.id,
+            query.project,
+          )
+        : null,
+    );
   }
 
   /** 在线设备数:一次 GROUP BY 取回全部令牌的在线 alive 设备数,避免逐令牌 count。 */

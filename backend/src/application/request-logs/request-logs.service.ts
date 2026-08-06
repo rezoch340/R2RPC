@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { and, desc, eq, gte, isNotNull, lt, lte, SQL, sql } from 'drizzle-orm';
 import { DbService } from '../../infrastructure/db/db.service';
-import { pageBounds } from '../../common/db/page-bounds';
+import { paginate } from '../../common/db/paginate';
 import { alive } from '../../common/db/soft-delete';
 import { devices } from '../devices/devices.schema';
 import { projects } from '../projects/projects.schema';
@@ -96,19 +96,20 @@ export class RequestLogsService {
   async list(filter: ListFilter) {
     const conditions = this.buildListConditions(filter);
     const whereClause = conditions.length ? and(...conditions) : undefined;
-    const { page, pageSize, offset } = pageBounds(filter);
-    const requestRecords = await this.database
-      .select(REQUEST_LOG_SPINE_COLUMNS)
-      .from(requestLogs)
-      .where(whereClause)
-      .orderBy(desc(requestLogs.createdAt))
-      .limit(pageSize)
-      .offset(offset);
-    const [{ total }] = await this.database
-      .select({ total: sql<number>`count(*)::int` })
-      .from(requestLogs)
-      .where(whereClause);
-    return { rows: requestRecords, page, pageSize, total };
+    return paginate(
+      this.database,
+      requestLogs,
+      whereClause,
+      filter,
+      (limit, offset) =>
+        this.database
+          .select(REQUEST_LOG_SPINE_COLUMNS)
+          .from(requestLogs)
+          .where(whereClause)
+          .orderBy(desc(requestLogs.createdAt))
+          .limit(limit)
+          .offset(offset),
+    );
   }
 
   private buildListConditions(filter: ListFilter): SQL[] {

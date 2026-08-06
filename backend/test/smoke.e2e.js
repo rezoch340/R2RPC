@@ -338,6 +338,104 @@ async function bestEffortCleanup(administratorAccessToken) {
   }
 }
 
+// 分页与筛选参数的边界与恶意输入。全部只走公开 HTTP 接口。
+// 覆盖三类:① 非法分页参数必须 400 而不是 500 或静默夹取;② 筛选值里的 ILIKE 元字符
+// 必须按字面量匹配,不能退化成通配;③ 筛选与分页组合时 total 与逐页 rows 必须自洽。
+async function assertPaginationBoundaries(administratorAccessToken) {
+  const listPath = '/users';
+  const readList = (queryString) =>
+    httpRequest(
+      'GET',
+      `${listPath}${queryString}`,
+      undefined,
+      administratorAccessToken,
+    );
+
+  // ① 非法分页参数:DTO 校验应拒绝,而不是让 pageBounds 静默兜底
+  const rejectedPaginationCases = [
+    ['?page=0', 'page=0'],
+    ['?page=-1', 'page=-1'],
+    ['?page=abc', 'page 非数字'],
+    ['?page=1.5', 'page 非整数'],
+    ['?page=1000001', 'page 超过上界(防 OFFSET 溢出 bigint)'],
+    ['?pageSize=0', 'pageSize=0'],
+    ['?pageSize=101', 'pageSize 超过 100'],
+    ['?pageSize=abc', 'pageSize 非数字'],
+    ['?page=1&page=2', 'page 传成数组'],
+    ['?enabled=bogus', '非法枚举值'],
+    ['?username=%00', '查询参数含空字节'],
+  ];
+  for (const [queryString, description] of rejectedPaginationCases) {
+    const response = await readList(queryString);
+    assert(response.status === 400, `${description} 返回 400`);
+  }
+
+  // ② ILIKE 元字符必须按字面量参与匹配,否则筛选框输入 % 就等于拉全表
+  const totalUsers = requireValue(
+    (await readList('?pageSize=1')).json?.total,
+    '取得用户总数用于对照',
+    (await readList('?pageSize=1')).json?.total,
+  );
+  const wildcardProbes = [
+    ['%', '百分号'],
+    ['_', '下划线'],
+    ['\\', '反斜杠'],
+  ];
+  for (const [rawValue, description] of wildcardProbes) {
+    const response = await readList(
+      `?username=${encodeURIComponent(rawValue)}&pageSize=1`,
+    );
+    assert(
+      response.status === 200 && response.json.total < totalUsers,
+      `筛选值含${description}时按字面量匹配,不退化成通配(总数 ${response.json?.total} < ${totalUsers})`,
+    );
+  }
+  const longFilterValue = 'a'.repeat(4096);
+  const longFilterResponse = await readList(
+    `?username=${longFilterValue}&pageSize=1`,
+  );
+  assert(
+    longFilterResponse.status === 200 && longFilterResponse.json.total === 0,
+    '超长筛选值正常返回空结果而非 500',
+  );
+
+  // ③ 组合行为:筛不到时仍是合法空页;越界页返回空 rows 但 total 不变;逐页累加等于 total
+  const emptyFilterResponse = await readList(
+    '?username=definitely-no-such-user&page=3&pageSize=10',
+  );
+  assert(
+    emptyFilterResponse.status === 200 &&
+      emptyFilterResponse.json.rows.length === 0 &&
+      emptyFilterResponse.json.total === 0,
+    '筛选无命中时越界页返回 200 空列表而非报错',
+  );
+  const beyondLastPage = await readList(`?page=${totalUsers + 50}&pageSize=1`);
+  assert(
+    beyondLastPage.status === 200 &&
+      beyondLastPage.json.rows.length === 0 &&
+      beyondLastPage.json.total === totalUsers,
+    '越过末页时 rows 为空但 total 仍是真实总数',
+  );
+  let accumulatedRowCount = 0;
+  const walkPageSize = 2;
+  const totalPages = Math.ceil(totalUsers / walkPageSize);
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+    const pageResponse = await readList(
+      `?page=${pageNumber}&pageSize=${walkPageSize}`,
+    );
+    accumulatedRowCount += pageResponse.json.rows.length;
+  }
+  assert(
+    accumulatedRowCount === totalUsers,
+    `逐页累加行数等于 total(${accumulatedRowCount} = ${totalUsers})`,
+  );
+  const boundaryPageSize = await readList('?pageSize=100');
+  assert(
+    boundaryPageSize.status === 200,
+    'pageSize=100 是允许的上界而非越界',
+  );
+}
+
 async function main() {
   let administratorAccessToken;
   let mainDevice;
@@ -3318,6 +3416,9 @@ async function main() {
       100,
     );
     assert(mainOffline === true, 'WS 优雅断开后设备持久态变为 offline');
+
+    section('分页与筛选参数边界');
+    await assertPaginationBoundaries(administratorAccessToken);
   } finally {
     await bestEffortCleanup(administratorAccessToken);
   }
