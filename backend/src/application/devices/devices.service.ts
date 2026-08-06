@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { and, desc, eq, ilike, inArray, SQL, sql } from 'drizzle-orm';
-import { containsPattern } from '../../common/db/like-pattern';
-import { pageBounds } from '../../common/db/page-bounds';
+import { and, desc, eq, inArray, SQL, sql } from 'drizzle-orm';
+import {
+  compactConditions,
+  eqIf,
+  likeIf,
+} from '../../common/db/filter-conditions';
+import { paginate } from '../../common/db/paginate';
 import { alive } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
@@ -149,36 +153,29 @@ export class DevicesService {
   // 列表:alive 设备按 id 倒序(新设备在前),筛选与分页都在服务端执行,不整表返回
   async list(query: QueryDevicesDto = {}) {
     const whereClause = alive(devices, ...this.buildConditions(query));
-    const { page, pageSize, offset } = pageBounds(query);
-    const rows = await this.database
-      .select()
-      .from(devices)
-      .where(whereClause)
-      .orderBy(desc(devices.id))
-      .limit(pageSize)
-      .offset(offset);
-    const [{ total }] = await this.database
-      .select({ total: sql<number>`count(*)::int` })
-      .from(devices)
-      .where(whereClause);
-    return { rows, page, pageSize, total };
+    return paginate(
+      this.database,
+      devices,
+      whereClause,
+      query,
+      (limit, offset) =>
+        this.database
+          .select()
+          .from(devices)
+          .where(whereClause)
+          .orderBy(desc(devices.id))
+          .limit(limit)
+          .offset(offset),
+    );
   }
 
   private buildConditions(query: QueryDevicesDto): SQL[] {
-    const conditions: SQL[] = [];
-    if (query.clientId) {
-      conditions.push(ilike(devices.clientId, containsPattern(query.clientId)));
-    }
-    if (query.platform) {
-      conditions.push(ilike(devices.platform, containsPattern(query.platform)));
-    }
-    if (query.lastIp) {
-      conditions.push(ilike(devices.lastIp, containsPattern(query.lastIp)));
-    }
-    if (query.status) {
-      conditions.push(eq(devices.status, query.status));
-    }
-    return conditions;
+    return compactConditions(
+      likeIf(devices.clientId, query.clientId),
+      likeIf(devices.platform, query.platform),
+      likeIf(devices.lastIp, query.lastIp),
+      eqIf(devices.status, query.status),
+    );
   }
 
   // 详情:单台(alive),不存在返回 null

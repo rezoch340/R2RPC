@@ -7,10 +7,14 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { desc, eq, ilike, SQL, sql } from 'drizzle-orm';
+import { desc, eq, SQL, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
-import { containsPattern } from '../../common/db/like-pattern';
-import { pageBounds } from '../../common/db/page-bounds';
+import {
+  compactConditions,
+  eqIf,
+  likeIf,
+} from '../../common/db/filter-conditions';
+import { paginate } from '../../common/db/paginate';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { QueryTokensDto } from '../../common/dto/query-tokens.dto';
 import { DbService } from '../../infrastructure/db/db.service';
@@ -172,54 +176,46 @@ export class AccessTokenService {
    */
   async list(query: QueryTokensDto = {}) {
     const whereClause = alive(accessTokens, ...this.buildConditions(query));
-    const { page, pageSize, offset } = pageBounds(query);
-    const tokenRecords = await this.database
-      .select()
-      .from(accessTokens)
-      .where(whereClause)
-      .orderBy(desc(accessTokens.id))
-      .limit(pageSize)
-      .offset(offset);
-    const [{ total }] = await this.database
-      .select({ total: sql<number>`count(*)::int` })
-      .from(accessTokens)
-      .where(whereClause);
-
-    const projectNamesByTokenId = await this.projects.namesByTokenIds(
-      accessTokenProjects,
-      tokenRecords.map((tokenRecord) => tokenRecord.id),
+    return paginate(
+      this.database,
+      accessTokens,
+      whereClause,
+      query,
+      async (limit, offset) => {
+        const tokenRecords = await this.database
+          .select()
+          .from(accessTokens)
+          .where(whereClause)
+          .orderBy(desc(accessTokens.id))
+          .limit(limit)
+          .offset(offset);
+        const projectNamesByTokenId = await this.projects.namesByTokenIds(
+          accessTokenProjects,
+          tokenRecords.map((tokenRecord) => tokenRecord.id),
+        );
+        return tokenRecords.map((tokenRecord) => ({
+          ...tokenRecord,
+          // 清零是懒执行的:跨月后到下一次调用之前库里还留着上月计数,展示要按周期归零
+          monthlyUsageCount: currentMonthlyUsage(tokenRecord),
+          projects: projectNamesByTokenId.get(tokenRecord.id) ?? [],
+        }));
+      },
     );
-
-    const rows = tokenRecords.map((tokenRecord) => ({
-      ...tokenRecord,
-      // 清零是懒执行的:跨月后到下一次调用之前库里还留着上月计数,展示要按周期归零
-      monthlyUsageCount: currentMonthlyUsage(tokenRecord),
-      projects: projectNamesByTokenId.get(tokenRecord.id) ?? [],
-    }));
-    return { rows, page, pageSize, total };
   }
 
   private buildConditions(query: QueryTokensDto): SQL[] {
-    const conditions: SQL[] = [];
-    if (query.id !== undefined) {
-      conditions.push(eq(accessTokens.id, query.id));
-    }
-    if (query.name) {
-      conditions.push(ilike(accessTokens.name, containsPattern(query.name)));
-    }
-    if (query.status) {
-      conditions.push(eq(accessTokens.status, query.status));
-    }
-    if (query.project) {
-      conditions.push(
-        this.projects.hasProjectNameMatch(
-          accessTokenProjects,
-          accessTokens.id,
-          query.project,
-        ),
-      );
-    }
-    return conditions;
+    return compactConditions(
+      eqIf(accessTokens.id, query.id),
+      likeIf(accessTokens.name, query.name),
+      eqIf(accessTokens.status, query.status),
+      query.project
+        ? this.projects.hasProjectNameMatch(
+            accessTokenProjects,
+            accessTokens.id,
+            query.project,
+          )
+        : null,
+    );
   }
 
   /**

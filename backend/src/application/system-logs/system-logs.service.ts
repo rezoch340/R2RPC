@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { and, desc, eq, gte, lte, SQL, sql } from 'drizzle-orm';
-import { pageBounds } from '../../common/db/page-bounds';
+import { and, desc, SQL } from 'drizzle-orm';
+import {
+  compactConditions,
+  eqIf,
+  gteIf,
+  lteIf,
+} from '../../common/db/filter-conditions';
+import { paginate } from '../../common/db/paginate';
 import { DbService } from '../../infrastructure/db/db.service';
 import { QuerySystemLogsDto } from './dto/query-system-logs.dto';
 import { CreateSystemLogInput } from './entity/model';
@@ -21,50 +27,33 @@ export class SystemLogsService {
   async list(query: QuerySystemLogsDto) {
     const conditions = this.buildConditions(query);
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    const { page, pageSize, offset } = pageBounds(query);
-    const rows = await this.database
-      .select()
-      .from(systemLogs)
-      .where(whereClause)
-      .orderBy(desc(systemLogs.createdAt), desc(systemLogs.id))
-      .limit(pageSize)
-      .offset(offset);
-    const [{ total }] = await this.database
-      .select({ total: sql<number>`count(*)::int` })
-      .from(systemLogs)
-      .where(whereClause);
-    return { rows, page, pageSize, total };
+    return paginate(
+      this.database,
+      systemLogs,
+      whereClause,
+      query,
+      (limit, offset) =>
+        this.database
+          .select()
+          .from(systemLogs)
+          .where(whereClause)
+          .orderBy(desc(systemLogs.createdAt), desc(systemLogs.id))
+          .limit(limit)
+          .offset(offset),
+    );
   }
 
   private buildConditions(query: QuerySystemLogsDto): SQL[] {
-    const conditions: SQL[] = [];
-    if (query.name) {
-      conditions.push(eq(systemLogs.name, query.name));
-    }
-    if (query.actorUsername) {
-      conditions.push(eq(systemLogs.actorUsername, query.actorUsername));
-    }
-    if (query.action) {
-      conditions.push(eq(systemLogs.action, query.action));
-    }
-    if (query.subject) {
-      conditions.push(eq(systemLogs.subject, query.subject));
-    }
-    if (query.targetType) {
-      conditions.push(eq(systemLogs.targetType, query.targetType));
-    }
-    if (query.targetName) {
-      conditions.push(eq(systemLogs.targetName, query.targetName));
-    }
-    if (query.status) {
-      conditions.push(eq(systemLogs.status, query.status));
-    }
-    if (query.from) {
-      conditions.push(gte(systemLogs.createdAt, new Date(query.from)));
-    }
-    if (query.to) {
-      conditions.push(lte(systemLogs.createdAt, new Date(query.to)));
-    }
-    return conditions;
+    return compactConditions(
+      eqIf(systemLogs.name, query.name),
+      eqIf(systemLogs.actorUsername, query.actorUsername),
+      eqIf(systemLogs.action, query.action),
+      eqIf(systemLogs.subject, query.subject),
+      eqIf(systemLogs.targetType, query.targetType),
+      eqIf(systemLogs.targetName, query.targetName),
+      eqIf(systemLogs.status, query.status),
+      gteIf(systemLogs.createdAt, query.from),
+      lteIf(systemLogs.createdAt, query.to),
+    );
   }
 }
