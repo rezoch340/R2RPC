@@ -398,9 +398,10 @@ test('两类令牌显示编号并可编辑功能组', async ({ page }) => {
     await expect(
       page.getByRole('columnheader', { name: '调用次数' }),
     ).toHaveCount(tokenPage.showsExpiration ? 1 : 0);
+    // 行操作已收进三个点菜单，先展开再点条目
+    await page.getByRole('button', { name: '操作令牌' }).first().click();
     await page
-      .getByRole('button', { name: tokenPage.editButtonName })
-      .first()
+      .getByRole('menuitem', { name: tokenPage.editButtonName })
       .click();
     const editDialog = page.getByRole('dialog');
     await expect(

@@ -23,6 +23,7 @@ import { buildQueryString, requestApi } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import type { PaginatedResponse, SystemLogRecord } from '@/lib/models';
 import { refreshTableData, useTableQuery } from '@/lib/table-query';
+import { useFilterState } from '@/lib/use-filter-state';
 
 interface SystemLogFilters {
   name: string;
@@ -70,40 +71,36 @@ const FILTER_FIELDS: Array<FilterFieldDefinition<keyof SystemLogFilters>> = [
 ];
 
 export default function SystemLogsPage() {
-  const [draftFilters, setDraftFilters] =
-    useState<SystemLogFilters>(EMPTY_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<SystemLogFilters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selectedLog, setSelectedLog] = useState<SystemLogRecord | null>(null);
   const queryClient = useQueryClient();
+  const filters = useFilterState(EMPTY_FILTERS, {
+    onApply: () => setPage(1),
+    onReset: () => {
+      setPage(1);
+      void refreshTableData(queryClient, ['system-logs']);
+    },
+  });
 
   const queryString = buildQueryString({
-    ...appliedFilters,
-    from: appliedFilters.from
-      ? new Date(appliedFilters.from).toISOString()
+    ...filters.applied,
+    from: filters.applied.from
+      ? new Date(filters.applied.from).toISOString()
       : undefined,
-    to: appliedFilters.to
-      ? new Date(appliedFilters.to).toISOString()
+    to: filters.applied.to
+      ? new Date(filters.applied.to).toISOString()
       : undefined,
     page,
     pageSize,
   });
   const systemLogsQuery = useTableQuery({
-    queryKey: ['system-logs', appliedFilters, page, pageSize],
+    queryKey: ['system-logs', filters.applied, page, pageSize],
     queryFunction: () =>
       requestApi<PaginatedResponse<SystemLogRecord>>(
         `/system-logs${queryString}`,
       ),
   });
-
-  function updateFilter(key: keyof SystemLogFilters, value: string) {
-    setDraftFilters((currentFilters) => ({
-      ...currentFilters,
-      [key]: value,
-    }));
-  }
 
   const columns: Array<DataTableColumn<SystemLogRecord>> = [
     {
@@ -215,18 +212,10 @@ export default function SystemLogsPage() {
       />
       <FilterBar
         fields={FILTER_FIELDS}
-        values={draftFilters}
-        onChange={updateFilter}
-        onSubmit={() => {
-          setAppliedFilters(draftFilters);
-          setPage(1);
-        }}
-        onReset={() => {
-          setDraftFilters(EMPTY_FILTERS);
-          setAppliedFilters(EMPTY_FILTERS);
-          setPage(1);
-          void refreshTableData(queryClient, ['system-logs']);
-        }}
+        values={filters.draft}
+        onChange={filters.update}
+        onSubmit={filters.apply}
+        onReset={filters.reset}
       />
       {systemLogsQuery.isError ? <QueryErrorState /> : null}
       <DataTable

@@ -23,6 +23,7 @@ import { buildQueryString, requestApi } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import type { DeviceRecord, PaginatedResponse } from '@/lib/models';
 import { refreshTableData, useTableQuery } from '@/lib/table-query';
+import { useFilterState } from '@/lib/use-filter-state';
 
 interface DeviceFilters {
   clientId: string;
@@ -56,34 +57,30 @@ const FILTER_FIELDS: Array<FilterFieldDefinition<keyof DeviceFilters>> = [
 ];
 
 export default function DevicesPage() {
-  const [draftFilters, setDraftFilters] =
-    useState<DeviceFilters>(EMPTY_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<DeviceFilters>(EMPTY_FILTERS);
   const [selectedDevice, setSelectedDevice] = useState<DeviceRecord | null>(
     null,
   );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const queryClient = useQueryClient();
+  const filters = useFilterState(EMPTY_FILTERS, {
+    onApply: () => setPage(1),
+    onReset: () => {
+      setPage(1);
+      void refreshTableData(queryClient, ['devices']);
+    },
+  });
 
   const queryString = buildQueryString({
-    ...appliedFilters,
+    ...filters.applied,
     page,
     pageSize,
   });
   const devicesQuery = useTableQuery({
-    queryKey: ['devices', appliedFilters, page, pageSize],
+    queryKey: ['devices', filters.applied, page, pageSize],
     queryFunction: () =>
       requestApi<PaginatedResponse<DeviceRecord>>(`/devices${queryString}`),
   });
-
-  function updateDraftFilter(key: keyof DeviceFilters, value: string) {
-    setDraftFilters((currentFilters) => ({
-      ...currentFilters,
-      [key]: value,
-    }));
-  }
 
   const columns: Array<DataTableColumn<DeviceRecord>> = [
     {
@@ -150,18 +147,10 @@ export default function DevicesPage() {
       {devicesQuery.isError ? <QueryErrorState /> : null}
       <FilterBar
         fields={FILTER_FIELDS}
-        values={draftFilters}
-        onChange={updateDraftFilter}
-        onSubmit={() => {
-          setAppliedFilters(draftFilters);
-          setPage(1);
-        }}
-        onReset={() => {
-          setDraftFilters(EMPTY_FILTERS);
-          setAppliedFilters(EMPTY_FILTERS);
-          setPage(1);
-          void refreshTableData(queryClient, ['devices']);
-        }}
+        values={filters.draft}
+        onChange={filters.update}
+        onSubmit={filters.apply}
+        onReset={filters.reset}
       />
       <DataTable
         columns={columns}

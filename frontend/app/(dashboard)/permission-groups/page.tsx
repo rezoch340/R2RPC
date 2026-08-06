@@ -8,6 +8,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
 import { PageHeader } from '@/components/page-header';
+import { RowActions } from '@/components/row-actions';
 import { Pagination } from '@/components/pagination';
 import { PermissionBoundary } from '@/components/permission-boundary';
 import { QueryErrorState } from '@/components/query-state';
@@ -17,6 +18,7 @@ import { getRequestErrorMessage, requestApi } from '@/lib/api-client';
 import { useAuthentication } from '@/lib/auth';
 import type { CatalogPermission, PermissionGroup } from '@/lib/models';
 import { refreshTableData, useTableQuery } from '@/lib/table-query';
+import { useFilterState, type FilterState } from '@/lib/use-filter-state';
 import { useClientPagination } from '@/lib/use-client-pagination';
 import { PermissionCreateDialog } from './permission-create-dialog';
 import {
@@ -63,14 +65,6 @@ const PERMISSION_FILTER_FIELDS: Array<
 ];
 
 export default function PermissionGroupsPage() {
-  const [draftGroupFilters, setDraftGroupFilters] =
-    useState<PermissionGroupFilters>(EMPTY_GROUP_FILTERS);
-  const [appliedGroupFilters, setAppliedGroupFilters] =
-    useState<PermissionGroupFilters>(EMPTY_GROUP_FILTERS);
-  const [draftPermissionFilters, setDraftPermissionFilters] =
-    useState<PermissionFilters>(EMPTY_PERMISSION_FILTERS);
-  const [appliedPermissionFilters, setAppliedPermissionFilters] =
-    useState<PermissionFilters>(EMPTY_PERMISSION_FILTERS);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [editingGroup, setEditingGroup] = useState<PermissionGroup | null>(
     null,
@@ -82,6 +76,27 @@ export default function PermissionGroupsPage() {
     useState<CatalogPermission | null>(null);
   const { isRoot } = useAuthentication();
   const queryClient = useQueryClient();
+  // 回调在交互时才执行,此时下面的 pagination 已初始化
+  const groupFilters: FilterState<PermissionGroupFilters> = useFilterState(
+    EMPTY_GROUP_FILTERS,
+    {
+      onApply: () => groupPagination.resetPage(),
+      onReset: () => {
+        groupPagination.resetPage();
+        void refreshTableData(queryClient, ['permission-groups']);
+      },
+    },
+  );
+  const permissionFilters: FilterState<PermissionFilters> = useFilterState(
+    EMPTY_PERMISSION_FILTERS,
+    {
+      onApply: () => permissionPagination.resetPage(),
+      onReset: () => {
+        permissionPagination.resetPage();
+        void refreshTableData(queryClient, ['permissions']);
+      },
+    },
+  );
 
   const permissionGroupsQuery = useTableQuery({
     queryKey: ['permission-groups'],
@@ -199,8 +214,8 @@ export default function PermissionGroupsPage() {
   });
 
   const filteredPermissionGroups = useMemo(() => {
-    const normalizedName = appliedGroupFilters.name.trim().toLowerCase();
-    const normalizedPermission = appliedGroupFilters.permission
+    const normalizedName = groupFilters.applied.name.trim().toLowerCase();
+    const normalizedPermission = groupFilters.applied.permission
       .trim()
       .toLowerCase();
     return (permissionGroupsQuery.data ?? []).filter((permissionGroup) => {
@@ -216,12 +231,12 @@ export default function PermissionGroupsPage() {
         );
       return matchesName && matchesPermission;
     });
-  }, [appliedGroupFilters, permissionGroupsQuery.data]);
+  }, [groupFilters.applied, permissionGroupsQuery.data]);
   const filteredPermissions = useMemo(() => {
-    const normalizedAction = appliedPermissionFilters.action
+    const normalizedAction = permissionFilters.applied.action
       .trim()
       .toLowerCase();
-    const normalizedSubject = appliedPermissionFilters.subject
+    const normalizedSubject = permissionFilters.applied.subject
       .trim()
       .toLowerCase();
     return (permissionsQuery.data ?? []).filter((permission) => {
@@ -233,29 +248,9 @@ export default function PermissionGroupsPage() {
         permission.subject.toLowerCase().includes(normalizedSubject);
       return matchesAction && matchesSubject;
     });
-  }, [appliedPermissionFilters, permissionsQuery.data]);
+  }, [permissionFilters.applied, permissionsQuery.data]);
   const groupPagination = useClientPagination(filteredPermissionGroups);
   const permissionPagination = useClientPagination(filteredPermissions);
-
-  function updateDraftGroupFilter(
-    key: keyof PermissionGroupFilters,
-    value: string,
-  ) {
-    setDraftGroupFilters((currentFilters) => ({
-      ...currentFilters,
-      [key]: value,
-    }));
-  }
-
-  function updateDraftPermissionFilter(
-    key: keyof PermissionFilters,
-    value: string,
-  ) {
-    setDraftPermissionFilters((currentFilters) => ({
-      ...currentFilters,
-      [key]: value,
-    }));
-  }
 
   const groupColumns: Array<DataTableColumn<PermissionGroup>> = [
     {
@@ -289,27 +284,26 @@ export default function PermissionGroupsPage() {
     {
       key: 'actions',
       header: '操作',
+      className: 'w-24',
       render: (permissionGroup) =>
         isRoot ? (
-          <div className="flex gap-1">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="编辑权限组"
-              onClick={() => setEditingGroup(permissionGroup)}
-            >
-              <Pencil />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-destructive"
-              aria-label="删除权限组"
-              onClick={() => setDeletingGroup(permissionGroup)}
-            >
-              <Trash2 />
-            </Button>
-          </div>
+          <RowActions
+            label={`操作权限组 ${permissionGroup.name}`}
+            actions={[
+              {
+                label: '编辑权限组',
+                icon: <Pencil />,
+                onSelect: () => setEditingGroup(permissionGroup),
+              },
+              {
+                label: '删除权限组',
+                icon: <Trash2 />,
+                destructive: true,
+                separatorBefore: true,
+                onSelect: () => setDeletingGroup(permissionGroup),
+              },
+            ]}
+          />
         ) : (
           <span className="text-xs text-muted-foreground">仅 Root 可写</span>
         ),
@@ -334,17 +328,20 @@ export default function PermissionGroupsPage() {
     {
       key: 'actions',
       header: '操作',
+      className: 'w-24',
       render: (permission) =>
         isRoot ? (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-destructive"
-            aria-label="删除权限"
-            onClick={() => setDeletingPermission(permission)}
-          >
-            <Trash2 />
-          </Button>
+          <RowActions
+            label={`操作权限 ${permission.action}/${permission.subject}`}
+            actions={[
+              {
+                label: '删除权限',
+                icon: <Trash2 />,
+                destructive: true,
+                onSelect: () => setDeletingPermission(permission),
+              },
+            ]}
+          />
         ) : (
           <span className="text-xs text-muted-foreground">仅 Root 可写</span>
         ),
@@ -381,18 +378,10 @@ export default function PermissionGroupsPage() {
         <h2 className="font-heading text-lg font-semibold">权限组列表</h2>
         <FilterBar
           fields={GROUP_FILTER_FIELDS}
-          values={draftGroupFilters}
-          onChange={updateDraftGroupFilter}
-          onSubmit={() => {
-            setAppliedGroupFilters(draftGroupFilters);
-            groupPagination.resetPage();
-          }}
-          onReset={() => {
-            setDraftGroupFilters(EMPTY_GROUP_FILTERS);
-            setAppliedGroupFilters(EMPTY_GROUP_FILTERS);
-            groupPagination.resetPage();
-            void refreshTableData(queryClient, ['permission-groups']);
-          }}
+          values={groupFilters.draft}
+          onChange={groupFilters.update}
+          onSubmit={groupFilters.apply}
+          onReset={groupFilters.reset}
         />
         <DataTable
           columns={groupColumns}
@@ -420,18 +409,10 @@ export default function PermissionGroupsPage() {
         </div>
         <FilterBar
           fields={PERMISSION_FILTER_FIELDS}
-          values={draftPermissionFilters}
-          onChange={updateDraftPermissionFilter}
-          onSubmit={() => {
-            setAppliedPermissionFilters(draftPermissionFilters);
-            permissionPagination.resetPage();
-          }}
-          onReset={() => {
-            setDraftPermissionFilters(EMPTY_PERMISSION_FILTERS);
-            setAppliedPermissionFilters(EMPTY_PERMISSION_FILTERS);
-            permissionPagination.resetPage();
-            void refreshTableData(queryClient, ['permissions']);
-          }}
+          values={permissionFilters.draft}
+          onChange={permissionFilters.update}
+          onSubmit={permissionFilters.apply}
+          onReset={permissionFilters.reset}
         />
         <DataTable
           columns={permissionColumns}
