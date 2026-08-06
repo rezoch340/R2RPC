@@ -4,6 +4,44 @@
 
 ## [Unreleased]
 
+### 破坏性变更
+- `GET /projects/info`、`GET /rbac/roles`、`GET /rbac/permissions` 由返回数组改为分页信封
+  `{ rows, page, pageSize, total }`。
+- `ProjectInfo` 瘦身为 `id/name/description/enabled`;设备数、近 7 天请求、成功率与运行态
+  移到新接口 `GET /projects/stats?ids=`。
+- 功能组列表**不再支持按运行态筛选**(该列保留)。运行态由设备聚合派生、不是库里的列,
+  进不了 `WHERE`;为此改用「分页列表 + 按编号取统计」两次简单查询,而不是把 `CASE` 写进
+  一条大 SQL。名称与启用状态照常服务端筛选。
+
+### 新增
+- `GET /dashboard/overview`:仪表盘一次返回功能组计数、设备计数、请求指标与 7 天趋势。
+  此前前端拼四个列表接口来凑,其中两次靠 `?pageSize=1` 偷 `total`。
+- `GET /projects/stats?ids=`、`GET /projects/summary`。
+- `GET /rbac/roles/options`、`GET /rbac/permissions/options`:下拉与勾选源,全量不分页。
+- Access Token 增加**当月调用计数**(`monthlyUsageCount`),跨月自动归零,只记数不参与限流;
+  限流仍只看 `usageCount` / `maximumUsageCount`。
+- `POST /access-tokens/:id/reset-usage`:总次数与当月计数一并清零。
+- 设备列表「最后在线」改为反映真实活跃时间,不再显示上次建连时刻。
+
+### 修复
+- 会话 CAS 在 `client:session` 键因 TTL 到期而缺失时判定失败,导致 `handleDisconnect` 整个
+  跳过下线清理,Redis 集合成员与 PG `online=true` 一并残留。硬断网时相当比例会撞上。
+- `registerOnline` 在设备被软删后重连时插入重复行(`client_id` 唯一索引是 partial 的,
+  旧行不占约束),设备历史被劈开。现改为活行优先查找并复用原行。
+
+### 管理前端
+- 行操作统一收进三个点菜单;此前只有用户页在用,其余页面各摆一排图标按钮。
+- 列表页接线抽成 `useServerTable`(筛选状态、页码、查询串、请求与三个组件的 props),
+  七个页面各省约 40 行;`useClientPagination` 删除。
+- 令牌列表新增「当月调用」列,「调用次数」更名「总调用次数」,操作菜单加重置入口。
+
+### 内部
+- 列表分页抽成 `common/db/paginate.ts`,结构上强制 `total` 与 `rows` 使用同一个
+  `whereClause`;筛选条件抽成 `likeIf` / `eqIf` / `gteIf` / `lteIf` / `compactConditions`。
+- 黑盒补齐分页与筛选参数边界断言(非法 `page`/`pageSize`、数组参数、非法枚举、空字节一律
+  400;ILIKE 元字符按字面量匹配不退化成通配;越界页 `total` 不变;逐页累加等于 `total`)。
+  黑盒基线 209 → 253 passed。
+
 ## [0.1.5] - 2026-08-04
 
 ### 设备生命周期
