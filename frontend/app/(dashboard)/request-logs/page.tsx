@@ -22,6 +22,7 @@ import { buildQueryString, requestApi } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import type { PaginatedResponse, RequestLogRecord } from '@/lib/models';
 import { refreshTableData, useTableQuery } from '@/lib/table-query';
+import { useFilterState } from '@/lib/use-filter-state';
 import { RequestLogDetailContent } from './request-log-detail';
 
 interface RequestFilters {
@@ -100,54 +101,38 @@ const FILTER_FIELDS: Array<FilterFieldDefinition<keyof RequestFilters>> = [
 ];
 
 export default function RequestLogsPage() {
-  const [draftFilters, setDraftFilters] =
-    useState<RequestFilters>(EMPTY_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<RequestFilters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(
     null,
   );
   const queryClient = useQueryClient();
+  const filters = useFilterState(EMPTY_FILTERS, {
+    onApply: () => setPage(1),
+    onReset: () => {
+      setPage(1);
+      void refreshTableData(queryClient, ['request-logs']);
+    },
+  });
 
   const queryString = buildQueryString({
-    ...appliedFilters,
-    from: appliedFilters.from
-      ? new Date(appliedFilters.from).toISOString()
+    ...filters.applied,
+    from: filters.applied.from
+      ? new Date(filters.applied.from).toISOString()
       : undefined,
-    to: appliedFilters.to
-      ? new Date(appliedFilters.to).toISOString()
+    to: filters.applied.to
+      ? new Date(filters.applied.to).toISOString()
       : undefined,
     page,
     pageSize,
   });
   const requestsQuery = useTableQuery({
-    queryKey: ['request-logs', appliedFilters, page, pageSize],
+    queryKey: ['request-logs', filters.applied, page, pageSize],
     queryFunction: () =>
       requestApi<PaginatedResponse<RequestLogRecord>>(
         `/monitor/requests${queryString}`,
       ),
   });
-
-  function updateDraftFilter(key: keyof RequestFilters, value: string) {
-    setDraftFilters((currentFilters) => ({
-      ...currentFilters,
-      [key]: value,
-    }));
-  }
-
-  function applyFilters() {
-    setAppliedFilters(draftFilters);
-    setPage(1);
-  }
-
-  function resetFilters() {
-    setDraftFilters(EMPTY_FILTERS);
-    setAppliedFilters(EMPTY_FILTERS);
-    setPage(1);
-    void refreshTableData(queryClient, ['request-logs']);
-  }
 
   const columns: Array<DataTableColumn<RequestLogRecord>> = [
     {
@@ -244,10 +229,10 @@ export default function RequestLogsPage() {
       />
       <FilterBar
         fields={FILTER_FIELDS}
-        values={draftFilters}
-        onChange={updateDraftFilter}
-        onSubmit={applyFilters}
-        onReset={resetFilters}
+        values={filters.draft}
+        onChange={filters.update}
+        onSubmit={filters.apply}
+        onReset={filters.reset}
       />
       {requestsQuery.isError ? <QueryErrorState /> : null}
       <DataTable

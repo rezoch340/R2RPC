@@ -37,6 +37,7 @@ import type {
   UserRecord,
 } from '@/lib/models';
 import { refreshTableData, useTableQuery } from '@/lib/table-query';
+import { useFilterState } from '@/lib/use-filter-state';
 import {
   UserCreateDialog,
   UserDescriptionDialog,
@@ -77,9 +78,6 @@ const FILTER_FIELDS: Array<FilterFieldDefinition<keyof UserFilters>> = [
 ];
 
 export default function UsersPage() {
-  const [draftFilters, setDraftFilters] = useState<UserFilters>(EMPTY_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<UserFilters>(EMPTY_FILTERS);
   const [descriptionUser, setDescriptionUser] = useState<UserRecord | null>(
     null,
   );
@@ -91,13 +89,20 @@ export default function UsersPage() {
     null,
   );
   const queryClient = useQueryClient();
+  const filters = useFilterState(EMPTY_FILTERS, {
+    onApply: () => setPage(1),
+    onReset: () => {
+      setPage(1);
+      void refreshTableData(queryClient, ['users']);
+    },
+  });
   const { user: authenticatedUser, can, isRoot } = useAuthentication();
 
   const usersQuery = useTableQuery({
-    queryKey: ['users', appliedFilters, page, pageSize],
+    queryKey: ['users', filters.applied, page, pageSize],
     queryFunction: () =>
       requestApi<PaginatedResponse<UserRecord>>(
-        `/users${buildQueryString({ ...appliedFilters, page, pageSize })}`,
+        `/users${buildQueryString({ ...filters.applied, page, pageSize })}`,
       ),
   });
   const permissionGroupsQuery = useQuery({
@@ -189,13 +194,6 @@ export default function UsersPage() {
     onError: (error) =>
       toast.error(getRequestErrorMessage(error, '权限组更新失败')),
   });
-
-  function updateDraftFilter(key: keyof UserFilters, value: string) {
-    setDraftFilters((currentFilters) => ({
-      ...currentFilters,
-      [key]: value,
-    }));
-  }
 
   function canMutateUser(userRecord: UserRecord): boolean {
     return (
@@ -327,18 +325,10 @@ export default function UsersPage() {
       {usersQuery.isError ? <QueryErrorState /> : null}
       <FilterBar
         fields={FILTER_FIELDS}
-        values={draftFilters}
-        onChange={updateDraftFilter}
-        onSubmit={() => {
-          setAppliedFilters(draftFilters);
-          setPage(1);
-        }}
-        onReset={() => {
-          setDraftFilters(EMPTY_FILTERS);
-          setAppliedFilters(EMPTY_FILTERS);
-          setPage(1);
-          void refreshTableData(queryClient, ['users']);
-        }}
+        values={filters.draft}
+        onChange={filters.update}
+        onSubmit={filters.apply}
+        onReset={filters.reset}
       />
       <DataTable
         columns={columns}

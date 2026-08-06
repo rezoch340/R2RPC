@@ -8,16 +8,17 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
 import { PageHeader } from '@/components/page-header';
+import { RowActions } from '@/components/row-actions';
 import { Pagination } from '@/components/pagination';
 import { PermissionBoundary } from '@/components/permission-boundary';
 import { QueryErrorState } from '@/components/query-state';
 import { StatusBadge } from '@/components/status-badge';
-import { Button } from '@/components/ui/button';
 import { getRequestErrorMessage, requestApi } from '@/lib/api-client';
 import { useAuthentication } from '@/lib/auth';
 import { formatDateTime, formatNumber } from '@/lib/format';
 import type { ProjectRecord } from '@/lib/models';
 import { refreshTableData, useTableQuery } from '@/lib/table-query';
+import { useFilterState, type FilterState } from '@/lib/use-filter-state';
 import { useClientPagination } from '@/lib/use-client-pagination';
 import { ProjectCreateDialog } from './project-create-dialog';
 
@@ -63,14 +64,18 @@ const FILTER_FIELDS: Array<FilterFieldDefinition<keyof ProjectFilters>> = [
 ];
 
 export default function ProjectsPage() {
-  const [draftFilters, setDraftFilters] =
-    useState<ProjectFilters>(EMPTY_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<ProjectFilters>(EMPTY_FILTERS);
   const [pendingAction, setPendingAction] = useState<ProjectAction | null>(
     null,
   );
   const queryClient = useQueryClient();
+  // 显式标注打断循环推导:filters -> pagination -> filteredProjects -> filters.applied
+  const filters: FilterState<ProjectFilters> = useFilterState(EMPTY_FILTERS, {
+    onApply: () => pagination.resetPage(),
+    onReset: () => {
+      pagination.resetPage();
+      void refreshTableData(queryClient, ['projects', 'info']);
+    },
+  });
   const { can } = useAuthentication();
 
   const projectsQuery = useTableQuery({
@@ -121,26 +126,19 @@ export default function ProjectsPage() {
   });
 
   const filteredProjects = useMemo(() => {
-    const normalizedName = appliedFilters.name.trim().toLowerCase();
+    const normalizedName = filters.applied.name.trim().toLowerCase();
     return (projectsQuery.data ?? []).filter((project) => {
       const matchesName =
         !normalizedName || project.name.toLowerCase().includes(normalizedName);
       const matchesStatus =
-        !appliedFilters.status || project.status === appliedFilters.status;
+        !filters.applied.status || project.status === filters.applied.status;
       const enabledStatus = project.enabled ? 'enabled' : 'disabled';
       const matchesEnabled =
-        !appliedFilters.enabled || enabledStatus === appliedFilters.enabled;
+        !filters.applied.enabled || enabledStatus === filters.applied.enabled;
       return matchesName && matchesStatus && matchesEnabled;
     });
-  }, [appliedFilters, projectsQuery.data]);
+  }, [filters.applied, projectsQuery.data]);
   const pagination = useClientPagination(filteredProjects);
-
-  function updateDraftFilter(key: keyof ProjectFilters, value: string) {
-    setDraftFilters((currentFilters) => ({
-      ...currentFilters,
-      [key]: value,
-    }));
-  }
 
   const columns: Array<DataTableColumn<ProjectRecord>> = [
     {
@@ -192,30 +190,34 @@ export default function ProjectsPage() {
     {
       key: 'actions',
       header: '操作',
+      className: 'w-16',
       render: (project) => (
-        <div className="flex items-center gap-1">
-          {can('update', 'project') ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={project.enabled ? '停用功能组' : '启用功能组'}
-              onClick={() => setPendingAction({ type: 'toggle', project })}
-            >
-              {project.enabled ? <PowerOff /> : <Power />}
-            </Button>
-          ) : null}
-          {can('delete', 'project') ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="删除功能组"
-              className="text-destructive"
-              onClick={() => setPendingAction({ type: 'delete', project })}
-            >
-              <Trash2 />
-            </Button>
-          ) : null}
-        </div>
+        <RowActions
+          label={`操作功能组 ${project.name}`}
+          actions={[
+            ...(can('update', 'project')
+              ? [
+                  {
+                    label: project.enabled ? '停用功能组' : '启用功能组',
+                    icon: project.enabled ? <PowerOff /> : <Power />,
+                    onSelect: () =>
+                      setPendingAction({ type: 'toggle', project }),
+                  },
+                ]
+              : []),
+            ...(can('delete', 'project')
+              ? [
+                  {
+                    label: '删除功能组',
+                    icon: <Trash2 />,
+                    destructive: true,
+                    onSelect: () =>
+                      setPendingAction({ type: 'delete', project }),
+                  },
+                ]
+              : []),
+          ]}
+        />
       ),
     },
   ];
@@ -240,18 +242,10 @@ export default function ProjectsPage() {
       {projectsQuery.isError ? <QueryErrorState /> : null}
       <FilterBar
         fields={FILTER_FIELDS}
-        values={draftFilters}
-        onChange={updateDraftFilter}
-        onSubmit={() => {
-          setAppliedFilters(draftFilters);
-          pagination.resetPage();
-        }}
-        onReset={() => {
-          setDraftFilters(EMPTY_FILTERS);
-          setAppliedFilters(EMPTY_FILTERS);
-          pagination.resetPage();
-          void refreshTableData(queryClient, ['projects', 'info']);
-        }}
+        values={filters.draft}
+        onChange={filters.update}
+        onSubmit={filters.apply}
+        onReset={filters.reset}
       />
       <DataTable
         columns={columns}

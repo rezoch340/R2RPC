@@ -19,6 +19,7 @@ import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { PermissionBoundary } from '@/components/permission-boundary';
+import { RowActions } from '@/components/row-actions';
 import { QueryErrorState } from '@/components/query-state';
 import { StatusBadge } from '@/components/status-badge';
 import {
@@ -27,7 +28,6 @@ import {
 } from '@/components/token-create-dialog';
 import { TokenProjectsDialog } from '@/components/token-projects-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   buildQueryString,
   getRequestErrorMessage,
@@ -40,6 +40,7 @@ import type {
   TokenRecord,
 } from '@/lib/models';
 import { refreshTableData, useTableQuery } from '@/lib/table-query';
+import { useFilterState } from '@/lib/use-filter-state';
 
 type TokenActionType = 'revoke' | 'delete' | 'reset-usage';
 
@@ -127,22 +128,26 @@ export function TokenManagementPage({
   createDescription: string;
   showOnlineDevices?: boolean;
 }) {
-  const [draftFilters, setDraftFilters] = useState<TokenFilters>(EMPTY_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<TokenFilters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [editingToken, setEditingToken] = useState<TokenRecord | null>(null);
   const [pendingAction, setPendingAction] = useState<TokenAction | null>(null);
   const queryClient = useQueryClient();
   const allowsExpiration = resourcePath === '/access-tokens';
+  const filters = useFilterState(EMPTY_FILTERS, {
+    onApply: () => setPage(1),
+    onReset: () => {
+      setPage(1);
+      void refreshTableData(queryClient, [resourceQueryKey]);
+    },
+  });
 
   const tokensQuery = useTableQuery({
-    queryKey: [resourceQueryKey, appliedFilters, page, pageSize],
+    queryKey: [resourceQueryKey, filters.applied, page, pageSize],
     queryFunction: () =>
       requestApi<PaginatedResponse<TokenRecord>>(
         `${resourcePath}${buildQueryString({
-          ...appliedFilters,
+          ...filters.applied,
           page,
           pageSize,
         })}`,
@@ -240,13 +245,6 @@ export function TokenManagementPage({
     ],
     [projectsQuery.data],
   );
-
-  function updateDraftFilter(key: keyof TokenFilters, value: string) {
-    setDraftFilters((currentFilters) => ({
-      ...currentFilters,
-      [key]: value,
-    }));
-  }
 
   const columns: Array<DataTableColumn<TokenRecord>> = [
     {
@@ -368,46 +366,42 @@ export function TokenManagementPage({
     {
       key: 'actions',
       header: '操作',
-      className: 'w-36',
+      className: 'w-16',
       render: (token) => (
-        <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={allowsExpiration ? '编辑令牌' : '编辑功能组'}
-            onClick={() => setEditingToken(token)}
-          >
-            <Pencil />
-          </Button>
-          {allowsExpiration ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="重置调用次数"
-              onClick={() => setPendingAction({ type: 'reset-usage', token })}
-            >
-              <RotateCcw />
-            </Button>
-          ) : null}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={token.status === 'revoked'}
-            aria-label="撤销令牌"
-            onClick={() => setPendingAction({ type: 'revoke', token })}
-          >
-            <ShieldX />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-destructive"
-            aria-label="删除令牌"
-            onClick={() => setPendingAction({ type: 'delete', token })}
-          >
-            <Trash2 />
-          </Button>
-        </div>
+        <RowActions
+          label={`操作令牌 ${token.name}`}
+          actions={[
+            {
+              label: allowsExpiration ? '编辑令牌' : '编辑功能组',
+              icon: <Pencil />,
+              onSelect: () => setEditingToken(token),
+            },
+            // 重置只对 access token 有意义:device token 没有调用次数
+            ...(allowsExpiration
+              ? [
+                  {
+                    label: '重置调用次数',
+                    icon: <RotateCcw />,
+                    onSelect: () =>
+                      setPendingAction({ type: 'reset-usage', token }),
+                  },
+                ]
+              : []),
+            {
+              label: '撤销令牌',
+              icon: <ShieldX />,
+              disabled: token.status === 'revoked',
+              separatorBefore: true,
+              onSelect: () => setPendingAction({ type: 'revoke', token }),
+            },
+            {
+              label: '删除令牌',
+              icon: <Trash2 />,
+              destructive: true,
+              onSelect: () => setPendingAction({ type: 'delete', token }),
+            },
+          ]}
+        />
       ),
     },
   ];
@@ -435,18 +429,10 @@ export function TokenManagementPage({
       {tokensQuery.isError ? <QueryErrorState /> : null}
       <FilterBar
         fields={filterFields}
-        values={draftFilters}
-        onChange={updateDraftFilter}
-        onSubmit={() => {
-          setAppliedFilters(draftFilters);
-          setPage(1);
-        }}
-        onReset={() => {
-          setDraftFilters(EMPTY_FILTERS);
-          setAppliedFilters(EMPTY_FILTERS);
-          setPage(1);
-          void refreshTableData(queryClient, [resourceQueryKey]);
-        }}
+        values={filters.draft}
+        onChange={filters.update}
+        onSubmit={filters.apply}
+        onReset={filters.reset}
       />
       <DataTable
         columns={columns}
