@@ -332,10 +332,19 @@ export const OPEN_API_RESPONSE_SCHEMAS = {
   },
   ProjectInfo: {
     type: 'object',
+    required: ['id', 'name', 'enabled'],
+    description: '功能组列表行,只含库里的基础字段;派生统计见 ProjectStats。',
+    properties: {
+      id: { type: 'integer' },
+      name: { type: 'string' },
+      description: nullableStringSchema,
+      enabled: { type: 'boolean' },
+    },
+  },
+  ProjectStats: {
+    type: 'object',
     required: [
-      'id',
-      'name',
-      'enabled',
+      'projectId',
       'totalDevices',
       'onlineDevices',
       'requests7d',
@@ -343,11 +352,10 @@ export const OPEN_API_RESPONSE_SCHEMAS = {
       'successRate',
       'status',
     ],
+    description:
+      '功能组派生统计。运行态由设备聚合推导,不是库里的列,故不可作为筛选条件。',
     properties: {
-      id: { type: 'integer' },
-      name: { type: 'string' },
-      description: nullableStringSchema,
-      enabled: { type: 'boolean' },
+      projectId: { type: 'integer' },
       totalDevices: { type: 'integer', minimum: 0 },
       onlineDevices: { type: 'integer', minimum: 0 },
       lastSeenAt: nullableDateTimeSchema,
@@ -357,6 +365,36 @@ export const OPEN_API_RESPONSE_SCHEMAS = {
       status: {
         type: 'string',
         enum: ['online', 'offline', 'stale', 'disabled', 'no_device'],
+      },
+    },
+  },
+  ProjectSummary: {
+    type: 'object',
+    required: ['total', 'enabled'],
+    properties: {
+      total: { type: 'integer', minimum: 0 },
+      enabled: { type: 'integer', minimum: 0 },
+    },
+  },
+  DeviceSummary: {
+    type: 'object',
+    required: ['total', 'online'],
+    properties: {
+      total: { type: 'integer', minimum: 0 },
+      online: { type: 'integer', minimum: 0 },
+    },
+  },
+  DashboardOverview: {
+    type: 'object',
+    required: ['projects', 'devices', 'requests', 'trend'],
+    description: '仪表盘一次取全:两组计数 + 请求指标 + 近 7 天趋势。',
+    properties: {
+      projects: { $ref: '#/components/schemas/ProjectSummary' },
+      devices: { $ref: '#/components/schemas/DeviceSummary' },
+      requests: { $ref: '#/components/schemas/MetricsOverview' },
+      trend: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/DailyTrendPoint' },
       },
     },
   },
@@ -671,6 +709,9 @@ export const OPEN_API_RESPONSE_SCHEMAS = {
   UserPage: pageSchema('User'),
   AccessTokenPage: pageSchema('AccessTokenRecord'),
   DeviceTokenPage: pageSchema('DeviceTokenRecord'),
+  ProjectInfoPage: pageSchema('ProjectInfo'),
+  PermissionGroupPage: pageSchema('PermissionGroup'),
+  PermissionPage: pageSchema('Permission'),
 } satisfies Record<string, SchemaDefinition>;
 
 export function schemaReference(schemaName: string): SchemaDefinition {

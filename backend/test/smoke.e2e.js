@@ -436,6 +436,106 @@ async function assertPaginationBoundaries(administratorAccessToken) {
   );
 }
 
+// 三个原本返回数组的端点补齐分页,另加两个下拉选项源和仪表盘专用接口。
+// 重点验:① 列表信封齐全且真的按页切;② options 不分页、能取全;
+// ③ 仪表盘一次拿到全部数字,不必再靠 ?pageSize=1 偷 total。
+async function assertNewlyPaginatedEndpoints(administratorAccessToken) {
+  const read = (requestPath) =>
+    httpRequest('GET', requestPath, undefined, administratorAccessToken);
+
+  const paginatedListPaths = [
+    ['/projects/info', '功能组列表'],
+    ['/rbac/roles', '权限组列表'],
+    ['/rbac/permissions', '权限目录'],
+  ];
+  for (const [listPath, description] of paginatedListPaths) {
+    const firstPage = await read(`${listPath}?page=1&pageSize=1`);
+    assert(
+      firstPage.status === 200 &&
+        Array.isArray(firstPage.json.rows) &&
+        firstPage.json.page === 1 &&
+        firstPage.json.pageSize === 1 &&
+        typeof firstPage.json.total === 'number',
+      `${description}返回分页信封`,
+    );
+    assert(
+      firstPage.json.rows.length <= 1 &&
+        firstPage.json.total >= firstPage.json.rows.length,
+      `${description}按 pageSize 切页且 total 不小于当页行数`,
+    );
+    const rejected = await read(`${listPath}?pageSize=101`);
+    assert(rejected.status === 400, `${description}沿用统一的分页参数校验`);
+  }
+
+  // options 是下拉/勾选源,必须能取全,不受 pageSize 限制
+  const optionPaths = [
+    ['/rbac/roles/options', '权限组下拉'],
+    ['/rbac/permissions/options', '权限目录勾选源'],
+    ['/projects', '功能组下拉'],
+  ];
+  for (const [optionPath, description] of optionPaths) {
+    const options = await read(optionPath);
+    assert(
+      options.status === 200 && Array.isArray(options.json),
+      `${description}返回全量数组而非分页信封`,
+    );
+  }
+  const permissionOptions = await read('/rbac/permissions/options');
+  const pagedPermissions = await read('/rbac/permissions?pageSize=1');
+  assert(
+    permissionOptions.json.length === pagedPermissions.json.total,
+    `权限目录勾选源取到全部 ${pagedPermissions.json.total} 条,不被默认分页截断`,
+  );
+
+  // 功能组列表只留基础字段,派生统计单独取
+  const projectPage = await read('/projects/info?pageSize=100');
+  const sampleProject = projectPage.json.rows[0];
+  assert(
+    !!sampleProject && !('totalDevices' in sampleProject),
+    '功能组列表行不含派生统计字段',
+  );
+  const stats = await read(`/projects/stats?ids=${sampleProject.id}`);
+  assert(
+    stats.status === 200 &&
+      stats.json[0]?.projectId === sampleProject.id &&
+      typeof stats.json[0]?.totalDevices === 'number' &&
+      typeof stats.json[0]?.successRate === 'number' &&
+      typeof stats.json[0]?.status === 'string',
+    '按编号取派生统计返回设备数、成功率与运行态',
+  );
+  const rejectedStats = await read('/projects/stats?ids=abc');
+  assert(rejectedStats.status === 400, '派生统计拒绝非数字编号');
+  const emptyStatsIds = await read('/projects/stats?ids=');
+  assert(emptyStatsIds.status === 400, '派生统计拒绝空编号列表');
+
+  // 仪表盘一次取全
+  const overview = await read('/dashboard/overview');
+  assert(
+    overview.status === 200 &&
+      typeof overview.json.projects?.total === 'number' &&
+      typeof overview.json.projects?.enabled === 'number' &&
+      typeof overview.json.devices?.total === 'number' &&
+      typeof overview.json.devices?.online === 'number' &&
+      !!overview.json.requests?.totals &&
+      Array.isArray(overview.json.trend),
+    '仪表盘概览一次返回功能组计数、设备计数、请求指标与趋势',
+  );
+  assert(
+    overview.json.trend.length === 7,
+    `仪表盘趋势固定 7 天(实际 ${overview.json.trend?.length})`,
+  );
+  const devicePageTotal = (await read('/devices?page=1&pageSize=1')).json.total;
+  assert(
+    overview.json.devices.total === devicePageTotal,
+    `仪表盘设备总数与列表接口一致(${overview.json.devices.total} = ${devicePageTotal})`,
+  );
+  const projectSummaryTotal = (await read('/projects/summary')).json.total;
+  assert(
+    overview.json.projects.total === projectSummaryTotal,
+    '仪表盘功能组计数与 /projects/summary 一致',
+  );
+}
+
 async function main() {
   let administratorAccessToken;
   let mainDevice;
@@ -541,16 +641,48 @@ async function main() {
 
     const emptyInfo = await httpRequest(
       'GET',
-      '/projects/info',
+      `/projects/info?name=${encodeURIComponent(projectNames.empty)}&pageSize=100`,
       undefined,
       administratorAccessToken,
     );
-    const emptyInfoRow = emptyInfo.json.find(
+    const emptyInfoRow = emptyInfo.json.rows.find(
       (row) => row.name === projectNames.empty,
     );
     assert(
-      emptyInfo.status === 200 && emptyInfoRow?.status === 'no_device',
-      '无设备 project 的 GroupInfo 状态为 no_device',
+      emptyInfo.status === 200 &&
+        Array.isArray(emptyInfo.json.rows) &&
+        typeof emptyInfo.json.total === 'number' &&
+        !!emptyInfoRow,
+      'GET /projects/info 返回分页信封并支持按名称筛选',
+    );
+    assert(
+      emptyInfoRow !== undefined && !('status' in emptyInfoRow),
+      '列表行只含基础字段,派生统计不再混在列表里',
+    );
+    const emptyStats = await httpRequest(
+      'GET',
+      `/projects/stats?ids=${emptyInfoRow.id}`,
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      emptyStats.status === 200 &&
+        emptyStats.json[0]?.projectId === emptyInfoRow.id &&
+        emptyStats.json[0]?.status === 'no_device',
+      '无设备 project 的派生统计状态为 no_device',
+    );
+    const projectSummary = await httpRequest(
+      'GET',
+      '/projects/summary',
+      undefined,
+      administratorAccessToken,
+    );
+    assert(
+      projectSummary.status === 200 &&
+        typeof projectSummary.json.total === 'number' &&
+        typeof projectSummary.json.enabled === 'number' &&
+        projectSummary.json.total >= projectSummary.json.enabled,
+      'GET /projects/summary 返回功能组总数与启用数',
     );
 
     const disableOther = await httpRequest(
@@ -873,7 +1005,7 @@ async function main() {
 
     const permissionsList = await httpRequest(
       'GET',
-      '/rbac/permissions',
+      '/rbac/permissions?pageSize=100',
       undefined,
       administratorAccessToken,
     );
@@ -898,39 +1030,39 @@ async function main() {
       'read/device',
       'invoke/manual-rpc',
     ]);
-    const seededPermissions = permissionsList.json.filter((permission) =>
+    const seededPermissions = permissionsList.json.rows.filter((permission) =>
       seededPermissionKeys.has(`${permission.action}/${permission.subject}`),
     );
-    const readUserPermission = permissionsList.json.find(
+    const readUserPermission = permissionsList.json.rows.find(
       (permission) =>
         permission.action === 'read' && permission.subject === 'user',
     );
-    const readProjectPermission = permissionsList.json.find(
+    const readProjectPermission = permissionsList.json.rows.find(
       (permission) =>
         permission.action === 'read' && permission.subject === 'project',
     );
-    const manualRpcPermission = permissionsList.json.find(
+    const manualRpcPermission = permissionsList.json.rows.find(
       (permission) =>
         permission.action === 'invoke' && permission.subject === 'manual-rpc',
     );
     const delegatedManagementPermissions = [
-      permissionsList.json.find(
+      permissionsList.json.rows.find(
         (permission) =>
           permission.action === 'update' && permission.subject === 'user',
       ),
-      permissionsList.json.find(
+      permissionsList.json.rows.find(
         (permission) =>
           permission.action === 'delete' && permission.subject === 'user',
       ),
-      permissionsList.json.find(
+      permissionsList.json.rows.find(
         (permission) =>
           permission.action === 'manage' && permission.subject === 'rbac',
       ),
-      permissionsList.json.find(
+      permissionsList.json.rows.find(
         (permission) =>
           permission.action === 'read' && permission.subject === 'rbac',
       ),
-      permissionsList.json.find(
+      permissionsList.json.rows.find(
         (permission) =>
           permission.action === 'read' && permission.subject === 'system-log',
       ),
@@ -1239,11 +1371,11 @@ async function main() {
 
     const readablePermissionGroups = await httpRequest(
       'GET',
-      '/rbac/roles',
+      '/rbac/roles?pageSize=100',
       undefined,
       userAuthenticationToken,
     );
-    const readablePermissionGroup = readablePermissionGroups.json.find(
+    const readablePermissionGroup = readablePermissionGroups.json.rows.find(
       (permissionGroup) => permissionGroup.id === roleId,
     );
     assert(
@@ -1258,13 +1390,13 @@ async function main() {
     );
     const readablePermissions = await httpRequest(
       'GET',
-      '/rbac/permissions',
+      '/rbac/permissions?pageSize=100',
       undefined,
       userAuthenticationToken,
     );
     assert(
       readablePermissions.status === 200 &&
-        readablePermissions.json.some(
+        readablePermissions.json.rows.some(
           (permission) =>
             permission.action === 'read' && permission.subject === 'rbac',
         ),
@@ -1557,13 +1689,13 @@ async function main() {
     );
     const rolesList = await httpRequest(
       'GET',
-      '/rbac/roles',
+      '/rbac/roles?pageSize=100',
       undefined,
       administratorAccessToken,
     );
     assert(
       rolesList.status === 200 &&
-        !rolesList.json.some((role) => role.id === roleId),
+        !rolesList.json.rows.some((role) => role.id === roleId),
       '软删除角色不再出现在角色列表',
     );
 
@@ -2888,16 +3020,17 @@ async function main() {
         invokeDisabled.json.httpCode === 403,
       '停用 project 后 invoke 返回 disabled',
     );
-    const disabledInfo = await httpRequest(
+    const disabledStats = await httpRequest(
       'GET',
-      '/projects/info',
+      `/projects/stats?ids=${projects.main.id}`,
       undefined,
       administratorAccessToken,
     );
     assert(
-      disabledInfo.json.find((row) => row.id === projects.main.id)?.status ===
-        'disabled',
-      '停用 project 的 GroupInfo 状态为 disabled',
+      disabledStats.json.find(
+        (row) => row.projectId === projects.main.id,
+      )?.status === 'disabled',
+      '停用 project 的派生统计状态为 disabled',
     );
     await httpRequest(
       'POST',
@@ -3372,12 +3505,12 @@ async function main() {
 
     const finalGroupInfo = await httpRequest(
       'GET',
-      '/projects/info',
+      `/projects/stats?ids=${projects.main.id}`,
       undefined,
       administratorAccessToken,
     );
     const mainGroupInfo = finalGroupInfo.json.find(
-      (row) => row.id === projects.main.id,
+      (row) => row.projectId === projects.main.id,
     );
     assert(
       mainGroupInfo.totalDevices >= 2 &&
@@ -3419,6 +3552,9 @@ async function main() {
 
     section('分页与筛选参数边界');
     await assertPaginationBoundaries(administratorAccessToken);
+
+    section('补齐分页的端点与仪表盘接口');
+    await assertNewlyPaginatedEndpoints(administratorAccessToken);
   } finally {
     await bestEffortCleanup(administratorAccessToken);
   }

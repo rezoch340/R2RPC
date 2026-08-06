@@ -21,6 +21,7 @@ import { RedisModule } from './infrastructure/redis/redis.module';
 import { QueueModule } from './infrastructure/queue/queue.module';
 import { SearchModule } from './infrastructure/search/search.module';
 import { WsModule } from './infrastructure/ws/ws.module';
+import { DashboardModule } from './application/dashboard/dashboard.module';
 import { SystemLogsModule } from './application/system-logs/system-logs.module';
 
 @Module({
@@ -43,6 +44,7 @@ import { SystemLogsModule } from './application/system-logs/system-logs.module';
     MetricsModule,
     RequestLogsModule,
     SystemLogsModule,
+    DashboardModule,
   ],
   providers: [
     // 全局鉴权:先 JWT(@Public 跳过),再 Permission(@RequirePermission 校验,fail-closed)

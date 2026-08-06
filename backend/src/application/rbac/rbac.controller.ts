@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -19,6 +20,10 @@ import { AssignRoleDto } from './dto/assign-role.dto';
 import { AttachPermissionDto } from './dto/attach-permission.dto';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
+import {
+  QueryPermissionGroupsDto,
+  QueryPermissionsDto,
+} from './dto/query-rbac.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { RbacService } from './rbac.service';
 
@@ -67,9 +72,17 @@ export class RbacController {
 
   @Get('roles')
   @RequirePermission('read', 'rbac')
-  @ApiOperation({ summary: '权限组列表(包含权限)' })
-  listRoles() {
-    return this.rbacService.listRoles();
+  @ApiOperation({ summary: '权限组列表(分页,包含权限)' })
+  listRoles(@Query() query: QueryPermissionGroupsDto) {
+    return this.rbacService.listRoles(query);
+  }
+
+  // 下拉选项源:全量、不分页。用户页的权限组选择器要能选到全部
+  @Get('roles/options')
+  @RequirePermission('read', 'rbac')
+  @ApiOperation({ summary: '权限组下拉选项(全量,不分页)' })
+  listRoleOptions() {
+    return this.rbacService.listRoleOptions();
   }
 
   @Delete('roles/:id')
@@ -111,9 +124,17 @@ export class RbacController {
 
   @Get('permissions')
   @RequirePermission('read', 'rbac')
-  @ApiOperation({ summary: '列表:所有权限' })
-  listPermissions() {
-    return this.rbacService.listPermissions();
+  @ApiOperation({ summary: '权限目录列表(分页)' })
+  listPermissions(@Query() query: QueryPermissionsDto) {
+    return this.rbacService.listPermissions(query);
+  }
+
+  // 勾选源:全量、不分页。权限组编辑弹窗要列出整个权限目录供勾选
+  @Get('permissions/options')
+  @RequirePermission('read', 'rbac')
+  @ApiOperation({ summary: '权限目录全量(不分页,供勾选)' })
+  listPermissionOptions() {
+    return this.rbacService.listPermissionOptions();
   }
 
   @Delete('permissions/:id')

@@ -29,18 +29,15 @@ import {
 import { TokenProjectsDialog } from '@/components/token-projects-dialog';
 import { Badge } from '@/components/ui/badge';
 import {
-  buildQueryString,
   getRequestErrorMessage,
   requestApi,
 } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import type {
-  PaginatedResponse,
   ProjectRecord,
   TokenRecord,
 } from '@/lib/models';
-import { refreshTableData, useTableQuery } from '@/lib/table-query';
-import { useFilterState } from '@/lib/use-filter-state';
+import { useServerTable } from '@/lib/use-server-table';
 
 type TokenActionType = 'revoke' | 'delete' | 'reset-usage';
 
@@ -128,31 +125,16 @@ export function TokenManagementPage({
   createDescription: string;
   showOnlineDevices?: boolean;
 }) {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [editingToken, setEditingToken] = useState<TokenRecord | null>(null);
   const [pendingAction, setPendingAction] = useState<TokenAction | null>(null);
   const queryClient = useQueryClient();
   const allowsExpiration = resourcePath === '/access-tokens';
-  const filters = useFilterState(EMPTY_FILTERS, {
-    onApply: () => setPage(1),
-    onReset: () => {
-      setPage(1);
-      void refreshTableData(queryClient, [resourceQueryKey]);
-    },
+  const table = useServerTable<TokenRecord, TokenFilters>({
+    resourceKey: resourceQueryKey,
+    endpoint: resourcePath,
+    emptyFilters: EMPTY_FILTERS,
   });
 
-  const tokensQuery = useTableQuery({
-    queryKey: [resourceQueryKey, filters.applied, page, pageSize],
-    queryFunction: () =>
-      requestApi<PaginatedResponse<TokenRecord>>(
-        `${resourcePath}${buildQueryString({
-          ...filters.applied,
-          page,
-          pageSize,
-        })}`,
-      ),
-  });
   const projectsQuery = useQuery({
     queryKey: ['projects'],
     queryFn: () => requestApi<ProjectRecord[]>('/projects'),
@@ -426,18 +408,14 @@ export function TokenManagementPage({
           />
         }
       />
-      {tokensQuery.isError ? <QueryErrorState /> : null}
+      {table.isError ? <QueryErrorState /> : null}
       <FilterBar
         fields={filterFields}
-        values={filters.draft}
-        onChange={filters.update}
-        onSubmit={filters.apply}
-        onReset={filters.reset}
+        {...table.filterBarProps}
       />
       <DataTable
         columns={columns}
-        rows={tokensQuery.data?.rows ?? []}
-        isLoading={tokensQuery.isLoading}
+        {...table.tableProps}
         emptyMessage="暂无令牌"
         rowKey={(token) => token.id}
         tableClassName={
@@ -446,17 +424,7 @@ export function TokenManagementPage({
             : 'min-w-[1140px] table-fixed'
         }
         footer={
-          <Pagination
-            page={tokensQuery.data?.page ?? page}
-            pageSize={tokensQuery.data?.pageSize ?? pageSize}
-            total={tokensQuery.data?.total ?? 0}
-            isPageTransitioning={tokensQuery.isPlaceholderData}
-            onPageChange={setPage}
-            onPageSizeChange={(newPageSize) => {
-              setPageSize(newPageSize);
-              setPage(1);
-            }}
-          />
+          <Pagination {...table.paginationProps} />
         }
       />
       {editingToken && allowsExpiration ? (

@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { and, count, eq, exists, inArray, max, SQL, sql } from 'drizzle-orm';
 import { PgColumn, PgTable } from 'drizzle-orm/pg-core';
+import { compactConditions, likeIf } from '../../common/db/filter-conditions';
+import { paginate } from '../../common/db/paginate';
 import { alive, softDelete } from '../../common/db/soft-delete';
 import { DbService } from '../../infrastructure/db/db.service';
 import { devices } from '../devices/devices.schema';
@@ -13,6 +15,7 @@ import {
   deviceTokens,
 } from '../device-token/device-token.schema';
 import { MetricsService } from '../metrics/metrics.service';
+import { QueryProjectsDto } from './dto/query-projects.dto';
 import { projects } from './projects.schema';
 
 const SEVEN_DAYS_IN_MILLISECONDS = 7 * 86_400_000;
@@ -192,17 +195,57 @@ export class ProjectsService {
   }
 
   // 每 project 派生统计(设备数/在线数/近7天/成功率/lastSeen + 运行态)
-  async groupInfo() {
+  /**
+   * 列表页数据源:只返回库里存在的基础字段,服务端筛选 + 分页。
+   * 设备聚合、近 7 天指标和运行态都是派生值,进不了 WHERE,拆到 statsByIds 单独取,
+   * 由列表页拿到当页 id 后二次请求——一条带 CASE 的大 SQL 换两次简单查询。
+   */
+  async listPaged(query: QueryProjectsDto = {}) {
+    const whereClause = alive(projects, ...this.buildListConditions(query));
+    return paginate(
+      this.database,
+      projects,
+      whereClause,
+      query,
+      (limit, offset) =>
+        this.database
+          .select({
+            id: projects.id,
+            name: projects.name,
+            description: projects.description,
+            enabled: projects.enabled,
+          })
+          .from(projects)
+          .where(whereClause)
+          .orderBy(projects.id)
+          .limit(limit)
+          .offset(offset),
+    );
+  }
+
+  private buildListConditions(query: QueryProjectsDto): SQL[] {
+    return compactConditions(
+      likeIf(projects.name, query.name),
+      query.enabled ? eq(projects.enabled, query.enabled === 'enabled') : null,
+    );
+  }
+
+  /**
+   * 派生统计:设备数、在线数、最后在线、近 7 天请求与成功率、运行态。
+   * 只算传入的这几个功能组——列表页每页 10 行,聚合范围随之从全表缩到 10 行。
+   */
+  async statsByIds(projectIds: number[]) {
+    if (projectIds.length === 0) {
+      return [];
+    }
     const projectRecords = await this.database
       .select({
         id: projects.id,
         name: projects.name,
-        description: projects.description,
         enabled: projects.enabled,
       })
       .from(projects)
-      .where(alive(projects))
-      .orderBy(projects.id);
+      .where(alive(projects, inArray(projects.id, projectIds)));
 
     // 设备计数:devices → device_tokens → device_token_projects,按 project_id 汇总(alive 设备)
     const deviceSummaryRows = await this.database
@@ -221,7 +264,7 @@ export class ProjectsService {
         deviceTokenProjects,
         eq(deviceTokens.id, deviceTokenProjects.tokenId),
       )
-      .where(alive(devices))
+      .where(alive(devices, inArray(deviceTokenProjects.projectId, projectIds)))
       .groupBy(deviceTokenProjects.projectId);
     const deviceSummaryByProject = new Map(
       deviceSummaryRows.map((deviceSummary) => [
@@ -240,27 +283,35 @@ export class ProjectsService {
       const { requests7d, success7d } = this.normalizeRequestMetrics(
         requestMetricsByProject.get(project.name),
       );
-      const status = deriveProjectStatus({
-        enabled: project.enabled,
-        totalDevices,
-        onlineDevices,
-        lastSeenAt,
-        currentTime,
-      });
       return {
-        id: project.id,
-        name: project.name,
-        description: project.description,
-        enabled: project.enabled,
+        projectId: project.id,
         totalDevices,
         onlineDevices,
         lastSeenAt,
         requests7d,
         success7d,
         successRate: this.successRate(success7d, requests7d),
-        status,
+        status: deriveProjectStatus({
+          enabled: project.enabled,
+          totalDevices,
+          onlineDevices,
+          lastSeenAt,
+          currentTime,
+        }),
       };
     });
+  }
+
+  /** 仪表盘计数:功能组总数与启用数,一条查询,不走列表接口。 */
+  async summary() {
+    const [summaryRow] = await this.database
+      .select({
+        total: sql<number>`count(*)::int`,
+        enabled: sql<number>`count(*) filter (where ${projects.enabled})::int`,
+      })
+      .from(projects)
+      .where(alive(projects));
+    return { total: summaryRow?.total ?? 0, enabled: summaryRow?.enabled ?? 0 };
   }
 
   private normalizeDeviceSummary(

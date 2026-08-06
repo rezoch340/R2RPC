@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Eye } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
@@ -18,11 +17,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { buildQueryString, requestApi } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
-import type { PaginatedResponse, RequestLogRecord } from '@/lib/models';
-import { refreshTableData, useTableQuery } from '@/lib/table-query';
-import { useFilterState } from '@/lib/use-filter-state';
+import type { RequestLogRecord } from '@/lib/models';
+import { toIsoDateRange, useServerTable } from '@/lib/use-server-table';
 import { RequestLogDetailContent } from './request-log-detail';
 
 interface RequestFilters {
@@ -101,38 +98,16 @@ const FILTER_FIELDS: Array<FilterFieldDefinition<keyof RequestFilters>> = [
 ];
 
 export default function RequestLogsPage() {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(
     null,
   );
-  const queryClient = useQueryClient();
-  const filters = useFilterState(EMPTY_FILTERS, {
-    onApply: () => setPage(1),
-    onReset: () => {
-      setPage(1);
-      void refreshTableData(queryClient, ['request-logs']);
-    },
+  const table = useServerTable<RequestLogRecord, RequestFilters>({
+    resourceKey: 'request-logs',
+    endpoint: '/monitor/requests',
+    emptyFilters: EMPTY_FILTERS,
+    transformFilters: toIsoDateRange,
   });
 
-  const queryString = buildQueryString({
-    ...filters.applied,
-    from: filters.applied.from
-      ? new Date(filters.applied.from).toISOString()
-      : undefined,
-    to: filters.applied.to
-      ? new Date(filters.applied.to).toISOString()
-      : undefined,
-    page,
-    pageSize,
-  });
-  const requestsQuery = useTableQuery({
-    queryKey: ['request-logs', filters.applied, page, pageSize],
-    queryFunction: () =>
-      requestApi<PaginatedResponse<RequestLogRecord>>(
-        `/monitor/requests${queryString}`,
-      ),
-  });
 
   const columns: Array<DataTableColumn<RequestLogRecord>> = [
     {
@@ -229,30 +204,16 @@ export default function RequestLogsPage() {
       />
       <FilterBar
         fields={FILTER_FIELDS}
-        values={filters.draft}
-        onChange={filters.update}
-        onSubmit={filters.apply}
-        onReset={filters.reset}
+        {...table.filterBarProps}
       />
-      {requestsQuery.isError ? <QueryErrorState /> : null}
+      {table.isError ? <QueryErrorState /> : null}
       <DataTable
         columns={columns}
-        rows={requestsQuery.data?.rows ?? []}
-        isLoading={requestsQuery.isLoading}
+        {...table.tableProps}
         emptyMessage="暂无请求日志"
         rowKey={(requestLog) => requestLog.requestId}
         footer={
-          <Pagination
-            page={requestsQuery.data?.page ?? page}
-            pageSize={requestsQuery.data?.pageSize ?? pageSize}
-            total={requestsQuery.data?.total ?? 0}
-            isPageTransitioning={requestsQuery.isPlaceholderData}
-            onPageChange={setPage}
-            onPageSizeChange={(newPageSize) => {
-              setPageSize(newPageSize);
-              setPage(1);
-            }}
-          />
+          <Pagination {...table.paginationProps} />
         }
       />
 
