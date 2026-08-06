@@ -4,6 +4,10 @@ on:
   push:
     tags:
       - 'v*'
+  # 兜底入口:tag 推送偶尔不产生 push 事件(v0.1.6 即如此),留一个手动触发。
+  # 运行时在「Use workflow from」里选目标 tag,github.ref_name 即该 tag 名;
+  # 误选分支会被下面的「校验 Docker 镜像标签」按 ^v[0-9] 挡掉,不会发出脏镜像。
+  workflow_dispatch:
 
 permissions:
   contents: read
