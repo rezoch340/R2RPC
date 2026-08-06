@@ -121,6 +121,22 @@ export class AccessTokenController {
     return this.tokens.revoke(accessTokenId);
   }
 
+  // 重置调用计数(总次数 + 当月计数一并清零)
+  @Post(':id/reset-usage')
+  @RequirePermission('manage', 'access-token')
+  @SystemAudit({
+    name: '重置 Access Token 调用次数',
+    action: 'reset-usage',
+    subject: 'access-token',
+    targetType: 'access-token',
+    targetParameter: 'id',
+    targetNameField: 'name',
+  })
+  @ApiOperation({ summary: '重置 access token 调用次数(总次数与当月计数清零)' })
+  resetUsage(@Param('id', ParseEntityIdPipe) accessTokenId: number) {
+    return this.tokens.resetUsage(accessTokenId);
+  }
+
   // 删除 token(软删,与撤销正交)
   @Delete(':id')
   @RequirePermission('manage', 'access-token')

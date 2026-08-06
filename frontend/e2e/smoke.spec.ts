@@ -302,7 +302,8 @@ test('表格切回、重置和定时刷新都重新请求数据', async ({ page 
   expect(accessTokenRequestCount).toBe(2);
 
   const resetResponse = page.waitForResponse(isAccessTokenApiResponse);
-  await page.getByRole('button', { name: '重置' }).click();
+  // exact:默认子串匹配会同时命中行内的「重置调用次数」按钮
+  await page.getByRole('button', { name: '重置', exact: true }).click();
   await resetResponse;
   expect(accessTokenRequestCount).toBe(3);
 

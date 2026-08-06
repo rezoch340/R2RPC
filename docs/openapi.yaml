@@ -1595,6 +1595,38 @@ paths:
       tags:
         - access-token
       description: 撤销 access token。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
+  /access-tokens/{id}/reset-usage:
+    post:
+      operationId: AccessTokenController_resetUsage
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '201':
+          description: 重置 access token 调用次数(总次数与当月计数清零)成功。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessTokenUsageReset'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - adminJwt: []
+      summary: 重置 access token 调用次数(总次数与当月计数清零)
+      tags:
+        - access-token
+      description: 重置 access token 调用次数(总次数与当月计数清零)。使用后台 JWT，并校验当前账号状态及对应 RBAC 权限。
   /rpc/debug/options:
     get:
       operationId: RpcController_debugOptions
@@ -2559,7 +2591,25 @@ components:
         usageCount:
           type: integer
           minimum: 0
-          description: 已消耗的 RPC 调用次数。
+          description: 已消耗的 RPC 调用次数（累计，受 maximumUsageCount 限制）。
+        monthlyUsageCount:
+          type: integer
+          minimum: 0
+          description: 当月（UTC）已消耗的 RPC 调用次数，跨月自动归零；仅用于展示，不参与限流。
+    AccessTokenUsageReset:
+      type: object
+      required:
+        - usageCount
+        - monthlyUsageCount
+      properties:
+        usageCount:
+          type: integer
+          minimum: 0
+          description: 重置后的累计次数。
+        monthlyUsageCount:
+          type: integer
+          minimum: 0
+          description: 重置后的当月次数。
     DeviceTokenRecord:
       type: object
       required:
