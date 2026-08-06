@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-08-06
+
 ### 破坏性变更
 - `GET /projects/info`、`GET /rbac/roles`、`GET /rbac/permissions` 由返回数组改为分页信封
   `{ rows, page, pageSize, total }`。
