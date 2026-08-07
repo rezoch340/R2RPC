@@ -9,7 +9,6 @@ import {
 import { Pencil, RotateCcw, ShieldX, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { CopyButton } from '@/components/copy-button';
 import {
   AccessTokenEditDialog,
   type AccessTokenUpdateValues,
@@ -18,6 +17,7 @@ import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
+import { MaskedIdentifier } from '@/components/masked-identifier';
 import { PermissionBoundary } from '@/components/permission-boundary';
 import { RowActions } from '@/components/row-actions';
 import { QueryErrorState } from '@/components/query-state';
@@ -257,19 +257,11 @@ export function TokenManagementPage({
       header: '令牌',
       className: 'w-60',
       render: (token) => (
-        <div className="flex min-w-0 items-center gap-1">
-          <code
-            className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 font-mono text-xs"
-            title={token.token}
-          >
-            {token.token}
-          </code>
-          <CopyButton
-            value={token.token}
-            label="复制令牌"
-            successMessage="令牌已复制"
-          />
-        </div>
+        <MaskedIdentifier
+          value={token.token}
+          label="复制令牌"
+          successMessage="令牌已复制"
+        />
       ),
     },
     {

@@ -113,6 +113,8 @@ export interface RequestLogRecord {
   projectName: string;
   actionName: string;
   clientId: string | null;
+  // 调用方自带的业务单号，未提供为 null；完整显示，不脱敏
+  clientRequestId: string | null;
   requesterUserId: number | null;
   accessTokenId: number | null;
   status: string;

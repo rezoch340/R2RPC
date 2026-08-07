@@ -5,6 +5,7 @@ import { Eye } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
 import { JsonBlock } from '@/components/json-block';
+import { MaskedIdentifier } from '@/components/masked-identifier';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { PermissionBoundary } from '@/components/permission-boundary';
@@ -68,7 +69,11 @@ export default function DevicesPage() {
       key: 'client',
       header: '客户端编号',
       render: (device) => (
-        <code className="font-mono text-xs">{device.clientId}</code>
+        <MaskedIdentifier
+          value={device.clientId}
+          label="复制客户端编号"
+          variant="fit"
+        />
       ),
     },
     {
