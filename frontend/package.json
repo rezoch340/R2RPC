@@ -1,6 +1,6 @@
 {
   "name": "r2rpc-frontend",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "R2RPC management console",
   "author": "R2RPC Contributors",
   "private": true,

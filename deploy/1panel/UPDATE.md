@@ -3,7 +3,7 @@
 本文用于已经按照[`README.md`](README.md)部署到 `/opt/r2rpc` 的生产环境。首次安装、域名、
 OpenResty、Cloudflare 和证书配置仍以部署文档为准。
 
-文中以 `v0.1.6` 为目标版本示例。更新其他版本时只修改 `target_version`，不要直接复制新的
+文中以 `v0.1.7` 为目标版本示例。更新其他版本时只修改 `target_version`，不要直接复制新的
 `deploy/config.production.example.yaml` 或 `deploy/compose.production.example.yaml` 覆盖生产文件。
 
 ## 更新原则
@@ -26,7 +26,7 @@ OpenResty、Cloudflare 和证书配置仍以部署文档为准。
 ```bash
 cd /opt/r2rpc
 
-target_version=v0.1.6
+target_version=v0.1.7
 repository_directory=/opt/r2rpc
 backup_directory="/opt/r2rpc-backups/$(date +%Y%m%d-%H%M%S)"
 
