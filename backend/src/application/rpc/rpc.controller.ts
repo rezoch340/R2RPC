@@ -137,9 +137,9 @@ export class RpcController {
     @Req() request: AuthedRequest,
   ) {
     const accessToken = request.accessToken!;
-    if (accessToken.maximumUsageCount !== null) {
-      await this.accessTokenService.consumeInvocation(accessToken.id);
-    }
+    // 不限量 token 也要走一次:当月计数对所有 token 都记,是否累加总次数由
+    // consumeInvocation 内部按 maximumUsageCount 判断
+    await this.accessTokenService.consumeInvocation(accessToken.id);
     return this.rpcService.invoke({
       project,
       action,

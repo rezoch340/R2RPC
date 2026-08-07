@@ -14,6 +14,15 @@
 - `GET /monitor/requests?clientRequestId=` 精确匹配检索,列表与详情均回显该字段。
 - 含迁移 `0012`:`request_logs` 新增 `client_request_id` 列与索引,纯 ADD COLUMN。
 
+### 修复
+- **不限次数的 access token 当月调用数恒为 0**(0.1.6 引入)。`consumeInvocation` 内部本就
+  按「总次数看上限、当月无条件累加」实现,但 `rpc.controller` 里留着一句早于该功能的
+  `if (maximumUsageCount !== null)` 短路,不限量 token 根本没调到它。已改为无条件调用;
+  作为补偿,不限量 token 不再失效鉴权缓存——它只动了当月计数,而该字段不在缓存里,
+  每次调用都删 key 等于让不限量 token 的热路径永远命中不了缓存。
+  修复前已发生的调用无法追回,不限量令牌的当月计数从升级后重新开始。
+  黑盒补一条断言(此前只有直连 service 的 integration 检查,绕过了 controller 这层短路)。
+
 ### 管理前端
 - 长编号统一走 `MaskedIdentifier`:令牌列固定首尾四位打码,设备编号与请求编号按列宽尽量
   多显示、放不下截断成省略号(上限 24 字符——不封顶的话表格 auto layout 会按内容把整列
