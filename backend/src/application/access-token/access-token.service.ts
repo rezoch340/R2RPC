@@ -300,7 +300,12 @@ export class AccessTokenService {
           }
           return this.resolveUnconsumedToken(accessTokenId);
         },
-        (tokenRecord) => accessTokenCacheKey(tokenRecord.token),
+        // 不限量 token 只动了当月计数,而鉴权缓存里根本没有这个字段,
+        // 每次调用都删缓存等于让不限量 token 的热路径永远命中不了缓存
+        (tokenRecord) =>
+          tokenRecord.maximumUsageCount === null
+            ? []
+            : accessTokenCacheKey(tokenRecord.token),
       );
     return accessTokenRecord.maximumUsageCount === null
       ? null

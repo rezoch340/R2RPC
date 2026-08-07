@@ -2113,6 +2113,16 @@ async function main() {
         unlimitedAccessToken.json.usageCount === 3,
       'access token 提高上限后恢复调用并可改回不限次数',
     );
+    const accessTokensBeforeUnlimitedInvocations = await httpRequest(
+      'GET',
+      '/access-tokens?pageSize=100',
+      undefined,
+      administratorAccessToken,
+    );
+    const monthlyUsageBeforeUnlimitedInvocations =
+      accessTokensBeforeUnlimitedInvocations.json.rows.find(
+        (token) => token.id === usageLimitedAccessToken.json.id,
+      ).monthlyUsageCount;
     const unlimitedInvocations = await Promise.all([
       httpRequest(
         'POST',
@@ -2141,6 +2151,11 @@ async function main() {
       unlimitedInvocations.every((response) => response.status < 300) &&
         unlimitedTokenAfterInvocations.usageCount === 3,
       '不限次数时 RPC 调用不再累计次数',
+    );
+    assert(
+      unlimitedTokenAfterInvocations.monthlyUsageCount ===
+        monthlyUsageBeforeUnlimitedInvocations + 2,
+      '不限次数令牌的当月调用照常累计',
     );
     const invalidUsageLimit = await httpRequest(
       'PATCH',
