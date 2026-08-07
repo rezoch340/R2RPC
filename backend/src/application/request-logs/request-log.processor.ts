@@ -8,6 +8,7 @@ import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { QUEUE } from '../../infrastructure/queue/queue.constants';
 import { SearchService } from '../../infrastructure/search/search.service';
+import { AccessTokenService } from '../access-token/access-token.service';
 import { MetricsService } from '../metrics/metrics.service';
 import { buildManticoreDoc } from './request-log.doc';
 import { RequestLogJob } from './request-log.types';
@@ -23,6 +24,7 @@ export class RequestLogProcessor extends WorkerHost {
     private readonly logs: RequestLogsService,
     private readonly search: SearchService,
     private readonly metrics: MetricsService,
+    private readonly accessTokens: AccessTokenService,
     @InjectQueue(QUEUE.DEAD_LETTER) private readonly deadLetterQueue: Queue,
   ) {
     super();
@@ -33,6 +35,10 @@ export class RequestLogProcessor extends WorkerHost {
     const newlyInserted = await this.logs.writeSpine(requestLog, 'pending');
     if (newlyInserted) {
       await this.metrics.recordCompletion(requestLog);
+      // 当月调用计数同样靠首插去重;后台手动调试没有 access token,跳过
+      if (requestLog.accessTokenId !== null) {
+        await this.accessTokens.recordMonthlyUsage(requestLog.accessTokenId);
+      }
     }
     await this.search.indexPayload(buildManticoreDoc(requestLog));
     await this.logs.markState(requestLog.requestId, 'indexed');

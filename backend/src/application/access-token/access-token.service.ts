@@ -275,15 +275,14 @@ export class AccessTokenService {
     const accessTokenRecord =
       await this.redisCacheAsideService.writeAndInvalidate(
         async () => {
-          // 总次数只在设了上限时累加(不限量 token 保持 0,与现有展示一致);
-          // 当月计数对所有 token 都记,周期变了就从 1 重新开始——跨月懒清零,
-          // 不依赖任何定时任务,Worker 停摆也不会漏。
+          // 只累加总次数,这是限流的一部分,必须留在热路径上原子完成;
+          // 不限量 token 保持 0,与「0 / 不限」的展示一致。
+          // 当月计数不在这里记——它只用于展示,由 Worker 消费请求日志时补,
+          // 见 recordMonthlyUsage。
           const [consumedTokenRecord] = await this.database
             .update(accessTokens)
             .set({
               usageCount: sql`CASE WHEN ${accessTokens.maximumUsageCount} IS NOT NULL THEN ${accessTokens.usageCount} + 1 ELSE ${accessTokens.usageCount} END`,
-              monthlyUsageCount: sql`CASE WHEN ${accessTokens.usagePeriod} = ${CURRENT_USAGE_PERIOD} THEN ${accessTokens.monthlyUsageCount} + 1 ELSE 1 END`,
-              usagePeriod: sql`${CURRENT_USAGE_PERIOD}`,
             })
             .where(
               alive(
@@ -300,16 +299,32 @@ export class AccessTokenService {
           }
           return this.resolveUnconsumedToken(accessTokenId);
         },
-        // 不限量 token 只动了当月计数,而鉴权缓存里根本没有这个字段,
-        // 每次调用都删缓存等于让不限量 token 的热路径永远命中不了缓存
-        (tokenRecord) =>
-          tokenRecord.maximumUsageCount === null
-            ? []
-            : accessTokenCacheKey(tokenRecord.token),
+        (tokenRecord) => accessTokenCacheKey(tokenRecord.token),
       );
     return accessTokenRecord.maximumUsageCount === null
       ? null
       : accessTokenRecord.usageCount;
+  }
+
+  /**
+   * 当月调用计数(冷路径):Worker 消费请求日志、脊柱首插时调一次,靠首插去重,
+   * 与 MetricsService.recordCompletion 同一套幂等口径,BullMQ 重试不会重复计。
+   *
+   * 刻意不放热路径:该计数纯展示、不参与限流,没必要让 invoke 同步等一次行级写,
+   * 也没必要让不限量 token 去争同一行的行锁。
+   * 刻意不失效鉴权缓存:guard 的缓存里没有这个字段,删了纯粹是浪费缓存命中。
+   *
+   * 周期对不上就从 1 重开——跨月懒清零,不依赖定时任务。
+   * token 已软删时 UPDATE 不命中,静默跳过:日志任务不该因为令牌被删就整条失败。
+   */
+  async recordMonthlyUsage(accessTokenId: number): Promise<void> {
+    await this.database
+      .update(accessTokens)
+      .set({
+        monthlyUsageCount: sql`CASE WHEN ${accessTokens.usagePeriod} = ${CURRENT_USAGE_PERIOD} THEN ${accessTokens.monthlyUsageCount} + 1 ELSE 1 END`,
+        usagePeriod: sql`${CURRENT_USAGE_PERIOD}`,
+      })
+      .where(alive(accessTokens, eq(accessTokens.id, accessTokenId)));
   }
 
   /**

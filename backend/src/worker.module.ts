@@ -4,6 +4,7 @@ import { MaintenanceProcessor } from './application/request-logs/maintenance.pro
 import { RequestLogProcessor } from './application/request-logs/request-log.processor';
 import { RequestLogsModule } from './application/request-logs/request-logs.module';
 import { WorkerBootstrap } from './application/request-logs/worker.bootstrap';
+import { AccessTokenModule } from './application/access-token/access-token.module';
 import { DevicesModule } from './application/devices/devices.module';
 import { MetricsModule } from './application/metrics/metrics.module';
 import { ConfigModule } from './infrastructure/config/config.module';
@@ -23,6 +24,8 @@ import { SearchModule } from './infrastructure/search/search.module';
     RequestLogsModule,
     DevicesModule,
     MetricsModule,
+    // 只为 RequestLogProcessor 补记当月调用计数;controller 在 worker 进程里不挂 HTTP
+    AccessTokenModule,
   ],
   providers: [
     RequestLogProcessor,

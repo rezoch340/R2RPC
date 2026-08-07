@@ -15,13 +15,21 @@
 - 含迁移 `0012`:`request_logs` 新增 `client_request_id` 列与索引,纯 ADD COLUMN。
 
 ### 修复
-- **不限次数的 access token 当月调用数恒为 0**(0.1.6 引入)。`consumeInvocation` 内部本就
-  按「总次数看上限、当月无条件累加」实现,但 `rpc.controller` 里留着一句早于该功能的
-  `if (maximumUsageCount !== null)` 短路,不限量 token 根本没调到它。已改为无条件调用;
-  作为补偿,不限量 token 不再失效鉴权缓存——它只动了当月计数,而该字段不在缓存里,
-  每次调用都删 key 等于让不限量 token 的热路径永远命中不了缓存。
+- **不限次数的 access token 当月调用数恒为 0**(0.1.6 引入)。当月计数原本挂在热路径的
+  `consumeInvocation` 上,而 `rpc.controller` 里留着一句早于该功能的
+  `if (maximumUsageCount !== null)` 短路,不限量 token 根本没调到它。
   修复前已发生的调用无法追回,不限量令牌的当月计数从升级后重新开始。
-  黑盒补一条断言(此前只有直连 service 的 integration 检查,绕过了 controller 这层短路)。
+
+### 变更
+- **当月调用计数移出热路径**,改由 Worker 消费请求日志时补记(`recordMonthlyUsage`),
+  与 `MetricsService.recordCompletion` 一样靠脊柱首插去重,BullMQ 重试不会重复计。
+  该计数纯展示、不参与限流,没有理由让 invoke 同步等一次行级写,也没有理由让不限量
+  token 去争同一行的行锁——而不限量 token 恰恰是最可能被高频打的那种。
+  热路径的 `consumeInvocation` 现在只做限流所需的总次数原子消耗,不限量 token 完全不写库。
+  代价:当月计数变成最终一致,Worker 落后时展示会滞后;Redis/BullMQ 不可用触发同步降级
+  写脊柱时,这一次调用的当月计数会漏。两者都只影响展示。
+- 黑盒补一条断言(此前只有直连 service 的 integration 检查,正好绕过了 controller
+  那层短路,所以 bug 溜了过去)。
 
 ### 管理前端
 - 长编号统一走 `MaskedIdentifier`:令牌列固定首尾四位打码,设备编号与请求编号按列宽尽量

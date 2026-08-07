@@ -61,8 +61,8 @@ async function seedProbe(
   return created.id;
 }
 
-// 限量 token:两次调用后总次数与当月计数同步递增
-async function checkCountsRiseTogether(
+// 热路径消耗只动总次数;当月计数由 Worker 侧的 recordMonthlyUsage 独立累加
+async function checkCountsAreRecordedSeparately(
   database: Database,
   tokenService: AccessTokenService,
   check: CheckFunction,
@@ -70,42 +70,53 @@ async function checkCountsRiseTogether(
   const tokenId = await seedProbe(database, 5);
   await tokenService.consumeInvocation(tokenId);
   await tokenService.consumeInvocation(tokenId);
-  const usage = await snapshot(database);
+  const afterConsume = await snapshot(database);
   check(
-    usage.usageCount === 2,
-    `限量 token 总次数为 2(实际 ${usage.usageCount})`,
+    afterConsume.usageCount === 2,
+    `限量 token 总次数为 2(实际 ${afterConsume.usageCount})`,
   );
   check(
-    usage.monthlyUsageCount === 2,
-    `限量 token 当月计数为 2(实际 ${usage.monthlyUsageCount})`,
+    afterConsume.monthlyUsageCount === 0,
+    `热路径消耗不写当月计数(实际 ${afterConsume.monthlyUsageCount})`,
+  );
+  await tokenService.recordMonthlyUsage(tokenId);
+  await tokenService.recordMonthlyUsage(tokenId);
+  const afterRecord = await snapshot(database);
+  check(
+    afterRecord.monthlyUsageCount === 2,
+    `Worker 补记两次后当月计数为 2(实际 ${afterRecord.monthlyUsageCount})`,
   );
   check(
-    usage.usagePeriod === currentPeriod(),
-    `周期键为当月 UTC(实际 ${usage.usagePeriod})`,
+    afterRecord.usageCount === 2,
+    `补记当月不影响总次数(实际 ${afterRecord.usageCount})`,
+  );
+  check(
+    afterRecord.usagePeriod === currentPeriod(),
+    `周期键为当月 UTC(实际 ${afterRecord.usagePeriod})`,
   );
 }
 
-// 跨月:周期对不上时当月计数从 1 重开,总次数继续累加
+// 跨月:周期对不上时当月计数从 1 重开
 async function checkMonthRollover(
   database: Database,
   tokenService: AccessTokenService,
   check: CheckFunction,
 ): Promise<void> {
   const tokenId = await seedProbe(database, 5);
-  await tokenService.consumeInvocation(tokenId);
+  await tokenService.recordMonthlyUsage(tokenId);
   await database
     .update(accessTokens)
     .set({ usagePeriod: '2000-01', monthlyUsageCount: 999 })
     .where(eq(accessTokens.id, tokenId));
-  await tokenService.consumeInvocation(tokenId);
+  await tokenService.recordMonthlyUsage(tokenId);
   const usage = await snapshot(database);
   check(
     usage.monthlyUsageCount === 1,
     `跨月后当月计数重置为 1(实际 ${usage.monthlyUsageCount})`,
   );
   check(
-    usage.usageCount === 2,
-    `跨月不影响总次数,应为 2(实际 ${usage.usageCount})`,
+    usage.usagePeriod === currentPeriod(),
+    `跨月后周期键归位当月(实际 ${usage.usagePeriod})`,
   );
 }
 
@@ -117,6 +128,7 @@ async function checkManualReset(
 ): Promise<void> {
   const tokenId = await seedProbe(database, 5);
   await tokenService.consumeInvocation(tokenId);
+  await tokenService.recordMonthlyUsage(tokenId);
   await tokenService.resetUsage(tokenId);
   const usage = await snapshot(database);
   check(
@@ -133,8 +145,8 @@ async function checkUnlimitedToken(
   check: CheckFunction,
 ): Promise<void> {
   const tokenId = await seedProbe(database, null);
-  await tokenService.consumeInvocation(tokenId);
-  await tokenService.consumeInvocation(tokenId);
+  await tokenService.recordMonthlyUsage(tokenId);
+  await tokenService.recordMonthlyUsage(tokenId);
   const usage = await snapshot(database);
   check(
     usage.monthlyUsageCount === 2,
@@ -146,7 +158,8 @@ async function checkUnlimitedToken(
   );
 }
 
-// 次数用尽:整条 UPDATE 不命中,当月计数也不再增长
+// 次数用尽:整条 UPDATE 不命中,总次数不再增长(该次调用被 429 拦在写日志之前,
+// 因此 Worker 也不会补记当月)
 async function checkExhaustedToken(
   database: Database,
   tokenService: AccessTokenService,
@@ -158,8 +171,8 @@ async function checkExhaustedToken(
   await tokenService.consumeInvocation(tokenId).catch(() => undefined);
   const afterRejected = await snapshot(database);
   check(
-    afterRejected.monthlyUsageCount === beforeRejected.monthlyUsageCount,
-    `次数用尽后当月计数不再增长(实际 ${afterRejected.monthlyUsageCount})`,
+    afterRejected.usageCount === beforeRejected.usageCount,
+    `次数用尽后总次数不再增长(实际 ${afterRejected.usageCount})`,
   );
 }
 
@@ -191,7 +204,7 @@ async function main() {
     }
   };
 
-  await checkCountsRiseTogether(database, tokenService, check);
+  await checkCountsAreRecordedSeparately(database, tokenService, check);
   await checkMonthRollover(database, tokenService, check);
   await checkManualReset(database, tokenService, check);
   await checkUnlimitedToken(database, tokenService, check);

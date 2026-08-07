@@ -137,9 +137,11 @@ export class RpcController {
     @Req() request: AuthedRequest,
   ) {
     const accessToken = request.accessToken!;
-    // 不限量 token 也要走一次:当月计数对所有 token 都记,是否累加总次数由
-    // consumeInvocation 内部按 maximumUsageCount 判断
-    await this.accessTokenService.consumeInvocation(accessToken.id);
+    // 热路径只做限流所需的原子消耗,不限量 token 没有上限可查,直接跳过这次写。
+    // 当月计数是纯展示数据,由 Worker 消费请求日志时补(见 recordMonthlyUsage)
+    if (accessToken.maximumUsageCount !== null) {
+      await this.accessTokenService.consumeInvocation(accessToken.id);
+    }
     return this.rpcService.invoke({
       project,
       action,
