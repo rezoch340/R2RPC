@@ -430,10 +430,7 @@ async function assertPaginationBoundaries(administratorAccessToken) {
     `逐页累加行数等于 total(${accumulatedRowCount} = ${totalUsers})`,
   );
   const boundaryPageSize = await readList('?pageSize=100');
-  assert(
-    boundaryPageSize.status === 200,
-    'pageSize=100 是允许的上界而非越界',
-  );
+  assert(boundaryPageSize.status === 200, 'pageSize=100 是允许的上界而非越界');
 }
 
 // 三个原本返回数组的端点补齐分页,另加两个下拉选项源和仪表盘专用接口。
@@ -534,6 +531,97 @@ async function assertNewlyPaginatedEndpoints(administratorAccessToken) {
     overview.json.projects.total === projectSummaryTotal,
     '仪表盘功能组计数与 /projects/summary 一致',
   );
+}
+
+// 调用方业务单号:只落日志、可检索,不参与路由与去重(内部 requestId 仍由服务端独占)
+async function assertClientRequestId({
+  administratorAccessToken,
+  callerToken,
+  project,
+}) {
+  const businessOrderNumber = `order-${Date.now()}`;
+  const invoked = await httpRequest(
+    'POST',
+    `/rpc/invoke/${project}/echo`,
+    {
+      payload: { probe: 'client-request-id' },
+      clientRequestId: businessOrderNumber,
+    },
+    callerToken,
+  );
+  assert(
+    invoked.status < 300 && typeof invoked.json.requestId === 'string',
+    `带 clientRequestId 的 invoke 正常返回(status ${invoked.status})`,
+  );
+  const internalRequestId = invoked.json.requestId;
+  assert(
+    internalRequestId !== businessOrderNumber,
+    '内部 requestId 与调用方单号相互独立,外部值不会顶替内部键',
+  );
+  await waitRequestIndexed(administratorAccessToken, internalRequestId);
+
+  const filtered = await httpRequest(
+    'GET',
+    `/monitor/requests?clientRequestId=${encodeURIComponent(businessOrderNumber)}&pageSize=10`,
+    undefined,
+    administratorAccessToken,
+  );
+  const matchedRow = filtered.json.rows?.find(
+    (row) => row.requestId === internalRequestId,
+  );
+  assert(
+    filtered.status === 200 && !!matchedRow,
+    '可按 clientRequestId 精确检索到该次调用',
+  );
+  assert(
+    matchedRow?.clientRequestId === businessOrderNumber,
+    '列表回显调用方单号',
+  );
+
+  // 不传时应为 null,而不是拿内部 requestId 顶上——否则分不清「调用方打过标签」与「系统补的」
+  const withoutOrderNumber = await httpRequest(
+    'POST',
+    `/rpc/invoke/${project}/echo`,
+    { payload: { probe: 'no-client-request-id' } },
+    callerToken,
+  );
+  await waitRequestIndexed(
+    administratorAccessToken,
+    withoutOrderNumber.json.requestId,
+  );
+  const plainRow = await httpRequest(
+    'GET',
+    `/monitor/requests?pageSize=20`,
+    undefined,
+    administratorAccessToken,
+  );
+  const untagged = plainRow.json.rows?.find(
+    (row) => row.requestId === withoutOrderNumber.json.requestId,
+  );
+  assert(
+    untagged?.clientRequestId === null,
+    `未传单号时字段为 null(实际 ${JSON.stringify(untagged?.clientRequestId)})`,
+  );
+
+  const missFilter = await httpRequest(
+    'GET',
+    '/monitor/requests?clientRequestId=definitely-no-such-order&pageSize=10',
+    undefined,
+    administratorAccessToken,
+  );
+  assert(
+    missFilter.status === 200 && missFilter.json.total === 0,
+    '按不存在的单号检索返回空结果',
+  );
+
+  const overlongOrderNumber = 'x'.repeat(129);
+  const rejected = await httpRequest(
+    'POST',
+    `/rpc/invoke/${project}/echo`,
+    { payload: {}, clientRequestId: overlongOrderNumber },
+    callerToken,
+  );
+  assert(rejected.status === 400, '超过 128 字符的单号被拒绝');
 }
 
 async function main() {
@@ -3027,9 +3115,8 @@ async function main() {
       administratorAccessToken,
     );
     assert(
-      disabledStats.json.find(
-        (row) => row.projectId === projects.main.id,
-      )?.status === 'disabled',
+      disabledStats.json.find((row) => row.projectId === projects.main.id)
+        ?.status === 'disabled',
       '停用 project 的派生统计状态为 disabled',
     );
     await httpRequest(
@@ -3555,6 +3642,13 @@ async function main() {
 
     section('补齐分页的端点与仪表盘接口');
     await assertNewlyPaginatedEndpoints(administratorAccessToken);
+
+    section('调用方业务单号 clientRequestId');
+    await assertClientRequestId({
+      administratorAccessToken,
+      callerToken: accessToken,
+      project: projectNames.main,
+    });
   } finally {
     await bestEffortCleanup(administratorAccessToken);
   }

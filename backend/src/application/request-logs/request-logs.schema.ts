@@ -17,6 +17,9 @@ export const requestLogs = pgTable(
     projectName: varchar('project_name', { length: 128 }).notNull(),
     actionName: varchar('action_name', { length: 128 }).notNull(),
     clientId: varchar('client_id', { length: 128 }),
+    // 调用方自带的业务单号,只记录不参与路由。requestId 仍由服务端生成并独占
+    // 唯一索引、waiter 路由与去重键——外部值当内部键会导致结果串台和审计被静默吞掉
+    clientRequestId: varchar('client_request_id', { length: 128 }),
     requesterUserId: integer('requester_user_id'),
     accessTokenId: integer('access_token_id'),
     status: varchar('status', { length: 32 }).notNull(),
@@ -46,6 +49,7 @@ export const requestLogs = pgTable(
       table.createdAt,
     ),
     index('req_logs_client_created').on(table.clientId, table.createdAt),
+    index('req_logs_client_request_id').on(table.clientRequestId),
     index('req_logs_action_created').on(table.actionName, table.createdAt),
     index('req_logs_created_ga').on(
       table.createdAt,

@@ -72,6 +72,11 @@ const requestLogProperties = {
   projectName: { type: 'string', example: 'cn-nodes' },
   actionName: { type: 'string', example: 'ping' },
   clientId: nullableStringSchema,
+  clientRequestId: {
+    ...nullableStringSchema,
+    description:
+      '调用方在 invoke 时自带的业务单号,仅供检索;未提供则为 null。与内部 requestId 无关,不参与路由与去重。',
+  },
   requesterUserId: { type: 'integer', nullable: true },
   accessTokenId: { type: 'integer', nullable: true },
   status: {

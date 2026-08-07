@@ -2031,6 +2031,12 @@ paths:
           in: query
           schema:
             type: string
+        - name: clientRequestId
+          required: false
+          in: query
+          description: 调用方业务单号,精确匹配
+          schema:
+            type: string
         - name: accessTokenId
           required: false
           in: query
@@ -2533,6 +2539,10 @@ components:
           type: number
           description: 超时秒数
           default: 20
+        clientRequestId:
+          type: string
+          description: 调用方业务单号,仅供请求日志检索;不参与路由与去重
+          maxLength: 128
         payload:
           type: object
           description: 调用负载(扁平对象)
@@ -3299,6 +3309,10 @@ components:
         clientId:
           type: string
           nullable: true
+        clientRequestId:
+          type: string
+          nullable: true
+          description: 调用方在 invoke 时自带的业务单号,仅供检索;未提供则为 null。与内部 requestId 无关,不参与路由与去重。
         requesterUserId:
           type: integer
           nullable: true
@@ -3514,6 +3528,7 @@ components:
         - projectName
         - actionName
         - clientId
+        - clientRequestId
         - requesterUserId
         - accessTokenId
         - status
@@ -3543,6 +3558,10 @@ components:
         clientId:
           type: string
           nullable: true
+        clientRequestId:
+          type: string
+          nullable: true
+          description: 调用方在 invoke 时自带的业务单号,仅供检索;未提供则为 null。与内部 requestId 无关,不参与路由与去重。
         requesterUserId:
           type: integer
           nullable: true

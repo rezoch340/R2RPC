@@ -21,6 +21,7 @@ describe('请求日志 Manticore 文档', () => {
       requestId: 'request-fixture',
       project: 'project-fixture',
       action: 'action-fixture',
+      clientRequestId: null,
       clientId: 'device-fixture',
       requesterUserId: null,
       accessTokenId: 1,

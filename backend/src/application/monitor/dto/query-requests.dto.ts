@@ -15,6 +15,11 @@ export class QueryRequestsDto extends PaginationQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() project?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() action?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() clientId?: string;
+
+  @ApiPropertyOptional({ description: '调用方业务单号,精确匹配' })
+  @IsOptional()
+  @IsString()
+  clientRequestId?: string;
   @ApiPropertyOptional({ description: 'Access Token 数据库编号精确匹配' })
   @IsOptional()
   @Type(() => Number)

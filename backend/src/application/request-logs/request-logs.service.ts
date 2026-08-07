@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { and, desc, eq, gte, isNotNull, lt, lte, SQL, sql } from 'drizzle-orm';
 import { DbService } from '../../infrastructure/db/db.service';
+import { compactConditions, eqIf } from '../../common/db/filter-conditions';
 import { paginate } from '../../common/db/paginate';
 import { alive } from '../../common/db/soft-delete';
 import { devices } from '../devices/devices.schema';
@@ -14,6 +15,7 @@ export interface ListFilter {
   project?: string;
   action?: string;
   clientId?: string;
+  clientRequestId?: string;
   accessTokenId?: number;
   status?: string;
   payloadState?: string;
@@ -39,6 +41,7 @@ const REQUEST_LOG_SPINE_COLUMNS = {
   projectName: requestLogs.projectName,
   actionName: requestLogs.actionName,
   clientId: requestLogs.clientId,
+  clientRequestId: requestLogs.clientRequestId,
   // 调用方身份是取证脊柱的一部分:落库时已写入,OpenAPI 也声明了,必须一并选出来返回
   accessTokenId: requestLogs.accessTokenId,
   requesterUserId: requestLogs.requesterUserId,
@@ -67,6 +70,7 @@ export class RequestLogsService {
       .insert(requestLogs)
       .values({
         requestId: job.requestId,
+        clientRequestId: job.clientRequestId,
         projectName: job.project,
         actionName: job.action,
         clientId: job.clientId ?? null,
@@ -113,36 +117,25 @@ export class RequestLogsService {
   }
 
   private buildListConditions(filter: ListFilter): SQL[] {
-    const conditions: SQL[] = [];
-    if (filter.project) {
-      conditions.push(eq(requestLogs.projectName, filter.project));
-    }
-    if (filter.action) {
-      conditions.push(eq(requestLogs.actionName, filter.action));
-    }
-    if (filter.clientId) {
-      conditions.push(eq(requestLogs.clientId, filter.clientId));
-    }
-    conditions.push(...accessTokenIdConditions(filter.accessTokenId));
-    if (filter.status) {
-      conditions.push(eq(requestLogs.status, filter.status));
-    }
-    if (filter.payloadState) {
-      conditions.push(eq(requestLogs.payloadState, filter.payloadState));
-    }
-    if (filter.minimumLatencyMs !== undefined) {
-      conditions.push(gte(requestLogs.latencyMs, filter.minimumLatencyMs));
-    }
-    if (filter.maximumLatencyMs !== undefined) {
-      conditions.push(lte(requestLogs.latencyMs, filter.maximumLatencyMs));
-    }
-    if (filter.from) {
-      conditions.push(gte(requestLogs.createdAt, filter.from));
-    }
-    if (filter.to) {
-      conditions.push(lte(requestLogs.createdAt, filter.to));
-    }
-    return conditions;
+    return compactConditions(
+      eqIf(requestLogs.projectName, filter.project),
+      eqIf(requestLogs.actionName, filter.action),
+      eqIf(requestLogs.clientId, filter.clientId),
+      // 精确匹配:调用方查的是自己传的全值,走 btree 索引;
+      // request_logs 是全库最大的表,不用 ILIKE 包含匹配拖全表
+      eqIf(requestLogs.clientRequestId, filter.clientRequestId),
+      ...accessTokenIdConditions(filter.accessTokenId),
+      eqIf(requestLogs.status, filter.status),
+      eqIf(requestLogs.payloadState, filter.payloadState),
+      filter.minimumLatencyMs !== undefined
+        ? gte(requestLogs.latencyMs, filter.minimumLatencyMs)
+        : null,
+      filter.maximumLatencyMs !== undefined
+        ? lte(requestLogs.latencyMs, filter.maximumLatencyMs)
+        : null,
+      filter.from ? gte(requestLogs.createdAt, filter.from) : null,
+      filter.to ? lte(requestLogs.createdAt, filter.to) : null,
+    );
   }
 
   // 监控筛选下拉选项:从 request_logs 去重取 project/action/client 三类候选,供 UI 下拉。
