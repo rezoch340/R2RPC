@@ -2152,10 +2152,31 @@ async function main() {
         unlimitedTokenAfterInvocations.usageCount === 3,
       '不限次数时 RPC 调用不再累计次数',
     );
+    // 当月计数走 Worker 冷路径,要等队列消费;用 >= 而不是 == 是因为取基线时
+    // 之前那几次调用的日志可能还没消费完,滞后只会让终值偏大,不会偏小
+    const monthlyUsageAfterUnlimitedInvocations = await waitFor(
+      '不限次数令牌的当月调用被 Worker 补记',
+      async () => {
+        const accessTokensNow = await httpRequest(
+          'GET',
+          '/access-tokens?pageSize=100',
+          undefined,
+          administratorAccessToken,
+        );
+        const tokenNow = accessTokensNow.json.rows.find(
+          (token) => token.id === usageLimitedAccessToken.json.id,
+        );
+        return tokenNow.monthlyUsageCount >=
+          monthlyUsageBeforeUnlimitedInvocations + 2
+          ? tokenNow.monthlyUsageCount
+          : null;
+      },
+      15000,
+      200,
+    ).catch(() => null);
     assert(
-      unlimitedTokenAfterInvocations.monthlyUsageCount ===
-        monthlyUsageBeforeUnlimitedInvocations + 2,
-      '不限次数令牌的当月调用照常累计',
+      monthlyUsageAfterUnlimitedInvocations !== null,
+      '不限次数令牌的当月调用由 Worker 补记',
     );
     const invalidUsageLimit = await httpRequest(
       'PATCH',
