@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { AuthenticationProvider } from '@/lib/auth';
 import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -26,7 +27,9 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthenticationProvider>{children}</AuthenticationProvider>
+      <AuthenticationProvider>
+        <TooltipProvider>{children}</TooltipProvider>
+      </AuthenticationProvider>
       <Toaster richColors position="top-right" />
     </QueryClientProvider>
   );

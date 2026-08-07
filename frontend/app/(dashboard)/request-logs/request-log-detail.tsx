@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight, Clock3, ListChecks } from 'lucide-react';
+import { CopyButton } from '@/components/copy-button';
 import { JsonBlock } from '@/components/json-block';
 import { QueryErrorState } from '@/components/query-state';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -38,7 +39,11 @@ export function RequestLogDetailContent({ requestId }: { requestId: string }) {
           label="耗时"
           value={`${requestDetail.latencyMs ?? 0} ms`}
         />
-        <SummaryItem label="设备" value={requestDetail.clientId ?? '未分配'} />
+        <SummaryItem
+          label="设备"
+          value={requestDetail.clientId ?? '未分配'}
+          copyLabel={requestDetail.clientId ? '复制设备编号' : undefined}
+        />
         <SummaryItem label="状态" value={requestDetail.status} />
         <SummaryItem
           label="完成时间"
@@ -104,11 +109,23 @@ export function RequestLogDetailContent({ requestId }: { requestId: string }) {
   );
 }
 
-function SummaryItem({ label, value }: { label: string; value: string }) {
+// 抽屉里空间够,长编号直接换行显示全值;copyLabel 传了才出复制按钮
+function SummaryItem({
+  label,
+  value,
+  copyLabel,
+}: {
+  label: string;
+  value: string;
+  copyLabel?: string;
+}) {
   return (
     <div className="rounded-xl bg-muted/50 p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 break-all font-mono text-xs">{value}</p>
+      <div className="mt-1 flex items-start gap-1">
+        <p className="min-w-0 flex-1 break-all font-mono text-xs">{value}</p>
+        {copyLabel ? <CopyButton value={value} label={copyLabel} /> : null}
+      </div>
     </div>
   );
 }

@@ -485,6 +485,30 @@ test('请求日志显示访问令牌编号且详情从右侧打开', async ({ pa
   }
 });
 
+test('请求日志的长编号可悬停查看完整值并复制', async ({ page }) => {
+  await page.goto('/request-logs');
+  // 设备列按列宽尽量多显示、放不下才截断；请求编号列固定首尾四位打码。
+  // 两者都不在 DOM 里丢失完整值，故统一用「悬停出完整值」这一行为来断言。
+  const identifier = page
+    .locator('[data-slot="table-body"] [data-slot="table-row"]')
+    .locator('[data-slot="tooltip-trigger"]')
+    .first();
+  await expect(identifier).toBeVisible();
+  const displayedText = (await identifier.innerText()).trim();
+
+  await identifier.hover();
+  const tooltip = page.locator('[data-slot="tooltip-content"]');
+  await expect(tooltip).toBeVisible();
+  const fullIdentifier = (await tooltip.innerText()).trim();
+  expect(fullIdentifier.length).toBeGreaterThan(0);
+  // 无论截断还是打码，开头四位都保留，便于肉眼比对
+  expect(fullIdentifier.startsWith(displayedText.slice(0, 4))).toBe(true);
+
+  await expect(
+    page.getByRole('button', { name: '复制请求编号' }).first(),
+  ).toBeVisible();
+});
+
 test('账号菜单提供本人改密入口', async ({ page }) => {
   await page.getByRole('button', { name: username }).click();
   await page.getByText('修改我的密码').click();

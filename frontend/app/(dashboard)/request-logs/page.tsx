@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Eye } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/data-table';
 import { FilterBar, type FilterFieldDefinition } from '@/components/filter-bar';
+import { MaskedIdentifier } from '@/components/masked-identifier';
 import { PageHeader } from '@/components/page-header';
 import { Pagination } from '@/components/pagination';
 import { PermissionBoundary } from '@/components/permission-boundary';
@@ -26,6 +27,7 @@ interface RequestFilters {
   project: string;
   action: string;
   clientId: string;
+  clientRequestId: string;
   accessTokenId: string;
   status: string;
   payloadState: string;
@@ -39,6 +41,7 @@ const EMPTY_FILTERS: RequestFilters = {
   project: '',
   action: '',
   clientId: '',
+  clientRequestId: '',
   accessTokenId: '',
   status: '',
   payloadState: '',
@@ -52,6 +55,11 @@ const FILTER_FIELDS: Array<FilterFieldDefinition<keyof RequestFilters>> = [
   { key: 'project', label: '功能组', placeholder: '功能组名称' },
   { key: 'action', label: '动作', placeholder: '动作名称' },
   { key: 'clientId', label: '设备编号', placeholder: '客户端编号' },
+  {
+    key: 'clientRequestId',
+    label: '业务单号',
+    placeholder: '调用方传入的完整单号',
+  },
   {
     key: 'accessTokenId',
     label: '访问令牌编号',
@@ -112,11 +120,23 @@ export default function RequestLogsPage() {
   const columns: Array<DataTableColumn<RequestLogRecord>> = [
     {
       key: 'request',
-      header: '请求编号',
+      header: '业务单号 / 请求编号',
       render: (requestLog) => (
-        <code className="block max-w-48 truncate font-mono text-xs">
-          {requestLog.requestId}
-        </code>
+        <div className="min-w-0">
+          {/* 业务单号是调用方用来对账的,完整显示不打码;没传就只剩内部编号 */}
+          <p className="font-mono text-xs break-all">
+            {requestLog.clientRequestId ?? (
+              <span className="text-muted-foreground">未提供</span>
+            )}
+          </p>
+          <span className="mt-0.5 block text-muted-foreground">
+            <MaskedIdentifier
+              value={requestLog.requestId}
+              label="复制请求编号"
+              variant="fit"
+            />
+          </span>
+        </div>
       ),
     },
     {
@@ -135,9 +155,11 @@ export default function RequestLogsPage() {
       key: 'device',
       header: '设备',
       render: (requestLog) => (
-        <code className="font-mono text-xs">
-          {requestLog.clientId ?? '未分配'}
-        </code>
+        <MaskedIdentifier
+          value={requestLog.clientId}
+          label="复制设备编号"
+          variant="fit"
+        />
       ),
     },
     {
