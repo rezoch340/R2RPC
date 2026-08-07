@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-08-07
+
 ### 新增
 - `POST /rpc/invoke/:project/:action` 支持可选 `clientRequestId`(≤128 字符):调用方自带的业务
   单号,只落请求日志供检索,可空、可重复。内部 `requestId` 仍由服务端生成并独占 waiter 路由、
@@ -11,6 +13,18 @@
   `onConflictDoNothing` 静默吞掉。
 - `GET /monitor/requests?clientRequestId=` 精确匹配检索,列表与详情均回显该字段。
 - 含迁移 `0012`:`request_logs` 新增 `client_request_id` 列与索引,纯 ADD COLUMN。
+
+### 管理前端
+- 长编号统一走 `MaskedIdentifier`:令牌列固定首尾四位打码,设备编号与请求编号按列宽尽量
+  多显示、放不下截断成省略号(上限 24 字符——不封顶的话表格 auto layout 会按内容把整列
+  撑宽)。两种形态都可悬停看完整值并一键复制。
+- 请求日志新增「业务单号」列与精确匹配筛选,该字段是调用方用来对账的,完整显示不打码。
+- 请求日志详情抽屉的设备编号补复制按钮。
+- 新增基于 `@base-ui/react` 的 Tooltip 组件,`TooltipProvider` 挂在全局 Providers。
+
+### 已知限制
+- 请求日志 9 列的 min-content 合计约 1170px,窄面板下仍会横向滚动。长编号封顶后不再额外
+  顶宽,但要彻底消除得减列或给低价值列加断点隐藏。
 
 ## [0.1.6] - 2026-08-06
 
