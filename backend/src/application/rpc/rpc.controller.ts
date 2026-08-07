@@ -108,6 +108,7 @@ export class RpcController {
       action,
       payload: input.payload,
       timeoutSeconds: input.timeoutSeconds,
+      clientRequestId: input.clientRequestId,
       clientId,
       requesterUserId: request.user!.id,
     });
@@ -144,6 +145,7 @@ export class RpcController {
       action,
       payload: input.payload,
       timeoutSeconds: input.timeoutSeconds,
+      clientRequestId: input.clientRequestId,
       clientId,
       accessTokenId: accessToken.id,
     });

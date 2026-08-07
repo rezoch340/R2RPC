@@ -15,6 +15,8 @@ export interface InvokeParams {
   payload: unknown;
   timeoutSeconds?: number;
   clientId?: string;
+  // 调用方自带的业务单号,只落日志供检索;路由与去重仍只用内部生成的 requestId
+  clientRequestId?: string;
   // 公开 invoke 记录 access token，管理控制台手动调试记录后台用户。
   accessTokenId?: number;
   requesterUserId?: number;
@@ -442,6 +444,7 @@ export class RpcService {
       project: input.project,
       action: input.action,
       clientId: response.clientId,
+      clientRequestId: input.clientRequestId ?? null,
       requesterUserId: input.requesterUserId ?? null,
       accessTokenId: input.accessTokenId ?? null,
       status: response.status,

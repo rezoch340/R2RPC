@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### 新增
+- `POST /rpc/invoke/:project/:action` 支持可选 `clientRequestId`(≤128 字符):调用方自带的业务
+  单号,只落请求日志供检索,可空、可重复。内部 `requestId` 仍由服务端生成并独占 waiter 路由、
+  跨实例去重与唯一索引——外部值当内部键会导致结果串台,以及复用同一值时后续日志被
+  `onConflictDoNothing` 静默吞掉。
+- `GET /monitor/requests?clientRequestId=` 精确匹配检索,列表与详情均回显该字段。
+- 含迁移 `0012`:`request_logs` 新增 `client_request_id` 列与索引,纯 ADD COLUMN。
+
 ## [0.1.6] - 2026-08-06
 
 ### 破坏性变更

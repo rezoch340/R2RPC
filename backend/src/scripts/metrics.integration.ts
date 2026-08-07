@@ -75,6 +75,7 @@ function requestLogJob(
     project: PROJECT_NAME,
     action: ACTION_NAME,
     clientId: CLIENT_ID,
+    clientRequestId: null,
     requesterUserId: null,
     accessTokenId: null,
     status,

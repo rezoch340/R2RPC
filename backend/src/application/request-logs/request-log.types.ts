@@ -6,6 +6,8 @@ export interface RequestLogJob {
   project: string;
   action: string;
   clientId: string | null;
+  // 调用方自带的业务单号,可空;与内部 requestId 无关
+  clientRequestId: string | null;
   requesterUserId: number | string | null;
   // 3.4 起 invoke 调用方是 access token,记录 token id(用户态调用暂无,留 null)
   accessTokenId: number | null;
